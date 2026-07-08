@@ -1,11 +1,17 @@
 [project]
-name = "blank-app-template"
+name = "tea-cfm"
 version = "0.1.0"
-description = "A simple Streamlit app template."
+description = "PV-Cashflow-Rechner"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
-    "streamlit>=1.59.0",
+    "streamlit>=1.30",
+    "pydantic>=2.0",
+    "pandas>=2.0",
+    "numpy-financial>=1.0",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "plotly>=5.18",
 ]
 
 [tool.uv]
