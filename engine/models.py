@@ -76,6 +76,7 @@ class PVProject(BaseModel):
     id: str
     name: str
     inbetriebnahme_jahr: int = Field(default_factory=lambda: datetime.now().year + 1)
+    inbetriebnahme_monat: int = Field(ge=1, le=12, default=1)
 
     # Technische Anlagenparameter
     anlagentyp: AnlagenTyp
@@ -130,6 +131,11 @@ class GlobalAssumptions(BaseModel):
     # Standardbetriebskosten (Pacht kommt separat aus dem Projekt)
     opex_standard: list[OpexItem] = Field(default_factory=list)
 
+    # Gemeindeabgabe: pro erzeugter kWh an die Standortgemeinde, unabhaengig
+    # von der Anlagengroesse. Deshalb kein OpexItem (das ist EUR/kWp/Jahr-
+    # basiert), sondern ein eigener Produktions-basierter Satz.
+    gemeindeabgabe_eur_kwh: float = Field(ge=0, default=0.002)
+
     # Technische Standardannahmen
     degradation_pct_pa: float = 0.0
     sicherheitsabschlag_pct: float = 0.0
@@ -139,7 +145,7 @@ class GlobalAssumptions(BaseModel):
     betriebsdauer_jahre: int = Field(gt=0, default=25)
 
     # Finanzierung
-    kreditlaufzeit_jahre: int = Field(gt=0, default=15)
+    kreditlaufzeit_jahre: int = Field(gt=0, default=20)
     tilgungsart: TilgungsArt = TilgungsArt.ANNUITAET
 
     # Steuer
@@ -168,6 +174,7 @@ class GlobalAssumptions(BaseModel):
 class EffectiveAssumptions(BaseModel):
     source_project_id: str
     inbetriebnahme_jahr: int
+    inbetriebnahme_monat: int
     nennleistung_kwp: float
     vollbenutzungsstunden_kwh_kwp: float
     degradation_pct_pa: float
@@ -180,6 +187,7 @@ class EffectiveAssumptions(BaseModel):
     anteil_negativer_stunden_pct_je_jahr: dict[int, float]
 
     opex_items: list[OpexItem]
+    gemeindeabgabe_eur_kwh: float
 
     capex_total_eur: float
     eigenkapitalquote_pct: float

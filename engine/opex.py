@@ -1,7 +1,9 @@
 """
 Berechnet die Betriebskosten-Zeitreihe aus den globalen Standard-OPEX-
-Positionen plus der projektspezifischen Pacht (wird in pipeline.py bereits
-zu einer gemeinsamen Liste zusammengefuehrt und hier uebergeben).
+Positionen (EUR/kWp/Jahr-basiert) plus der projektspezifischen Pacht (wird
+in pipeline.py bereits zu einer gemeinsamen Liste zusammengefuehrt) plus
+der Gemeindeabgabe (produktionsbasiert, EUR/kWh - deshalb kein OpexItem,
+sondern ein separater Parameter).
 """
 
 from __future__ import annotations
@@ -10,11 +12,15 @@ import pandas as pd
 
 from .models import OpexItem
 
-OPEX_COLUMNS = ["jahr", "opex_gesamt_eur"]
+OPEX_COLUMNS = ["jahr", "opex_gesamt_eur", "gemeindeabgabe_eur"]
 
 
 def calculate_opex(
-    timeline: pd.DataFrame, opex_items: list[OpexItem], nennleistung_kwp: float
+    timeline: pd.DataFrame,
+    opex_items: list[OpexItem],
+    nennleistung_kwp: float,
+    energy: pd.DataFrame,
+    gemeindeabgabe_eur_kwh: float = 0.0,
 ) -> pd.DataFrame:
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
@@ -27,5 +33,10 @@ def calculate_opex(
         indexierter_betrag = basis_eur * (1 + item.index_pct_pa) ** jahre_seit_indexstart
 
         df["opex_gesamt_eur"] += aktiv.astype(float) * indexierter_betrag
+
+    df["gemeindeabgabe_eur"] = (
+        energy["produktion_kwh"].to_numpy() * gemeindeabgabe_eur_kwh
+    )
+    df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"]
 
     return df[OPEX_COLUMNS]

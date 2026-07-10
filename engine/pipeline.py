@@ -39,6 +39,7 @@ def resolve_assumptions(
     return EffectiveAssumptions(
         source_project_id=project.id,
         inbetriebnahme_jahr=project.inbetriebnahme_jahr,
+        inbetriebnahme_monat=project.inbetriebnahme_monat,
         nennleistung_kwp=project.nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=project.vollbenutzungsstunden_kwh_kwp,
         degradation_pct_pa=global_assumptions.degradation_pct_pa,
@@ -49,6 +50,7 @@ def resolve_assumptions(
         marktwert_solar_ct_kwh_je_jahr=global_assumptions.marktwert_solar_ct_kwh_je_jahr,
         anteil_negativer_stunden_pct_je_jahr=global_assumptions.anteil_negativer_stunden_pct_je_jahr,
         opex_items=opex_items,
+        gemeindeabgabe_eur_kwh=global_assumptions.gemeindeabgabe_eur_kwh,
         capex_total_eur=project.capex.summe_eur,
         eigenkapitalquote_pct=project.eigenkapitalquote_pct,
         fremdkapitalzins_pct=project.fremdkapitalzins_pct,
@@ -76,15 +78,22 @@ def run_valuation(
 ) -> ValuationResult:
     assumptions = resolve_assumptions(project, global_assumptions)
 
+    inbetriebnahme_datum = date(
+        assumptions.inbetriebnahme_jahr, assumptions.inbetriebnahme_monat, 1
+    )
     timeline = build_timeline(
-        inbetriebnahme_datum=date(assumptions.inbetriebnahme_jahr, 1, 1),
+        inbetriebnahme_datum=inbetriebnahme_datum,
         laufzeit_jahre=assumptions.betriebsdauer_jahre,
     )
 
     energy = calculate_energy_production(timeline, assumptions)
     revenue = calculate_revenue(timeline, energy, assumptions)
     opex = calculate_opex(
-        timeline, assumptions.opex_items, assumptions.nennleistung_kwp
+        timeline,
+        assumptions.opex_items,
+        assumptions.nennleistung_kwp,
+        energy,
+        assumptions.gemeindeabgabe_eur_kwh,
     )
     financing = calculate_financing(
         timeline,
@@ -113,7 +122,7 @@ def run_valuation(
         tax=tax,
         capex_total_eur=assumptions.capex_total_eur,
         eigenkapitalquote_pct=assumptions.eigenkapitalquote_pct,
-        inbetriebnahme_datum=date(assumptions.inbetriebnahme_jahr, 1, 1),
+        inbetriebnahme_datum=inbetriebnahme_datum,
         project_id=project.id,
     )
 
