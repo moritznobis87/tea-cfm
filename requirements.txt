@@ -1,7 +1,16 @@
-pydantic>=2.0
-pandas>=2.0
-numpy-financial>=1.0
-scipy>=1.10
-pyyaml>=6.0
-streamlit>=1.30
-plotly>=5.18
+# Wichtig: numpy und pyarrow sind bewusst EXPLIZIT und exakt gepinnt.
+# Neuere pyarrow/numpy-Kombinationen (z.B. pyarrow>=20 mit numpy>=2.x)
+# haben in Tests zu Segmentation Faults beim Rendern von st.dataframe()
+# gefuehrt (binaeres ABI-Mismatch zwischen pyarrow und numpy). Diese
+# Kombination ist gegen den echten App-Ablauf (alle Tabs, Formulare,
+# Toggles) getestet und stabil. Bitte NICHT auf "numpy>=..." o.ae. lockern,
+# ohne erneut die komplette App zu testen.
+pydantic==2.13.4
+pandas==2.2.3
+numpy==1.26.4
+pyarrow==17.0.0
+numpy-financial==1.0.0
+scipy==1.17.1
+pyyaml==6.0.3
+streamlit==1.59.0
+plotly==6.8.0
