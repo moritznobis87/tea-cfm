@@ -504,7 +504,28 @@ def render_project_dashboard(
         )
         st.plotly_chart(fig, width="stretch")
 
-        display_df = df.copy()
+        with st.expander("Detailtabelle (Erlöse, Betriebskosten, Zinsen, Steuer)"):
+            detail_df = df[
+                [
+                    "jahr", "erloes_eur", "opex_gesamt_eur", "gemeindeabgabe_eur",
+                    "zinsen_eur", "tilgung_eur", "steuer_eur",
+                ]
+            ].copy()
+            for col in detail_df.columns:
+                if col != "jahr":
+                    detail_df[col] = detail_df[col].round(0)
+            detail_df.columns = [
+                "Jahr", "Erlöse (€)", "Betriebskosten gesamt (€)",
+                "davon Gemeindeabgabe (€)", "Zinsen (€)", "Tilgung (€)", "Steuer (€)",
+            ]
+            st.dataframe(detail_df, width="stretch", hide_index=True)
+
+        display_df = df[
+            [
+                "jahr", "cf_operativ_eur", "cf_invest_eur",
+                "cf_finanzierung_eur", "cf_gesamt_eur", "cf_kumuliert_eur",
+            ]
+        ].copy()
         for col in [
             "cf_operativ_eur", "cf_invest_eur", "cf_finanzierung_eur",
             "cf_gesamt_eur", "cf_kumuliert_eur",
@@ -575,24 +596,36 @@ def render_project_dashboard(
 
     with tab_sens:
         sens_df = run_eag_sensitivity(project, global_assumptions)
+        # Defensiv: einzelne Varianten koennen eine nicht berechenbare IRR
+        # (None) liefern, wenn der Cashflow keinen Vorzeichenwechsel mehr
+        # hat (z.B. durchgehend negativ bei einem -10%-Downside-Szenario).
+        # Ohne explizite Behandlung wuerde "* 100" auf einer Spalte mit
+        # gemischten float/None-Werten abstuerzen.
+        irr_werte = pd.to_numeric(sens_df["equity_irr"], errors="coerce")
+        irr_pct = (irr_werte * 100).tolist()
+        eag_werte = sens_df["eag_zuschlagswert_ct_kwh"].astype(float).tolist()
+        varianten = sens_df["variante"].astype(str).tolist()
+        bar_text = [format_pct(v) if v is not None and pd.notna(v) else "n/a"
+                    for v in sens_df["equity_irr"]]
+
         fig = go.Figure()
         fig.add_bar(
-            x=sens_df["eag_zuschlagswert_ct_kwh"],
-            y=sens_df["equity_irr"] * 100,
+            x=eag_werte,
+            y=irr_pct,
             width=0.15,
             marker_color=[
-                "#2E7D32" if v == "Basis" else "#8AA6A0" for v in sens_df["variante"]
+                "#2E7D32" if v == "Basis" else "#8AA6A0" for v in varianten
             ],
-            text=[format_pct(v) for v in sens_df["equity_irr"]],
+            text=bar_text,
             textposition="outside",
-            customdata=sens_df["variante"],
+            customdata=varianten,
             hovertemplate="%{customdata}: %{x:.2f} ct/kWh → %{text}<extra></extra>",
         )
         fig.update_layout(
             xaxis=dict(
                 title="EAG-Zuschlagswert (ct/kWh)",
                 tickmode="array",
-                tickvals=sens_df["eag_zuschlagswert_ct_kwh"].tolist(),
+                tickvals=eag_werte,
                 tickformat=".2f",
             ),
             yaxis=dict(title="EK-Rendite", ticksuffix="%"),
