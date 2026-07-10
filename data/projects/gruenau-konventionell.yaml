@@ -1,12 +1,13 @@
 id: gruenau-konventionell
 name: Grünau Freiflaeche
 inbetriebnahme_jahr: 2027
+inbetriebnahme_monat: 1
 anlagentyp: konventionell
 nennleistung_kwp: 8200.0
 vollbenutzungsstunden_kwh_kwp: 1080.0
 pacht_eur_kwp_jahr: 3.2
 fremdkapitalzins_pct: 0.033
-eigenkapitalquote_pct: 0.20
+eigenkapitalquote_pct: 0.2
 eag_zuschlagswert_ct_kwh: 7.2
 capex:
   epc_eur: 4756000.0
@@ -16,4 +17,4 @@ capex:
   agm_eur: 82000.0
   m_and_a_eur: 41000.0
   poenale_puffer_eur: 82000.0
-projektflaeche_ha: null
+projektflaeche_ha: 10.0
