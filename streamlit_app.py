@@ -36,7 +36,7 @@ DATA_DIR = Path(__file__).parent / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 
-st.set_page_config(page_title="Trianel Energieprojekte Austria PV-Projektbewertung", layout="wide", page_icon="☀️")
+st.set_page_config(page_title="TEA PV-Projektbewertung", layout="wide", page_icon="☀️")
 
 CUSTOM_CSS = """
 <style>
@@ -658,7 +658,7 @@ def render_global_assumptions_page() -> None:
 # ---------------------------------------------------------------------------
 
 
-st.title("☀️ Trianel Energieprojekte Austria PV-Projektbewertung")
+st.title("☀️ TEA PV-Projektbewertung")
 
 nav = st.sidebar.radio(
     "Navigation",
