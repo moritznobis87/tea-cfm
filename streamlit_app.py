@@ -96,42 +96,94 @@ def format_eur(value: float) -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_new_project_form() -> None:
-    st.subheader("Neues Projekt anlegen")
-    st.caption(
-        "Nur projektspezifische Angaben. Preiskurven, Standardbetriebskosten, "
-        "Kreditlaufzeit und Steuerlogik werden automatisch aus den "
-        "Globalen Annahmen übernommen."
+def render_project_form(
+    existing: PVProject | None, form_key: str
+) -> PVProject | None:
+    """Rendert die Projektmaske. Ohne `existing` = Neuanlage (leere
+    Defaults), mit `existing` = Bearbeiten (vorausgefuellt, gleiche id).
+    Gibt das neue/aktualisierte PVProject zurueck, wenn abgeschickt wurde,
+    sonst None.
+
+    Die Einheiten-Umschalter fuer Investkosten (€/kWp <-> €) und Pacht
+    (€/kWp/Jahr <-> €/ha/Jahr) liegen bewusst AUSSERHALB von st.form(...):
+    Formular-Inhalte aktualisieren sich in Streamlit erst beim Absenden,
+    Umschalter ausserhalb loesen dagegen einen sofortigen Rerun aus, damit
+    Beschriftungen/Felder unmittelbar umspringen.
+    """
+    st.markdown("**Technische Anlagenparameter**")
+    col1, col2, col3 = st.columns(3)
+    nennleistung_kwp = col1.number_input(
+        "Leistung (kWp)", min_value=0.0,
+        value=existing.nennleistung_kwp if existing else 5000.0,
+        step=100.0, key=f"{form_key}_leistung_live",
+    )
+    vollbenutzungsstunden = col2.number_input(
+        "Vollbenutzungsstunden (kWh/kWp)", min_value=0.0,
+        value=existing.vollbenutzungsstunden_kwh_kwp if existing else 1050.0,
+        step=10.0, key=f"{form_key}_vbh_live",
+    )
+    anlagentyp_options = ["Agri-PV", "Konventionell"]
+    anlagentyp_index = (
+        1 if existing and existing.anlagentyp == AnlagenTyp.KONVENTIONELL else 0
+    )
+    anlagentyp_label = col3.radio(
+        "Anlagentyp", anlagentyp_options, index=anlagentyp_index,
+        horizontal=True, key=f"{form_key}_typ_live",
     )
 
-    with st.form("neues_projekt", clear_on_submit=False):
-        name = st.text_input("Projektname", placeholder="z.B. Sonnenfeld Agri-PV")
+    st.markdown("**Investkosten**")
+    capex_defaults = existing.capex if existing else CapexBreakdown()
+    capex_einheit = st.segmented_control(
+        "Einheit", options=["€/kWp", "€"], default="€/kWp",
+        key=f"{form_key}_capex_einheit",
+    ) or "€/kWp"
 
-        st.markdown("**Technische Anlagenparameter**")
-        col1, col2, col3 = st.columns(3)
-        nennleistung_kwp = col1.number_input(
-            "Leistung (kWp)", min_value=0.0, value=5000.0, step=100.0
+    def capex_feld(col, label: str, default_abs_eur: float, key_suffix: str) -> float:
+        if capex_einheit == "€/kWp":
+            default_rel = (
+                round(default_abs_eur / nennleistung_kwp, 1) if nennleistung_kwp else 0.0
+            )
+            rel = col.number_input(
+                f"{label} (€/kWp)", min_value=0.0, value=default_rel, step=1.0,
+                key=f"{form_key}_{key_suffix}_rel",
+            )
+            return rel * nennleistung_kwp
+        wert = col.number_input(
+            f"{label} (€)", min_value=0.0, value=default_abs_eur, step=1000.0,
+            key=f"{form_key}_{key_suffix}_abs",
         )
-        vollbenutzungsstunden = col2.number_input(
-            "Vollbenutzungsstunden (kWh/kWp)", min_value=0.0, value=1050.0, step=10.0
-        )
-        anlagentyp_label = col3.radio(
-            "Anlagentyp", ["Agri-PV", "Konventionell"], horizontal=True
+        return wert
+
+    st.markdown("**Pacht**")
+    pacht_einheit = st.segmented_control(
+        "Einheit", options=["€/kWp/Jahr", "€/ha/Jahr"], default="€/kWp/Jahr",
+        key=f"{form_key}_pacht_einheit",
+    ) or "€/kWp/Jahr"
+
+    with st.form(form_key, clear_on_submit=False):
+        name = st.text_input(
+            "Projektname",
+            value=existing.name if existing else "",
+            placeholder="z.B. Sonnenfeld Agri-PV",
+            key=f"{form_key}_name",
         )
 
         st.markdown("**Wirtschaftliche Parameter**")
-        col4, col5, col6, col7 = st.columns(4)
-        pacht = col4.number_input(
-            "Pacht (€/kWp/Jahr)", min_value=0.0, value=4.0, step=0.1
-        )
+        col5, col6, col7 = st.columns(3)
         fk_zins = col5.number_input(
-            "Fremdkapitalzins (%)", min_value=0.0, value=3.5, step=0.1
+            "Fremdkapitalzins (%)", min_value=0.0,
+            value=existing.fremdkapitalzins_pct * 100 if existing else 3.5,
+            step=0.1, key=f"{form_key}_fkzins",
         )
         ek_anteil = col6.number_input(
-            "Eigenkapitalanteil (%)", min_value=0.0, max_value=100.0, value=20.0, step=1.0
+            "Eigenkapitalanteil (%)", min_value=0.0, max_value=100.0,
+            value=existing.eigenkapitalquote_pct * 100 if existing else 20.0,
+            step=1.0, key=f"{form_key}_ekanteil",
         )
         eag_zuschlag = col7.number_input(
-            "EAG-Zuschlagswert (ct/kWh)", min_value=0.0, value=7.2, step=0.1
+            "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
+            value=existing.eag_zuschlagswert_ct_kwh if existing else 7.2,
+            step=0.1, key=f"{form_key}_eag",
         )
         if anlagentyp_label == "Konventionell":
             st.caption(
@@ -139,28 +191,87 @@ def render_new_project_form() -> None:
                 f"→ effektiv {eag_zuschlag * 0.75:.2f} ct/kWh"
             )
 
-        st.markdown("**Investkosten (EUR)**")
-        c1, c2, c3, c4 = st.columns(4)
-        epc = c1.number_input("EPC", min_value=0.0, value=nennleistung_kwp * 600, step=1000.0)
-        netzanschluss = c2.number_input("Netzanschluss", min_value=0.0, value=150000.0, step=1000.0)
-        trasse = c3.number_input("Trasse", min_value=0.0, value=60000.0, step=1000.0)
-        sonstige_extern = c4.number_input("Sonstige Extern", min_value=0.0, value=40000.0, step=1000.0)
-        c5, c6, c7 = st.columns(3)
-        agm = c5.number_input("AGM", min_value=0.0, value=30000.0, step=1000.0)
-        m_and_a = c6.number_input("M&A", min_value=0.0, value=20000.0, step=1000.0)
-        poenale = c7.number_input("Pönale + Puffer", min_value=0.0, value=35000.0, step=1000.0)
+        if pacht_einheit == "€/ha/Jahr":
+            flaeche_default = (
+                existing.projektflaeche_ha
+                if existing and existing.projektflaeche_ha
+                else 10.0
+            )
+            flaeche_ha = st.number_input(
+                "Projektfläche (ha)", min_value=0.01, value=flaeche_default,
+                step=0.5, key=f"{form_key}_flaeche",
+            )
+            pacht_rate_default = (
+                existing.pacht_eur_kwp_jahr * existing.nennleistung_kwp / flaeche_ha
+                if existing and flaeche_ha
+                else 500.0
+            )
+            pacht_eur_ha = st.number_input(
+                "Pacht (€/ha/Jahr)", min_value=0.0, value=round(pacht_rate_default, 0),
+                step=10.0, key=f"{form_key}_pacht_ha",
+            )
+            pacht_eur_kwp_jahr = (
+                pacht_eur_ha * flaeche_ha / nennleistung_kwp if nennleistung_kwp else 0.0
+            )
+        else:
+            pacht_eur_kwp_jahr = st.number_input(
+                "Pacht (€/kWp/Jahr)", min_value=0.0,
+                value=existing.pacht_eur_kwp_jahr if existing else 4.0,
+                step=0.1, key=f"{form_key}_pacht_kwp",
+            )
+            flaeche_ha = existing.projektflaeche_ha if existing else None
 
-        submitted = st.form_submit_button("Projekt anlegen und berechnen", type="primary")
+        st.markdown("**Investkosten (Details)**")
+        c1, c2, c3, c4 = st.columns(4)
+        epc = capex_feld(
+            c1, "EPC",
+            capex_defaults.epc_eur if existing else nennleistung_kwp * 600,
+            "epc",
+        )
+        netzanschluss = capex_feld(
+            c2, "Netzanschluss",
+            capex_defaults.netzanschluss_eur if existing else 150000.0,
+            "netz",
+        )
+        trasse = capex_feld(
+            c3, "Trasse",
+            capex_defaults.trasse_eur if existing else 60000.0,
+            "trasse",
+        )
+        sonstige_extern = capex_feld(
+            c4, "Sonstige Extern",
+            capex_defaults.sonstige_extern_eur if existing else 40000.0,
+            "sonst",
+        )
+        c5, c6, c7 = st.columns(3)
+        agm = capex_feld(
+            c5, "AGM",
+            capex_defaults.agm_eur if existing else 30000.0,
+            "agm",
+        )
+        m_and_a = capex_feld(
+            c6, "M&A",
+            capex_defaults.m_and_a_eur if existing else 20000.0,
+            "ma",
+        )
+        poenale = capex_feld(
+            c7, "Pönale + Puffer",
+            capex_defaults.poenale_puffer_eur if existing else 35000.0,
+            "poenale",
+        )
+
+        button_label = "Änderungen speichern" if existing else "Projekt anlegen und berechnen"
+        submitted = st.form_submit_button(button_label, type="primary")
 
     if not submitted:
-        return
-
+        return None
     if not name.strip():
         st.error("Bitte einen Projektnamen angeben.")
-        return
+        return None
 
-    project_id = name.strip().lower().replace(" ", "-")
-    project = PVProject(
+    project_id = existing.id if existing else name.strip().lower().replace(" ", "-")
+    extra_kwargs = {"inbetriebnahme_jahr": existing.inbetriebnahme_jahr} if existing else {}
+    return PVProject(
         id=project_id,
         name=name.strip(),
         anlagentyp=AnlagenTyp.AGRI_PV
@@ -168,7 +279,8 @@ def render_new_project_form() -> None:
         else AnlagenTyp.KONVENTIONELL,
         nennleistung_kwp=nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=vollbenutzungsstunden,
-        pacht_eur_kwp_jahr=pacht,
+        pacht_eur_kwp_jahr=pacht_eur_kwp_jahr,
+        projektflaeche_ha=flaeche_ha,
         fremdkapitalzins_pct=fk_zins / 100,
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
@@ -181,17 +293,31 @@ def render_new_project_form() -> None:
             m_and_a_eur=m_and_a,
             poenale_puffer_eur=poenale,
         ),
+        **extra_kwargs,
     )
 
-    save_path = PROJECTS_DIR / f"{project_id}.yaml"
+
+def render_new_project_form() -> None:
+    st.subheader("Neues Projekt anlegen")
+    st.caption(
+        "Nur projektspezifische Angaben. Preiskurven, Standardbetriebskosten, "
+        "Kreditlaufzeit und Steuerlogik werden automatisch aus den "
+        "Globalen Annahmen übernommen."
+    )
+
+    project = render_project_form(existing=None, form_key="neues_projekt")
+    if project is None:
+        return
+
+    save_path = PROJECTS_DIR / f"{project.id}.yaml"
     save_project_yaml(project, save_path)
-    st.session_state["selected_project"] = project_id
+    st.session_state["selected_project"] = project.id
     st.cache_data.clear()
 
     st.success(f"Projekt „{project.name}“ angelegt und berechnet.")
     st.divider()
     global_assumptions = load_global_assumptions()
-    render_project_dashboard(project, global_assumptions)
+    render_project_dashboard(project, global_assumptions, save_path)
 
 
 # ---------------------------------------------------------------------------
@@ -233,12 +359,24 @@ def render_project_overview() -> None:
 
     st.divider()
     project = load_project_yaml(projects[selected])
-    render_project_dashboard(project, global_assumptions)
+    render_project_dashboard(project, global_assumptions, projects[selected])
 
 
 def render_project_dashboard(
-    project: PVProject, global_assumptions: GlobalAssumptions
+    project: PVProject, global_assumptions: GlobalAssumptions, file_path: Path
 ) -> None:
+    with st.expander("✏️ Projekt bearbeiten"):
+        updated = render_project_form(existing=project, form_key=f"edit_{project.id}")
+        if updated is not None:
+            # Bewusst file_path statt project.id verwenden: id und Dateiname
+            # koennen (z.B. durch manuelle YAML-Bearbeitung) auseinanderlaufen -
+            # wir wollen immer die tatsaechlich geoeffnete Datei ueberschreiben,
+            # nicht versehentlich eine zweite Datei erzeugen.
+            save_project_yaml(updated, file_path)
+            st.cache_data.clear()
+            st.success("Projekt aktualisiert.")
+            st.rerun()
+
     result = run_valuation(project, global_assumptions)
     df = result.cashflow.data
     kpis = result.kpis
@@ -255,11 +393,14 @@ def render_project_dashboard(
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("EK-Rendite (IRR)", format_pct(kpis.equity_irr))
     col2.metric("NPV bei 5 %", format_eur(kpis.npv_eur))
-    col3.metric("Payback", f"{kpis.payback_jahre:.0f} Jahre" if kpis.payback_jahre else "n/a")
+    col3.metric(
+        "Min. DSCR (Kreditlaufzeit)",
+        f"{kpis.dscr_min:.2f}x" if kpis.dscr_min is not None else "n/a",
+    )
     col4.metric("Investitionsvolumen", format_eur(kpis.capex_total_eur))
 
-    tab_cf, tab_npv, tab_sens = st.tabs(
-        ["Cashflow", "NPV-Sensitivität (Diskontsatz)", "Sensitivität EAG-Zuschlag"]
+    tab_cf, tab_dscr, tab_npv, tab_sens = st.tabs(
+        ["Cashflow", "DSCR", "NPV-Sensitivität (Diskontsatz)", "Sensitivität EAG-Zuschlag"]
     )
 
     with tab_cf:
@@ -288,6 +429,36 @@ def render_project_dashboard(
         ]:
             display_df[col] = display_df[col].round(0)
         st.dataframe(display_df, width="stretch", hide_index=True)
+
+    with tab_dscr:
+        dscr_df = df.dropna(subset=["dscr"]).copy()
+        if dscr_df.empty:
+            st.info("Kein DSCR verfügbar (keine Fremdfinanzierung in diesem Projekt).")
+        else:
+            fig = go.Figure()
+            fig.add_bar(
+                x=dscr_df["jahr"], y=dscr_df["dscr"], name="DSCR",
+                marker_color=[
+                    "#C0392B" if v < 1.0 else "#2E7D32" for v in dscr_df["dscr"]
+                ],
+            )
+            fig.add_hline(
+                y=1.0, line_dash="dot", line_color="gray",
+                annotation_text="DSCR = 1,0x (Deckungsgrenze)",
+            )
+            fig.update_layout(
+                xaxis_title="Betriebsjahr",
+                yaxis_title="DSCR (x)",
+                margin=dict(t=20, b=20),
+                height=420,
+                showlegend=False,
+            )
+            st.plotly_chart(fig, width="stretch")
+
+            dscr_display = dscr_df[["jahr", "dscr"]].copy()
+            dscr_display["dscr"] = dscr_display["dscr"].round(2)
+            dscr_display.columns = ["Jahr", "DSCR (x)"]
+            st.dataframe(dscr_display, width="stretch", hide_index=True)
 
     with tab_npv:
         npv_df = result.npv_curve.copy()
@@ -322,17 +493,26 @@ def render_project_dashboard(
 
     with tab_sens:
         sens_df = run_eag_sensitivity(project, global_assumptions)
+        x_werte_pct = sens_df["delta_pct"] * 100
         fig = go.Figure()
         fig.add_bar(
-            x=sens_df["variante"],
+            x=x_werte_pct,
             y=sens_df["equity_irr"] * 100,
+            width=3.0,
             marker_color=[
                 "#2E7D32" if v == "Basis" else "#8AA6A0" for v in sens_df["variante"]
             ],
+            text=sens_df["variante"],
+            textposition="outside",
         )
         fig.update_layout(
-            xaxis_title="EAG-Zuschlagswert-Variante",
-            yaxis_title="EK-Rendite (%)",
+            xaxis=dict(
+                title="Δ EAG-Zuschlagswert",
+                ticksuffix="%",
+                tickmode="array",
+                tickvals=x_werte_pct.tolist(),
+            ),
+            yaxis=dict(title="EK-Rendite", ticksuffix="%"),
             margin=dict(t=20, b=20),
             height=380,
         )
@@ -344,6 +524,9 @@ def render_project_dashboard(
         ].round(3)
         sens_display["equity_irr"] = sens_display["equity_irr"].apply(format_pct)
         sens_display["npv_eur"] = sens_display["npv_eur"].round(0)
+        sens_display = sens_display[
+            ["variante", "eag_zuschlagswert_ct_kwh", "equity_irr", "npv_eur"]
+        ]
         sens_display.columns = ["Variante", "EAG-Zuschlag (ct/kWh)", "EK-Rendite", "NPV (€)"]
         st.dataframe(sens_display, width="stretch", hide_index=True)
 
