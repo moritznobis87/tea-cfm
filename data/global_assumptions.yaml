@@ -1,0 +1,89 @@
+gueltig_ab: 2026-07
+marktwert_solar_ct_kwh_je_jahr:
+  '1': 3.3
+  '2': 3.5
+  '3': 3.6
+  '4': 3.7
+  '5': 3.8
+  '6': 4.0
+  '7': 4.2
+  '8': 4.4
+  '9': 4.6
+  '10': 4.8
+  '11': 5.0
+  '12': 5.2
+  '13': 5.4
+  '14': 5.6
+  '15': 5.9
+  '16': 6.1
+  '17': 6.4
+  '18': 6.6
+  '19': 6.9
+  '20': 7.2
+  '21': 7.5
+  '22': 7.7
+  '23': 8.0
+  '24': 8.3
+  '25': 8.7
+anteil_negativer_stunden_pct_je_jahr:
+  '1': 0.18
+  '2': 0.17
+  '3': 0.16
+  '4': 0.14
+  '5': 0.13
+  '6': 0.12
+  '7': 0.11
+  '8': 0.1
+  '9': 0.09
+  '10': 0.08
+  '11': 0.07
+  '12': 0.06
+  '13': 0.06
+  '14': 0.05
+  '15': 0.05
+  '16': 0.04
+  '17': 0.04
+  '18': 0.03
+  '19': 0.03
+  '20': 0.02
+  '21': 0.02
+  '22': 0.02
+  '23': 0.01
+  '24': 0.01
+  '25': 0.01
+opex_standard:
+- name: Technische Betriebsführung
+  basiswert_eur_kwp: 3.5
+  start_betriebsjahr: 1
+  index_pct_pa: 0.02
+  indexierung_ab_jahr: 10
+- name: Wartung / Rücklage Wechselrichter
+  basiswert_eur_kwp: 2.5
+  start_betriebsjahr: 1
+  index_pct_pa: 0.02
+  indexierung_ab_jahr: 10
+- name: Versicherungen
+  basiswert_eur_kwp: 1.0
+  start_betriebsjahr: 1
+  index_pct_pa: 0.02
+  indexierung_ab_jahr: 10
+- name: Kaufmännische Betriebsführung / Buchführung
+  basiswert_eur_kwp: 1.5
+  start_betriebsjahr: 1
+  index_pct_pa: 0.0
+  indexierung_ab_jahr: 1
+- name: Sonstiges
+  basiswert_eur_kwp: 1.0
+  start_betriebsjahr: 1
+  index_pct_pa: 0.0
+  indexierung_ab_jahr: 1
+degradation_pct_pa: 0.005
+sicherheitsabschlag_pct: 0.0
+eag_foerderdauer_jahre: 20
+betriebsdauer_jahre: 25
+kreditlaufzeit_jahre: 15
+tilgungsart: annuitaet
+tax_modus: pauschal_auf_ebt
+steuersatz_pct: 0.23
+afa_nutzungsdauer_jahre: 20
+freibetrag_eur: 0.0
