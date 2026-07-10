@@ -1,0 +1,21 @@
+id: sonnenfeld-agri-2027
+name: "Sonnenfeld Agri-PV"
+inbetriebnahme_jahr: 2027
+
+anlagentyp: agri_pv
+nennleistung_kwp: 4500
+vollbenutzungsstunden_kwh_kwp: 1050
+
+pacht_eur_kwp_jahr: 4.5
+fremdkapitalzins_pct: 0.035
+eigenkapitalquote_pct: 0.20
+eag_zuschlagswert_ct_kwh: 7.2
+
+capex:
+  epc_eur: 2700000
+  netzanschluss_eur: 180000
+  trasse_eur: 90000
+  sonstige_extern_eur: 60000
+  agm_eur: 40000
+  m_and_a_eur: 25000
+  poenale_puffer_eur: 45000
