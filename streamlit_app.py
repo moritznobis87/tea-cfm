@@ -389,68 +389,62 @@ def render_new_project_form() -> None:
 
 
 def render_import_export() -> None:
-    with st.expander("📤 Projekte sichern / wiederherstellen"):
+    with st.sidebar.expander("📤 Projekte sichern / wiederherstellen"):
         st.caption(
             "Streamlit Cloud hat kein dauerhaftes Dateisystem: Neu angelegte "
             "Projekte gehen bei einem Reboot/Redeploy verloren, wenn sie "
-            "nicht im GitHub-Repo liegen. Laden Sie Ihre Projekte hier als "
-            "YAML herunter und committen Sie sie ins Repo, um sie dauerhaft "
-            "zu sichern - oder stellen Sie zuvor gesicherte Projekte wieder "
-            "her, indem Sie die YAML-Dateien hier hochladen."
+            "nicht im GitHub-Repo liegen. Hier herunterladen und ins Repo "
+            "committen, um sie dauerhaft zu sichern - oder zuvor gesicherte "
+            "Projekte wieder hochladen."
         )
-        col_dl, col_ul = st.columns(2)
 
-        with col_dl:
-            st.markdown("**Herunterladen**")
-            projects = list_projects()
-            if projects:
-                buffer = io.BytesIO()
-                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for path in projects.values():
-                        zf.write(path, arcname=path.name)
-                buffer.seek(0)
-                st.download_button(
-                    "⬇️ Alle Projekte als ZIP",
-                    data=buffer,
-                    file_name="projekte.zip",
-                    mime="application/zip",
-                    width="stretch",
-                )
-            else:
-                st.caption("Keine Projekte vorhanden.")
-
-        with col_ul:
-            st.markdown("**Hochladen**")
-            uploaded_files = st.file_uploader(
-                "YAML-Dateien (auch mehrere gleichzeitig)",
-                type=["yaml", "yml"],
-                accept_multiple_files=True,
-                key="project_upload",
+        st.markdown("**Herunterladen**")
+        projects = list_projects()
+        if projects:
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                for path in projects.values():
+                    zf.write(path, arcname=path.name)
+            buffer.seek(0)
+            st.download_button(
+                "⬇️ Alle Projekte als ZIP",
+                data=buffer,
+                file_name="projekte.zip",
+                mime="application/zip",
+                width="stretch",
             )
-            if uploaded_files and st.button(
-                "Hochgeladene Projekte speichern", type="primary", width="stretch"
-            ):
-                erfolgreich = []
-                fehler = []
-                for f in uploaded_files:
-                    try:
-                        raw = yaml.safe_load(f.getvalue().decode("utf-8"))
-                        project = PVProject.model_validate(raw)
-                        save_project_yaml(project, PROJECTS_DIR / f"{project.id}.yaml")
-                        erfolgreich.append(project.name)
-                    except Exception as exc:
-                        fehler.append(f"„{f.name}“: {exc}")
-                if erfolgreich:
-                    st.success("Gespeichert: " + ", ".join(erfolgreich))
-                if fehler:
-                    st.error("Fehler bei " + "; ".join(fehler))
-                st.cache_data.clear()
-                st.rerun()
+        else:
+            st.caption("Keine Projekte vorhanden.")
+
+        st.markdown("**Hochladen**")
+        uploaded_files = st.file_uploader(
+            "YAML-Dateien (auch mehrere gleichzeitig)",
+            type=["yaml", "yml"],
+            accept_multiple_files=True,
+            key="project_upload",
+        )
+        if uploaded_files and st.button(
+            "Hochgeladene Projekte speichern", type="primary", width="stretch"
+        ):
+            erfolgreich = []
+            fehler = []
+            for f in uploaded_files:
+                try:
+                    raw = yaml.safe_load(f.getvalue().decode("utf-8"))
+                    project = PVProject.model_validate(raw)
+                    save_project_yaml(project, PROJECTS_DIR / f"{project.id}.yaml")
+                    erfolgreich.append(project.name)
+                except Exception as exc:
+                    fehler.append(f"„{f.name}“: {exc}")
+            if erfolgreich:
+                st.success("Gespeichert: " + ", ".join(erfolgreich))
+            if fehler:
+                st.error("Fehler bei " + "; ".join(fehler))
+            st.cache_data.clear()
+            st.rerun()
 
 
 def render_project_overview() -> None:
-    render_import_export()
-
     projects = list_projects()
     if not projects:
         st.info("Noch keine Projekte angelegt. Starten Sie mit „Neues Projekt“.")
@@ -773,6 +767,9 @@ def render_project_dashboard(
             customdata=varianten,
             hovertemplate="%{customdata}: %{x:.2f} ct/kWh → %{text}<extra></extra>",
             text=bar_text,
+            textposition="none",  # nur fuer hovertemplate genutzt, nicht anzeigen -
+            # sichtbare Beschriftung kommt ausschliesslich ueber die Annotationen
+            # unten, sonst erscheint der Text doppelt.
         )
         # Beschriftung ueber feste Annotationen statt textposition="outside":
         # "outside" würde bei negativer IRR unterhalb des Balkens landen
@@ -943,6 +940,7 @@ nav = st.sidebar.radio(
     ["Projektübersicht", "Neues Projekt", "Globale Annahmen"],
     key="nav",
 )
+render_import_export()
 
 if nav == "Projektübersicht":
     render_project_overview()
