@@ -9,21 +9,24 @@ den Globalen Annahmen und wird automatisch angewendet.
 
 from __future__ import annotations
 
-import io
-import zipfile
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-import yaml
 
 from engine.io_yaml import (
     load_global_assumptions_yaml,
     load_project_yaml,
     save_global_assumptions_yaml,
     save_project_yaml,
+)
+from engine.io_excel import (
+    excel_to_global_assumptions,
+    excel_to_projects,
+    global_assumptions_to_excel,
+    projects_to_excel,
 )
 from engine.models import (
     AnlagenTyp,
@@ -393,55 +396,77 @@ def render_import_export() -> None:
         st.caption(
             "Streamlit Cloud hat kein dauerhaftes Dateisystem: Neu angelegte "
             "Projekte gehen bei einem Reboot/Redeploy verloren, wenn sie "
-            "nicht im GitHub-Repo liegen. Hier herunterladen und ins Repo "
-            "committen, um sie dauerhaft zu sichern - oder zuvor gesicherte "
-            "Projekte wieder hochladen."
+            "nicht im GitHub-Repo liegen. Als Excel-Datei herunterladen und "
+            "ins Repo committen, um sie dauerhaft zu sichern - oder zuvor "
+            "gesicherte Projekte wieder hochladen (eine Zeile pro Projekt)."
         )
 
         st.markdown("**Herunterladen**")
-        projects = list_projects()
-        if projects:
-            buffer = io.BytesIO()
-            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                for path in projects.values():
-                    zf.write(path, arcname=path.name)
-            buffer.seek(0)
+        projects_dict = list_projects()
+        if projects_dict:
+            alle_projekte = [load_project_yaml(p) for p in projects_dict.values()]
             st.download_button(
-                "⬇️ Alle Projekte als ZIP",
-                data=buffer,
-                file_name="projekte.zip",
-                mime="application/zip",
+                "⬇️ Alle Projekte als Excel",
+                data=projects_to_excel(alle_projekte),
+                file_name="projekte.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 width="stretch",
             )
         else:
             st.caption("Keine Projekte vorhanden.")
 
         st.markdown("**Hochladen**")
-        uploaded_files = st.file_uploader(
-            "YAML-Dateien (auch mehrere gleichzeitig)",
-            type=["yaml", "yml"],
-            accept_multiple_files=True,
-            key="project_upload",
+        uploaded_excel_projekte = st.file_uploader(
+            "Excel-Datei (.xlsx, eine Zeile pro Projekt)",
+            type=["xlsx"], key="project_upload",
         )
-        if uploaded_files and st.button(
+        if uploaded_excel_projekte and st.button(
             "Hochgeladene Projekte speichern", type="primary", width="stretch"
         ):
-            erfolgreich = []
-            fehler = []
-            for f in uploaded_files:
-                try:
-                    raw = yaml.safe_load(f.getvalue().decode("utf-8"))
-                    project = PVProject.model_validate(raw)
+            try:
+                importierte_projekte = excel_to_projects(uploaded_excel_projekte.getvalue())
+                for project in importierte_projekte:
                     save_project_yaml(project, PROJECTS_DIR / f"{project.id}.yaml")
-                    erfolgreich.append(project.name)
-                except Exception as exc:
-                    fehler.append(f"„{f.name}“: {exc}")
-            if erfolgreich:
-                st.success("Gespeichert: " + ", ".join(erfolgreich))
-            if fehler:
-                st.error("Fehler bei " + "; ".join(fehler))
-            st.cache_data.clear()
-            st.rerun()
+                st.success(
+                    "Gespeichert: " + ", ".join(p.name for p in importierte_projekte)
+                )
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Fehler beim Einlesen der Excel-Datei: {exc}")
+
+    with st.sidebar.expander("🌍 Globale Annahmen sichern / wiederherstellen"):
+        st.caption(
+            "Als Excel-Datei (3 Tabellenblätter: Preiskurven, "
+            "Betriebskosten, Einstellungen) - bequemer zu bearbeiten als "
+            "die YAML-Datei direkt."
+        )
+
+        st.markdown("**Herunterladen**")
+        ga_aktuell = load_global_assumptions()
+        st.download_button(
+            "⬇️ Globale Annahmen als Excel",
+            data=global_assumptions_to_excel(ga_aktuell),
+            file_name="globale_annahmen.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            width="stretch",
+        )
+
+        st.markdown("**Hochladen**")
+        uploaded_excel = st.file_uploader(
+            "Excel-Datei (.xlsx)", type=["xlsx"], key="global_assumptions_upload",
+        )
+        if uploaded_excel and st.button(
+            "Hochgeladene Excel-Datei übernehmen", type="primary", width="stretch"
+        ):
+            try:
+                neue_ga = excel_to_global_assumptions(uploaded_excel.getvalue())
+                save_global_assumptions_yaml(neue_ga, GLOBAL_ASSUMPTIONS_PATH)
+                st.success("Globale Annahmen aus Excel-Datei übernommen.")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Fehler beim Einlesen der Excel-Datei: {exc}")
 
 
 def render_project_overview() -> None:
