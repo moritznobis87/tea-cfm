@@ -77,11 +77,12 @@ opex_standard:
   start_betriebsjahr: 1
   index_pct_pa: 0.0
   indexierung_ab_jahr: 1
+gemeindeabgabe_eur_kwh: 0.002
 degradation_pct_pa: 0.005
 sicherheitsabschlag_pct: 0.0
 eag_foerderdauer_jahre: 20
 betriebsdauer_jahre: 25
-kreditlaufzeit_jahre: 15
+kreditlaufzeit_jahre: 20
 tilgungsart: annuitaet
 tax_modus: pauschal_auf_ebt
 steuersatz_pct: 0.23
