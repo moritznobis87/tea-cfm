@@ -1,5 +1,5 @@
 """
-PV-Projektbewertungs-Tool - Oberflaeche fuer Projektentwickler.
+TEA PV-Projektbewertungs-Tool - Oberflaeche fuer Projektentwickler.
 
 Bewusst NICHT am Excel-Original orientiert: Die Projektmaske zeigt nur,
 was sich von Projekt zu Projekt unterscheidet. Alles Uebrige (Preiskurven,
@@ -9,12 +9,15 @@ den Globalen Annahmen und wird automatisch angewendet.
 
 from __future__ import annotations
 
+import io
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import yaml
 
 from engine.io_yaml import (
     load_global_assumptions_yaml,
@@ -37,7 +40,7 @@ DATA_DIR = Path(__file__).parent / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 
-st.set_page_config(page_title="PV-Projektbewertung", layout="wide", page_icon="☀️")
+st.set_page_config(page_title="TEA PV-Projektbewertung", layout="wide", page_icon="☀️")
 
 CUSTOM_CSS = """
 <style>
@@ -385,7 +388,69 @@ def render_new_project_form() -> None:
 # ---------------------------------------------------------------------------
 
 
+def render_import_export() -> None:
+    with st.expander("📤 Projekte sichern / wiederherstellen"):
+        st.caption(
+            "Streamlit Cloud hat kein dauerhaftes Dateisystem: Neu angelegte "
+            "Projekte gehen bei einem Reboot/Redeploy verloren, wenn sie "
+            "nicht im GitHub-Repo liegen. Laden Sie Ihre Projekte hier als "
+            "YAML herunter und committen Sie sie ins Repo, um sie dauerhaft "
+            "zu sichern - oder stellen Sie zuvor gesicherte Projekte wieder "
+            "her, indem Sie die YAML-Dateien hier hochladen."
+        )
+        col_dl, col_ul = st.columns(2)
+
+        with col_dl:
+            st.markdown("**Herunterladen**")
+            projects = list_projects()
+            if projects:
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for path in projects.values():
+                        zf.write(path, arcname=path.name)
+                buffer.seek(0)
+                st.download_button(
+                    "⬇️ Alle Projekte als ZIP",
+                    data=buffer,
+                    file_name="projekte.zip",
+                    mime="application/zip",
+                    width="stretch",
+                )
+            else:
+                st.caption("Keine Projekte vorhanden.")
+
+        with col_ul:
+            st.markdown("**Hochladen**")
+            uploaded_files = st.file_uploader(
+                "YAML-Dateien (auch mehrere gleichzeitig)",
+                type=["yaml", "yml"],
+                accept_multiple_files=True,
+                key="project_upload",
+            )
+            if uploaded_files and st.button(
+                "Hochgeladene Projekte speichern", type="primary", width="stretch"
+            ):
+                erfolgreich = []
+                fehler = []
+                for f in uploaded_files:
+                    try:
+                        raw = yaml.safe_load(f.getvalue().decode("utf-8"))
+                        project = PVProject.model_validate(raw)
+                        save_project_yaml(project, PROJECTS_DIR / f"{project.id}.yaml")
+                        erfolgreich.append(project.name)
+                    except Exception as exc:
+                        fehler.append(f"„{f.name}“: {exc}")
+                if erfolgreich:
+                    st.success("Gespeichert: " + ", ".join(erfolgreich))
+                if fehler:
+                    st.error("Fehler bei " + "; ".join(fehler))
+                st.cache_data.clear()
+                st.rerun()
+
+
 def render_project_overview() -> None:
+    render_import_export()
+
     projects = list_projects()
     if not projects:
         st.info("Noch keine Projekte angelegt. Starten Sie mit „Neues Projekt“.")
@@ -539,19 +604,17 @@ def render_project_dashboard(
         )
         st.plotly_chart(fig_op, width="stretch")
 
-        # 4) Cashflow aus Investitions- und Finanzierungstätigkeit
-        st.markdown("**Cashflow aus Investitions- und Finanzierungstätigkeit**")
+        # 4) Cashflow aus Finanzierungstätigkeit
+        st.markdown("**Cashflow aus Finanzierungstätigkeit**")
         st.caption(
-            "Aufgeschlüsselt nach Invest (Jahr 0), Kreditaufnahme (Jahr 0) "
-            "und Tilgung (laufend). Zinsen sind hier nicht enthalten - sie "
-            "fliessen bereits in den operativen Cashflow ein."
+            "Aufgeschlüsselt nach Kreditaufnahme (Jahr 0) und Tilgung "
+            "(laufend). Zinsen sind hier nicht enthalten - sie fliessen "
+            "bereits in den operativen Cashflow ein. Die Investitionsauszahlung "
+            "(CAPEX) ist bewusst nicht dargestellt, da dafür auch die "
+            "Eigenkapitaleinlage gezeigt werden müsste."
         )
         kreditaufnahme_eur = df["cf_finanzierung_eur"] + df["tilgung_eur"]
         fig_fin = go.Figure()
-        fig_fin.add_bar(
-            x=df["jahr"], y=df["cf_invest_eur"], name="Invest",
-            marker_color="#C0392B",
-        )
         fig_fin.add_bar(
             x=df["jahr"], y=kreditaufnahme_eur, name="Kreditaufnahme",
             marker_color="#2E7D32",
@@ -873,7 +936,7 @@ def render_global_assumptions_page() -> None:
 # ---------------------------------------------------------------------------
 
 
-st.title("☀️ PV-Projektbewertung")
+st.title("☀️ TEA PV-Projektbewertung")
 
 nav = st.sidebar.radio(
     "Navigation",
