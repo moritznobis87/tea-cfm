@@ -9,6 +9,7 @@ den Globalen Annahmen und wird automatisch angewendet.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -36,7 +37,7 @@ DATA_DIR = Path(__file__).parent / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 
-st.set_page_config(page_title="TEA PV-Projektbewertung", layout="wide", page_icon="☀️")
+st.set_page_config(page_title="PV-Projektbewertung", layout="wide", page_icon="☀️")
 
 CUSTOM_CSS = """
 <style>
@@ -131,6 +132,28 @@ def render_project_form(
         horizontal=True, key=f"{form_key}_typ_live",
     )
 
+    MONATE = [
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember",
+    ]
+    col_ibn1, col_ibn2 = st.columns(2)
+    inbetriebnahme_jahr = col_ibn1.number_input(
+        "Inbetriebnahme – Jahr", min_value=2000, max_value=2100,
+        value=existing.inbetriebnahme_jahr if existing else datetime.now().year + 1,
+        step=1, key=f"{form_key}_ibn_jahr_live",
+    )
+    inbetriebnahme_monat_label = col_ibn2.selectbox(
+        "Inbetriebnahme – Monat", MONATE,
+        index=(existing.inbetriebnahme_monat - 1) if existing else 0,
+        key=f"{form_key}_ibn_monat_live",
+    )
+    inbetriebnahme_monat = MONATE.index(inbetriebnahme_monat_label) + 1
+    st.caption(
+        "ℹ️ Bestimmt das erste (anteilige) Betriebsjahr und die Cashflow-Daten. "
+        "Hinweis: Die Preiskurven in den Globalen Annahmen sind aktuell nach "
+        "Betriebsjahr (1, 2, 3, …) indiziert, nicht nach Kalenderjahr."
+    )
+
     st.markdown("**Investkosten**")
     capex_defaults = existing.capex if existing else CapexBreakdown()
     capex_einheit = st.radio(
@@ -168,9 +191,12 @@ def render_project_form(
 
     st.markdown("**Pacht**")
     pacht_einheit = st.radio(
-        "Einheit", options=["€/kWp/Jahr", "€/ha/Jahr"], horizontal=True,
+        "Einheit", options=["€/ha/Jahr", "€/kWp/Jahr"], horizontal=True,
         key=f"{form_key}_pacht_einheit",
     )
+    pacht_mode_key = f"{form_key}_pacht_mode_prev"
+    pacht_mode_changed = st.session_state.get(pacht_mode_key) != pacht_einheit
+    st.session_state[pacht_mode_key] = pacht_einheit
 
     with st.form(form_key, clear_on_submit=False):
         name = st.text_input(
@@ -181,7 +207,7 @@ def render_project_form(
         )
 
         st.markdown("**Wirtschaftliche Parameter**")
-        col5, col6, col7 = st.columns(3)
+        col5, col6, col7, col8 = st.columns(4)
         fk_zins = col5.number_input(
             "Fremdkapitalzins (%)", min_value=0.0,
             value=existing.fremdkapitalzins_pct * 100 if existing else 3.5,
@@ -197,6 +223,16 @@ def render_project_form(
             value=existing.eag_zuschlagswert_ct_kwh if existing else 7.2,
             step=0.1, key=f"{form_key}_eag",
         )
+        gemeindeabgabe_default = (
+            existing.gemeindeabgabe_eur_mwh
+            if existing
+            else load_global_assumptions().gemeindeabgabe_eur_kwh * 1000
+        )
+        gemeindeabgabe_mwh = col8.number_input(
+            "Gemeindeabgabe (€/MWh)", min_value=0.0,
+            value=gemeindeabgabe_default, step=0.5,
+            key=f"{form_key}_gemeindeabgabe",
+        )
         if anlagentyp_label == "Konventionell":
             st.caption(
                 f"ℹ️ Konventionell: automatischer Abschlag von 25 % wird angewendet "
@@ -204,32 +240,43 @@ def render_project_form(
             )
 
         if pacht_einheit == "€/ha/Jahr":
-            flaeche_default = (
-                existing.projektflaeche_ha
-                if existing and existing.projektflaeche_ha
-                else 10.0
-            )
+            flaeche_key = f"{form_key}_flaeche"
+            if pacht_mode_changed or flaeche_key not in st.session_state:
+                st.session_state[flaeche_key] = (
+                    existing.projektflaeche_ha
+                    if existing and existing.projektflaeche_ha
+                    else 10.0
+                )
             flaeche_ha = st.number_input(
-                "Projektfläche (ha)", min_value=0.01, value=flaeche_default,
-                step=0.5, key=f"{form_key}_flaeche",
+                "Projektfläche (ha)", min_value=0.01, step=0.5, key=flaeche_key,
             )
-            pacht_rate_default = (
-                existing.pacht_eur_kwp_jahr * existing.nennleistung_kwp / flaeche_ha
-                if existing and flaeche_ha
-                else 500.0
-            )
+
+            pacht_ha_key = f"{form_key}_pacht_ha"
+            if pacht_mode_changed or pacht_ha_key not in st.session_state:
+                st.session_state[pacht_ha_key] = (
+                    round(
+                        existing.pacht_eur_kwp_jahr
+                        * existing.nennleistung_kwp
+                        / flaeche_ha,
+                        0,
+                    )
+                    if existing and flaeche_ha
+                    else 500.0
+                )
             pacht_eur_ha = st.number_input(
-                "Pacht (€/ha/Jahr)", min_value=0.0, value=round(pacht_rate_default, 0),
-                step=10.0, key=f"{form_key}_pacht_ha",
+                "Pacht (€/ha/Jahr)", min_value=0.0, step=10.0, key=pacht_ha_key,
             )
             pacht_eur_kwp_jahr = (
                 pacht_eur_ha * flaeche_ha / nennleistung_kwp if nennleistung_kwp else 0.0
             )
         else:
+            pacht_kwp_key = f"{form_key}_pacht_kwp"
+            if pacht_mode_changed or pacht_kwp_key not in st.session_state:
+                st.session_state[pacht_kwp_key] = (
+                    existing.pacht_eur_kwp_jahr if existing else 4.0
+                )
             pacht_eur_kwp_jahr = st.number_input(
-                "Pacht (€/kWp/Jahr)", min_value=0.0,
-                value=existing.pacht_eur_kwp_jahr if existing else 4.0,
-                step=0.1, key=f"{form_key}_pacht_kwp",
+                "Pacht (€/kWp/Jahr)", min_value=0.0, step=0.1, key=pacht_kwp_key,
             )
             flaeche_ha = existing.projektflaeche_ha if existing else None
 
@@ -282,10 +329,11 @@ def render_project_form(
         return None
 
     project_id = existing.id if existing else name.strip().lower().replace(" ", "-")
-    extra_kwargs = {"inbetriebnahme_jahr": existing.inbetriebnahme_jahr} if existing else {}
     return PVProject(
         id=project_id,
         name=name.strip(),
+        inbetriebnahme_jahr=inbetriebnahme_jahr,
+        inbetriebnahme_monat=inbetriebnahme_monat,
         anlagentyp=AnlagenTyp.AGRI_PV
         if anlagentyp_label == "Agri-PV"
         else AnlagenTyp.KONVENTIONELL,
@@ -296,6 +344,7 @@ def render_project_form(
         fremdkapitalzins_pct=fk_zins / 100,
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
+        gemeindeabgabe_eur_mwh=gemeindeabgabe_mwh,
         capex=CapexBreakdown(
             epc_eur=epc,
             netzanschluss_eur=netzanschluss,
@@ -305,7 +354,6 @@ def render_project_form(
             m_and_a_eur=m_and_a,
             poenale_puffer_eur=poenale,
         ),
-        **extra_kwargs,
     )
 
 
@@ -393,11 +441,15 @@ def render_project_dashboard(
     df = result.cashflow.data
     kpis = result.kpis
 
+    MONATE_KURZ = [
+        "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+        "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
+    ]
     typ_label = "Agri-PV" if project.anlagentyp == AnlagenTyp.AGRI_PV else "Konventionell"
     st.markdown(f"### {project.name}")
     st.caption(
         f"{typ_label} · {project.nennleistung_kwp:,.0f} kWp · "
-        f"Inbetriebnahme {project.inbetriebnahme_jahr} · "
+        f"Inbetriebnahme {MONATE_KURZ[project.inbetriebnahme_monat - 1]} {project.inbetriebnahme_jahr} · "
         f"effektiver EAG-Zuschlag {project.eag_zuschlagswert_effektiv_ct_kwh:.2f} ct/kWh"
         .replace(",", ".")
     )
@@ -411,30 +463,134 @@ def render_project_dashboard(
     )
     col4.metric("Investitionsvolumen", format_eur(kpis.capex_total_eur))
 
+    if kpis.dscr_min is not None and kpis.dscr_min < 1.0:
+        st.warning(
+            f"⚠️ Der minimale DSCR liegt bei {kpis.dscr_min:.2f}x und damit unter 1,0x: "
+            f"Der operative Cashflow deckt den Schuldendienst in mindestens einem Jahr "
+            f"der Kreditlaufzeit nicht vollständig. Mit den aktuellen Annahmen müsste "
+            f"während der Fremdfinanzierungsphase zusätzliches Eigenkapital nachgeschossen "
+            f"werden. Details siehe Tab DSCR – meist hilft eine niedrigere "
+            f"Fremdkapitalquote oder eine längere Kreditlaufzeit."
+        )
+
     tab_cf, tab_dscr, tab_npv, tab_sens = st.tabs(
         ["Cashflow", "DSCR", "NPV-Sensitivität (Diskontsatz)", "Sensitivität EAG-Zuschlag"]
     )
 
     with tab_cf:
-        fig = go.Figure()
-        fig.add_bar(x=df["jahr"], y=df["cf_gesamt_eur"], name="Cashflow (Jahr)")
-        fig.add_scatter(
-            x=df["jahr"],
-            y=df["cf_kumuliert_eur"],
-            name="Kumulierter Cashflow",
-            mode="lines+markers",
-            yaxis="y2",
+        # 1) Umsatzerlöse
+        st.markdown("**Umsatzerlöse**")
+        fig_erloes = go.Figure()
+        fig_erloes.add_bar(
+            x=df["jahr"], y=df["erloes_eur"], name="Umsatzerlöse",
+            marker_color="#2E7D32",
         )
-        fig.update_layout(
-            yaxis=dict(title="Cashflow (Jahr) in €"),
-            yaxis2=dict(title="Kumuliert in €", overlaying="y", side="right"),
+        fig_erloes.update_layout(
+            yaxis=dict(title="€"), margin=dict(t=20, b=20), height=360,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_erloes, width="stretch")
+
+        # 2) Betriebskosten, gestapelt nach Einzelposten (inkl. Gemeindeabgabe)
+        st.markdown("**Betriebskosten (nach Position)**")
+        st.caption(
+            "Klicken Sie auf einzelne Positionen in der Legende, um sie "
+            "ein-/auszublenden."
+        )
+        fig_opex = go.Figure()
+        farben_opex = [
+            "#C0392B", "#E67E22", "#D68910", "#B9770E", "#A04000",
+            "#873600", "#6E2C00", "#943126",
+        ]
+        for i, posten in enumerate(result.cashflow.opex_posten):
+            fig_opex.add_bar(
+                x=df["jahr"], y=df[posten], name=posten,
+                marker_color=farben_opex[i % len(farben_opex)],
+            )
+        fig_opex.add_bar(
+            x=df["jahr"], y=df["gemeindeabgabe_eur"], name="Gemeindeabgabe",
+            marker_color="#7B241C",
+        )
+        fig_opex.update_layout(
+            barmode="stack",
+            yaxis=dict(title="€"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin=dict(t=40, b=20),
             height=420,
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig_opex, width="stretch")
 
-        display_df = df.copy()
+        # 3) Operativer Cashflow (Umsatzerlöse - Betriebskosten)
+        st.markdown("**Operativer Cashflow (Umsatzerlöse − Betriebskosten)**")
+        st.caption(
+            "Vereinfachte Betrachtung vor Zinsen und Steuer. Die für "
+            "EK-Rendite/NPV massgebliche Cashflow-Definition (inkl. Zinsen "
+            "und Steuer) finden Sie in der Tabelle unten."
+        )
+        opex_minus_erloes = df["erloes_eur"] - df["opex_gesamt_eur"]
+        fig_op = go.Figure()
+        fig_op.add_bar(
+            x=df["jahr"], y=opex_minus_erloes, name="Operativer Cashflow",
+            marker_color=["#2E7D32" if v >= 0 else "#C0392B" for v in opex_minus_erloes],
+        )
+        fig_op.update_layout(
+            yaxis=dict(title="€"), margin=dict(t=20, b=20), height=360,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_op, width="stretch")
+
+        # 4) Cashflow aus Investitions- und Finanzierungstätigkeit
+        st.markdown("**Cashflow aus Investitions- und Finanzierungstätigkeit**")
+        st.caption(
+            "Aufgeschlüsselt nach Invest (Jahr 0), Kreditaufnahme (Jahr 0) "
+            "und Tilgung (laufend). Zinsen sind hier nicht enthalten - sie "
+            "fliessen bereits in den operativen Cashflow ein."
+        )
+        kreditaufnahme_eur = df["cf_finanzierung_eur"] + df["tilgung_eur"]
+        fig_fin = go.Figure()
+        fig_fin.add_bar(
+            x=df["jahr"], y=df["cf_invest_eur"], name="Invest",
+            marker_color="#C0392B",
+        )
+        fig_fin.add_bar(
+            x=df["jahr"], y=kreditaufnahme_eur, name="Kreditaufnahme",
+            marker_color="#2E7D32",
+        )
+        fig_fin.add_bar(
+            x=df["jahr"], y=-df["tilgung_eur"], name="Tilgung",
+            marker_color="#8AA6A0",
+        )
+        fig_fin.update_layout(
+            barmode="relative",
+            yaxis=dict(title="€"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            margin=dict(t=40, b=20),
+            height=420,
+        )
+        st.plotly_chart(fig_fin, width="stretch")
+
+        with st.expander("Detailtabelle (Erlöse, Betriebskosten, Zinsen, Steuer)"):
+            detail_df = df[
+                [
+                    "jahr", "erloes_eur", "opex_gesamt_eur", "gemeindeabgabe_eur",
+                    "zinsen_eur", "tilgung_eur", "steuer_eur",
+                ]
+            ].copy()
+            for col in detail_df.columns:
+                if col != "jahr":
+                    detail_df[col] = detail_df[col].round(0)
+            detail_df.columns = [
+                "Jahr", "Erlöse (€)", "Betriebskosten gesamt (€)",
+                "davon Gemeindeabgabe (€)", "Zinsen (€)", "Tilgung (€)", "Steuer (€)",
+            ]
+            st.dataframe(detail_df, width="stretch", hide_index=True)
+
+        display_df = df[
+            [
+                "jahr", "cf_operativ_eur", "cf_invest_eur",
+                "cf_finanzierung_eur", "cf_gesamt_eur", "cf_kumuliert_eur",
+            ]
+        ].copy()
         for col in [
             "cf_operativ_eur", "cf_invest_eur", "cf_finanzierung_eur",
             "cf_gesamt_eur", "cf_kumuliert_eur",
@@ -505,24 +661,37 @@ def render_project_dashboard(
 
     with tab_sens:
         sens_df = run_eag_sensitivity(project, global_assumptions)
-        x_werte_pct = sens_df["delta_pct"] * 100
+        # Defensiv: einzelne Varianten koennen eine nicht berechenbare IRR
+        # (None) liefern, wenn der Cashflow keinen Vorzeichenwechsel mehr
+        # hat (z.B. durchgehend negativ bei einem -10%-Downside-Szenario).
+        # Ohne explizite Behandlung wuerde "* 100" auf einer Spalte mit
+        # gemischten float/None-Werten abstuerzen.
+        irr_werte = pd.to_numeric(sens_df["equity_irr"], errors="coerce")
+        irr_pct = (irr_werte * 100).tolist()
+        eag_werte = sens_df["eag_zuschlagswert_ct_kwh"].astype(float).tolist()
+        varianten = sens_df["variante"].astype(str).tolist()
+        bar_text = [format_pct(v) if v is not None and pd.notna(v) else "n/a"
+                    for v in sens_df["equity_irr"]]
+
         fig = go.Figure()
         fig.add_bar(
-            x=x_werte_pct,
-            y=sens_df["equity_irr"] * 100,
-            width=3.0,
+            x=eag_werte,
+            y=irr_pct,
+            width=0.15,
             marker_color=[
-                "#2E7D32" if v == "Basis" else "#8AA6A0" for v in sens_df["variante"]
+                "#2E7D32" if v == "Basis" else "#8AA6A0" for v in varianten
             ],
-            text=sens_df["variante"],
+            text=bar_text,
             textposition="outside",
+            customdata=varianten,
+            hovertemplate="%{customdata}: %{x:.2f} ct/kWh → %{text}<extra></extra>",
         )
         fig.update_layout(
             xaxis=dict(
-                title="Δ EAG-Zuschlagswert",
-                ticksuffix="%",
+                title="EAG-Zuschlagswert (ct/kWh)",
                 tickmode="array",
-                tickvals=x_werte_pct.tolist(),
+                tickvals=eag_werte,
+                tickformat=".2f",
             ),
             yaxis=dict(title="EK-Rendite", ticksuffix="%"),
             margin=dict(t=20, b=20),
@@ -595,6 +764,15 @@ def render_global_assumptions_page() -> None:
             opex_df, width="stretch", hide_index=True, num_rows="dynamic",
             key="opex_editor",
         )
+        gemeindeabgabe = st.number_input(
+            "Gemeindeabgabe – Vorschlagswert für neue Projekte (€/MWh)",
+            min_value=0.0, value=ga.gemeindeabgabe_eur_kwh * 1000, step=0.5,
+            help="Produktionsbasierte Abgabe an die Standortgemeinde. Dient "
+                 "nur als Vorbelegung beim Anlegen eines neuen Projekts - die "
+                 "tatsächlich angewendete Abgabe wird pro Projekt festgelegt "
+                 "(im Projektformular unter 'Wirtschaftliche Parameter'), da "
+                 "sie je nach Gemeinde unterschiedlich sein kann.",
+        )
 
     with st.expander("Förderung, Finanzierung, Steuer"):
         col1, col2, col3 = st.columns(3)
@@ -646,6 +824,7 @@ def render_global_assumptions_page() -> None:
         ga.degradation_pct_pa = degradation / 100
         ga.steuersatz_pct = steuersatz / 100
         ga.tilgungsart = TilgungsArt(tilgungsart)
+        ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
 
         save_global_assumptions_yaml(ga, GLOBAL_ASSUMPTIONS_PATH)
         st.cache_data.clear()
@@ -658,7 +837,7 @@ def render_global_assumptions_page() -> None:
 # ---------------------------------------------------------------------------
 
 
-st.title("☀️ TEA PV-Projektbewertung")
+st.title("☀️ PV-Projektbewertung")
 
 nav = st.sidebar.radio(
     "Navigation",
