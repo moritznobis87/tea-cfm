@@ -207,7 +207,7 @@ def render_project_form(
         )
 
         st.markdown("**Wirtschaftliche Parameter**")
-        col5, col6, col7 = st.columns(3)
+        col5, col6, col7, col8 = st.columns(4)
         fk_zins = col5.number_input(
             "Fremdkapitalzins (%)", min_value=0.0,
             value=existing.fremdkapitalzins_pct * 100 if existing else 3.5,
@@ -222,6 +222,16 @@ def render_project_form(
             "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
             value=existing.eag_zuschlagswert_ct_kwh if existing else 7.2,
             step=0.1, key=f"{form_key}_eag",
+        )
+        gemeindeabgabe_default = (
+            existing.gemeindeabgabe_eur_mwh
+            if existing
+            else load_global_assumptions().gemeindeabgabe_eur_kwh * 1000
+        )
+        gemeindeabgabe_mwh = col8.number_input(
+            "Gemeindeabgabe (€/MWh)", min_value=0.0,
+            value=gemeindeabgabe_default, step=0.5,
+            key=f"{form_key}_gemeindeabgabe",
         )
         if anlagentyp_label == "Konventionell":
             st.caption(
@@ -334,6 +344,7 @@ def render_project_form(
         fremdkapitalzins_pct=fk_zins / 100,
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
+        gemeindeabgabe_eur_mwh=gemeindeabgabe_mwh,
         capex=CapexBreakdown(
             epc_eur=epc,
             netzanschluss_eur=netzanschluss,
@@ -467,42 +478,96 @@ def render_project_dashboard(
     )
 
     with tab_cf:
+        # 1) Umsatzerlöse
+        st.markdown("**Umsatzerlöse**")
+        fig_erloes = go.Figure()
+        fig_erloes.add_bar(
+            x=df["jahr"], y=df["erloes_eur"], name="Umsatzerlöse",
+            marker_color="#2E7D32",
+        )
+        fig_erloes.update_layout(
+            yaxis=dict(title="€"), margin=dict(t=20, b=20), height=360,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_erloes, width="stretch")
+
+        # 2) Betriebskosten, gestapelt nach Einzelposten (inkl. Gemeindeabgabe)
+        st.markdown("**Betriebskosten (nach Position)**")
         st.caption(
-            "Gestapelte Darstellung: positive und negative Balken werden "
-            "jeweils getrennt oberhalb/unterhalb der Nulllinie gestapelt "
-            "(z.B. positiver operativer Cashflow bei gleichzeitig negativem "
-            "Finanzierungs-Cashflow durch Tilgung)."
+            "Klicken Sie auf einzelne Positionen in der Legende, um sie "
+            "ein-/auszublenden."
         )
-        fig = go.Figure()
-        fig.add_bar(
-            x=df["jahr"], y=df["cf_operativ_eur"],
-            name="Operativer Cashflow", marker_color="#2E7D32",
+        fig_opex = go.Figure()
+        farben_opex = [
+            "#C0392B", "#E67E22", "#D68910", "#B9770E", "#A04000",
+            "#873600", "#6E2C00", "#943126",
+        ]
+        for i, posten in enumerate(result.cashflow.opex_posten):
+            fig_opex.add_bar(
+                x=df["jahr"], y=df[posten], name=posten,
+                marker_color=farben_opex[i % len(farben_opex)],
+            )
+        fig_opex.add_bar(
+            x=df["jahr"], y=df["gemeindeabgabe_eur"], name="Gemeindeabgabe",
+            marker_color="#7B241C",
         )
-        fig.add_bar(
-            x=df["jahr"], y=df["cf_invest_eur"],
-            name="Cashflow aus Investitionstätigkeit", marker_color="#C0392B",
-        )
-        fig.add_bar(
-            x=df["jahr"], y=df["cf_finanzierung_eur"],
-            name="Cashflow aus Finanzierungstätigkeit", marker_color="#8AA6A0",
-        )
-        fig.add_scatter(
-            x=df["jahr"],
-            y=df["cf_kumuliert_eur"],
-            name="Kumulierter Cashflow",
-            mode="lines+markers",
-            line=dict(color="#163832", width=2),
-            yaxis="y2",
-        )
-        fig.update_layout(
-            barmode="relative",
-            yaxis=dict(title="Cashflow (Jahr) in €"),
-            yaxis2=dict(title="Kumuliert in €", overlaying="y", side="right"),
+        fig_opex.update_layout(
+            barmode="stack",
+            yaxis=dict(title="€"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin=dict(t=40, b=20),
-            height=440,
+            height=420,
         )
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig_opex, width="stretch")
+
+        # 3) Operativer Cashflow (Umsatzerlöse - Betriebskosten)
+        st.markdown("**Operativer Cashflow (Umsatzerlöse − Betriebskosten)**")
+        st.caption(
+            "Vereinfachte Betrachtung vor Zinsen und Steuer. Die für "
+            "EK-Rendite/NPV massgebliche Cashflow-Definition (inkl. Zinsen "
+            "und Steuer) finden Sie in der Tabelle unten."
+        )
+        opex_minus_erloes = df["erloes_eur"] - df["opex_gesamt_eur"]
+        fig_op = go.Figure()
+        fig_op.add_bar(
+            x=df["jahr"], y=opex_minus_erloes, name="Operativer Cashflow",
+            marker_color=["#2E7D32" if v >= 0 else "#C0392B" for v in opex_minus_erloes],
+        )
+        fig_op.update_layout(
+            yaxis=dict(title="€"), margin=dict(t=20, b=20), height=360,
+            showlegend=False,
+        )
+        st.plotly_chart(fig_op, width="stretch")
+
+        # 4) Cashflow aus Investitions- und Finanzierungstätigkeit
+        st.markdown("**Cashflow aus Investitions- und Finanzierungstätigkeit**")
+        st.caption(
+            "Aufgeschlüsselt nach Invest (Jahr 0), Kreditaufnahme (Jahr 0) "
+            "und Tilgung (laufend). Zinsen sind hier nicht enthalten - sie "
+            "fliessen bereits in den operativen Cashflow ein."
+        )
+        kreditaufnahme_eur = df["cf_finanzierung_eur"] + df["tilgung_eur"]
+        fig_fin = go.Figure()
+        fig_fin.add_bar(
+            x=df["jahr"], y=df["cf_invest_eur"], name="Invest",
+            marker_color="#C0392B",
+        )
+        fig_fin.add_bar(
+            x=df["jahr"], y=kreditaufnahme_eur, name="Kreditaufnahme",
+            marker_color="#2E7D32",
+        )
+        fig_fin.add_bar(
+            x=df["jahr"], y=-df["tilgung_eur"], name="Tilgung",
+            marker_color="#8AA6A0",
+        )
+        fig_fin.update_layout(
+            barmode="relative",
+            yaxis=dict(title="€"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            margin=dict(t=40, b=20),
+            height=420,
+        )
+        st.plotly_chart(fig_fin, width="stretch")
 
         with st.expander("Detailtabelle (Erlöse, Betriebskosten, Zinsen, Steuer)"):
             detail_df = df[
@@ -700,10 +765,13 @@ def render_global_assumptions_page() -> None:
             key="opex_editor",
         )
         gemeindeabgabe = st.number_input(
-            "Gemeindeabgabe (€/MWh)", min_value=0.0,
-            value=ga.gemeindeabgabe_eur_kwh * 1000, step=0.5,
-            help="Produktionsbasierte Abgabe an die Standortgemeinde "
-                 "(€ je erzeugter MWh, unabhängig von der Anlagengröße).",
+            "Gemeindeabgabe – Vorschlagswert für neue Projekte (€/MWh)",
+            min_value=0.0, value=ga.gemeindeabgabe_eur_kwh * 1000, step=0.5,
+            help="Produktionsbasierte Abgabe an die Standortgemeinde. Dient "
+                 "nur als Vorbelegung beim Anlegen eines neuen Projekts - die "
+                 "tatsächlich angewendete Abgabe wird pro Projekt festgelegt "
+                 "(im Projektformular unter 'Wirtschaftliche Parameter'), da "
+                 "sie je nach Gemeinde unterschiedlich sein kann.",
         )
 
     with st.expander("Förderung, Finanzierung, Steuer"):
