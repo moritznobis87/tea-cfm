@@ -1,7 +1,7 @@
-pydantic>=2.0
-pandas>=2.0
+pydantic>=2.13.4
+pandas>=3.0.3
 numpy-financial>=1.0
-scipy>=1.10
-pyyaml>=6.0
-streamlit>=1.30
-plotly>=5.18
+scipy>=1.18.0
+pyyaml>=6.0.3
+streamlit>=1.59.1
+plotly>=6.9.0
