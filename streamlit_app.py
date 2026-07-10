@@ -658,7 +658,7 @@ def render_global_assumptions_page() -> None:
 # ---------------------------------------------------------------------------
 
 
-st.title("☀️ PV-Projektbewertung")
+st.title("☀️ Trianel Energieprojekte Austria PV-Projektbewertung")
 
 nav = st.sidebar.radio(
     "Navigation",
