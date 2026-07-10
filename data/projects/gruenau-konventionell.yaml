@@ -6,7 +6,7 @@ nennleistung_kwp: 8200.0
 vollbenutzungsstunden_kwh_kwp: 1080.0
 pacht_eur_kwp_jahr: 3.2
 fremdkapitalzins_pct: 0.033
-eigenkapitalquote_pct: 0.25
+eigenkapitalquote_pct: 0.20
 eag_zuschlagswert_ct_kwh: 7.2
 capex:
   epc_eur: 4756000.0
