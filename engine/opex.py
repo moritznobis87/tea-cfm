@@ -1,9 +1,15 @@
 """
-Berechnet die Betriebskosten-Zeitreihe aus den globalen Standard-OPEX-
-Positionen (EUR/kWp/Jahr-basiert) plus der projektspezifischen Pacht (wird
-in pipeline.py bereits zu einer gemeinsamen Liste zusammengefuehrt) plus
-der Gemeindeabgabe (produktionsbasiert, EUR/kWh - deshalb kein OpexItem,
-sondern ein separater Parameter).
+Berechnet die Betriebskosten-Zeitreihe - sowohl die Gesamtsumme als auch
+JEDE Kostenposition als eigene Spalte (Name der Position = Spaltenname),
+damit die UI eine vollstaendige, aufgeschluesselte Aufstellung anzeigen
+kann (z.B. als gestapeltes Balkendiagramm mit einer Position pro Legenden-
+eintrag).
+
+Quellen: globale Standard-OPEX-Positionen (EUR/kWp/Jahr-basiert), die
+projektspezifische Pacht (wird in pipeline.py bereits zu einer
+gemeinsamen Liste zusammengefuehrt) sowie die Gemeindeabgabe
+(produktionsbasiert, EUR/kWh - deshalb kein OpexItem, sondern ein
+separater Parameter).
 """
 
 from __future__ import annotations
@@ -12,7 +18,7 @@ import pandas as pd
 
 from .models import OpexItem
 
-OPEX_COLUMNS = ["jahr", "opex_gesamt_eur", "gemeindeabgabe_eur"]
+BASISSPALTEN = ["jahr", "opex_gesamt_eur", "gemeindeabgabe_eur"]
 
 
 def calculate_opex(
@@ -25,18 +31,29 @@ def calculate_opex(
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
 
+    posten_spalten: list[str] = []
     for item in opex_items:
         basis_eur = item.basiswert_eur_kwp * nennleistung_kwp
         aktiv = df["jahr"] >= item.start_betriebsjahr
 
         jahre_seit_indexstart = (df["jahr"] - item.indexierung_ab_jahr).clip(lower=0)
         indexierter_betrag = basis_eur * (1 + item.index_pct_pa) ** jahre_seit_indexstart
+        betrag = aktiv.astype(float) * indexierter_betrag
 
-        df["opex_gesamt_eur"] += aktiv.astype(float) * indexierter_betrag
+        # Bei zwei Positionen mit identischem Namen wird addiert statt
+        # einer neuen Spalte - so bleibt jede Bezeichnung ein eindeutiger
+        # Legendeneintrag.
+        if item.name in df.columns:
+            df[item.name] = df[item.name] + betrag
+        else:
+            df[item.name] = betrag
+            posten_spalten.append(item.name)
+
+        df["opex_gesamt_eur"] += betrag
 
     df["gemeindeabgabe_eur"] = (
         energy["produktion_kwh"].to_numpy() * gemeindeabgabe_eur_kwh
     )
     df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"]
 
-    return df[OPEX_COLUMNS]
+    return df[BASISSPALTEN + posten_spalten]
