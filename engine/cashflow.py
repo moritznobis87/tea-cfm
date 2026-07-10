@@ -45,6 +45,9 @@ class CashflowTimeseries:
     data: pd.DataFrame
     project_id: str
     scenario_name: str | None = field(default=None)
+    # Namen der dynamischen OPEX-Einzelpositionen (fuer die Aufschluesselung
+    # in der UI, z.B. im gestapelten Betriebskosten-Chart).
+    opex_posten: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         missing = set(CASHFLOW_COLUMNS) - set(self.data.columns)
@@ -63,6 +66,13 @@ def calculate_cashflow(
     inbetriebnahme_datum: date,
     project_id: str,
 ) -> CashflowTimeseries:
+    # Einzelne OPEX-Kostenpositionen (dynamisch, projektabhaengig - z.B.
+    # "Pacht", "Technische Betriebsführung", ...) werden 1:1 durchgereicht,
+    # damit die UI eine vollstaendige Aufschluesselung anzeigen kann.
+    opex_posten_spalten = [
+        c for c in opex.columns if c not in ("jahr", "opex_gesamt_eur", "gemeindeabgabe_eur")
+    ]
+
     cf_operativ = (
         revenue["erloes_eur"].to_numpy()
         - opex["opex_gesamt_eur"].to_numpy()
@@ -95,6 +105,7 @@ def calculate_cashflow(
             "erloes_eur": revenue["erloes_eur"].to_numpy(),
             "opex_gesamt_eur": opex["opex_gesamt_eur"].to_numpy(),
             "gemeindeabgabe_eur": opex["gemeindeabgabe_eur"].to_numpy(),
+            **{spalte: opex[spalte].to_numpy() for spalte in opex_posten_spalten},
             "zinsen_eur": financing["zinsen_eur"].to_numpy(),
             "tilgung_eur": financing["tilgung_eur"].to_numpy(),
             "steuer_eur": tax["steuer_eur"].to_numpy(),
@@ -117,6 +128,7 @@ def calculate_cashflow(
                 "erloes_eur": 0.0,
                 "opex_gesamt_eur": 0.0,
                 "gemeindeabgabe_eur": 0.0,
+                **{spalte: 0.0 for spalte in opex_posten_spalten},
                 "zinsen_eur": 0.0,
                 "tilgung_eur": 0.0,
                 "steuer_eur": 0.0,
@@ -134,4 +146,7 @@ def calculate_cashflow(
     )
     df["cf_kumuliert_eur"] = df["cf_gesamt_eur"].cumsum()
 
-    return CashflowTimeseries(data=df[CASHFLOW_COLUMNS], project_id=project_id)
+    finale_spalten = CASHFLOW_COLUMNS + opex_posten_spalten
+    return CashflowTimeseries(
+        data=df[finale_spalten], project_id=project_id, opex_posten=opex_posten_spalten
+    )
