@@ -569,6 +569,32 @@ def render_project_dashboard(
         )
         st.plotly_chart(fig_fin, width="stretch")
 
+        # 5) Gesamt-Cashflow (Summe aller Kategorien) + kumulierte Kurve
+        st.markdown("**Gesamt-Cashflow**")
+        st.caption(
+            "Summe aus operativem, Investitions- und Finanzierungs-Cashflow "
+            "je Jahr (Balken) sowie kumuliert über die Zeit (Linie, rechte "
+            "Achse)."
+        )
+        fig_gesamt = go.Figure()
+        fig_gesamt.add_bar(
+            x=df["jahr"], y=df["cf_gesamt_eur"], name="Cashflow (Jahr)",
+            marker_color=["#2E7D32" if v >= 0 else "#C0392B" for v in df["cf_gesamt_eur"]],
+        )
+        fig_gesamt.add_scatter(
+            x=df["jahr"], y=df["cf_kumuliert_eur"], name="Kumulierter Cashflow",
+            mode="lines+markers", line=dict(color="#163832", width=2),
+            yaxis="y2",
+        )
+        fig_gesamt.update_layout(
+            yaxis=dict(title="Cashflow (Jahr) in €"),
+            yaxis2=dict(title="Kumuliert in €", overlaying="y", side="right"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            margin=dict(t=40, b=20),
+            height=440,
+        )
+        st.plotly_chart(fig_gesamt, width="stretch")
+
         with st.expander("Detailtabelle (Erlöse, Betriebskosten, Zinsen, Steuer)"):
             detail_df = df[
                 [
@@ -681,11 +707,21 @@ def render_project_dashboard(
             marker_color=[
                 "#2E7D32" if v == "Basis" else "#8AA6A0" for v in varianten
             ],
-            text=bar_text,
-            textposition="outside",
             customdata=varianten,
             hovertemplate="%{customdata}: %{x:.2f} ct/kWh → %{text}<extra></extra>",
+            text=bar_text,
         )
+        # Beschriftung ueber feste Annotationen statt textposition="outside":
+        # "outside" würde bei negativer IRR unterhalb des Balkens landen
+        # (Plotly richtet sich nach dem Vorzeichen). yshift ist ein reiner
+        # Pixel-Offset und sitzt dadurch immer oberhalb der Balkenspitze,
+        # unabhängig vom Vorzeichen.
+        for x_wert, y_wert, text in zip(eag_werte, irr_pct, bar_text):
+            fig.add_annotation(
+                x=x_wert, y=y_wert if pd.notna(y_wert) else 0,
+                text=text, showarrow=False, yshift=14,
+                font=dict(size=12, color="#163832"),
+            )
         fig.update_layout(
             xaxis=dict(
                 title="EAG-Zuschlagswert (ct/kWh)",
