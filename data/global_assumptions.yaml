@@ -53,12 +53,12 @@ anteil_negativer_stunden_pct_je_jahr:
   '25': 0.01
 opex_standard:
 - name: Technische Betriebsführung
-  basiswert_eur_kwp: 3.5
+  basiswert_eur_kwp: 3.0
   start_betriebsjahr: 1
   index_pct_pa: 0.02
   indexierung_ab_jahr: 10
 - name: Wartung / Rücklage Wechselrichter
-  basiswert_eur_kwp: 2.5
+  basiswert_eur_kwp: 1.0
   start_betriebsjahr: 1
   index_pct_pa: 0.02
   indexierung_ab_jahr: 10
@@ -68,7 +68,7 @@ opex_standard:
   index_pct_pa: 0.02
   indexierung_ab_jahr: 10
 - name: Kaufmännische Betriebsführung / Buchführung
-  basiswert_eur_kwp: 1.5
+  basiswert_eur_kwp: 3.0
   start_betriebsjahr: 1
   index_pct_pa: 0.0
   indexierung_ab_jahr: 1
