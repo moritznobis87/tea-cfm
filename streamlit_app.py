@@ -133,32 +133,44 @@ def render_project_form(
 
     st.markdown("**Investkosten**")
     capex_defaults = existing.capex if existing else CapexBreakdown()
-    capex_einheit = st.segmented_control(
-        "Einheit", options=["€/kWp", "€"], default="€/kWp",
+    capex_einheit = st.radio(
+        "Einheit", options=["€/kWp", "€"], horizontal=True,
         key=f"{form_key}_capex_einheit",
-    ) or "€/kWp"
+    )
+
+    # Stabile Widget-Keys (KEIN Wechsel des Keys je Einheit!): ein
+    # Einheiten-Wechsel triggert einen Rerun ausserhalb des Formulars, und
+    # WIR schreiben den passend umgerechneten Wert direkt in den
+    # Session-State, BEVOR das Widget in diesem Run instanziiert wird. Das
+    # vermeidet, dass sich die Menge der Formular-Widgets je nach Einheit
+    # aendert - das kann in Streamlit zu inkonsistentem Formularverhalten
+    # fuehren (Widgets, die zwischen Runs erscheinen/verschwinden, sind ein
+    # bekanntes Risikomuster).
+    capex_mode_key = f"{form_key}_capex_mode_prev"
+    capex_mode_changed = st.session_state.get(capex_mode_key) != capex_einheit
+    st.session_state[capex_mode_key] = capex_einheit
 
     def capex_feld(col, label: str, default_abs_eur: float, key_suffix: str) -> float:
-        if capex_einheit == "€/kWp":
-            default_rel = (
-                round(default_abs_eur / nennleistung_kwp, 1) if nennleistung_kwp else 0.0
-            )
-            rel = col.number_input(
-                f"{label} (€/kWp)", min_value=0.0, value=default_rel, step=1.0,
-                key=f"{form_key}_{key_suffix}_rel",
-            )
-            return rel * nennleistung_kwp
-        wert = col.number_input(
-            f"{label} (€)", min_value=0.0, value=default_abs_eur, step=1000.0,
-            key=f"{form_key}_{key_suffix}_abs",
+        key = f"{form_key}_{key_suffix}"
+        if capex_mode_changed or key not in st.session_state:
+            if capex_einheit == "€/kWp":
+                st.session_state[key] = (
+                    round(default_abs_eur / nennleistung_kwp, 1) if nennleistung_kwp else 0.0
+                )
+            else:
+                st.session_state[key] = default_abs_eur
+        einheit_label = "€/kWp" if capex_einheit == "€/kWp" else "€"
+        schritt = 1.0 if capex_einheit == "€/kWp" else 1000.0
+        eingabe = col.number_input(
+            f"{label} ({einheit_label})", min_value=0.0, step=schritt, key=key,
         )
-        return wert
+        return eingabe * nennleistung_kwp if capex_einheit == "€/kWp" else eingabe
 
     st.markdown("**Pacht**")
-    pacht_einheit = st.segmented_control(
-        "Einheit", options=["€/kWp/Jahr", "€/ha/Jahr"], default="€/kWp/Jahr",
+    pacht_einheit = st.radio(
+        "Einheit", options=["€/kWp/Jahr", "€/ha/Jahr"], horizontal=True,
         key=f"{form_key}_pacht_einheit",
-    ) or "€/kWp/Jahr"
+    )
 
     with st.form(form_key, clear_on_submit=False):
         name = st.text_input(
