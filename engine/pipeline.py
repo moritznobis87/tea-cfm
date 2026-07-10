@@ -50,7 +50,7 @@ def resolve_assumptions(
         marktwert_solar_ct_kwh_je_jahr=global_assumptions.marktwert_solar_ct_kwh_je_jahr,
         anteil_negativer_stunden_pct_je_jahr=global_assumptions.anteil_negativer_stunden_pct_je_jahr,
         opex_items=opex_items,
-        gemeindeabgabe_eur_kwh=global_assumptions.gemeindeabgabe_eur_kwh,
+        gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         capex_total_eur=project.capex.summe_eur,
         eigenkapitalquote_pct=project.eigenkapitalquote_pct,
         fremdkapitalzins_pct=project.fremdkapitalzins_pct,

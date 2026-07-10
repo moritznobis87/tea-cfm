@@ -88,6 +88,7 @@ class PVProject(BaseModel):
     fremdkapitalzins_pct: float = Field(ge=0)
     eigenkapitalquote_pct: float = Field(ge=0, le=1)
     eag_zuschlagswert_ct_kwh: float = Field(gt=0)
+    gemeindeabgabe_eur_mwh: float = Field(ge=0, default=2.0)
 
     # Investkosten
     capex: CapexBreakdown = Field(default_factory=CapexBreakdown)
@@ -134,6 +135,10 @@ class GlobalAssumptions(BaseModel):
     # Gemeindeabgabe: pro erzeugter kWh an die Standortgemeinde, unabhaengig
     # von der Anlagengroesse. Deshalb kein OpexItem (das ist EUR/kWp/Jahr-
     # basiert), sondern ein eigener Produktions-basierter Satz.
+    # Gemeindeabgabe-Vorschlagswert: dient nur als Vorbelegung im
+    # "Neues Projekt"-Formular. Die tatsaechlich angewendete Abgabe ist
+    # projektspezifisch (siehe PVProject.gemeindeabgabe_eur_mwh), da sie je
+    # nach Standortgemeinde variieren kann.
     gemeindeabgabe_eur_kwh: float = Field(ge=0, default=0.002)
 
     # Technische Standardannahmen
