@@ -32,6 +32,7 @@ from engine.models import (
     AnlagenTyp,
     CapexBreakdown,
     GlobalAssumptions,
+    MarktpreisSzenario,
     OpexItem,
     PVProject,
     TilgungsArt,
@@ -155,9 +156,9 @@ def render_project_form(
     )
     inbetriebnahme_monat = MONATE.index(inbetriebnahme_monat_label) + 1
     st.caption(
-        "ℹ️ Bestimmt das erste (anteilige) Betriebsjahr und die Cashflow-Daten. "
-        "Hinweis: Die Preiskurven in den Globalen Annahmen sind aktuell nach "
-        "Betriebsjahr (1, 2, 3, …) indiziert, nicht nach Kalenderjahr."
+        "ℹ️ Bestimmt das erste (anteilige) Betriebsjahr, die Cashflow-Daten "
+        "und ab welchem Kalenderjahr die Marktpreiskurve des gewählten "
+        "Szenarios (siehe unten) verwendet wird."
     )
 
     st.markdown("**Investkosten**")
@@ -244,6 +245,20 @@ def render_project_form(
                 f"ℹ️ Konventionell: automatischer Abschlag von 25 % wird angewendet "
                 f"→ effektiv {eag_zuschlag * 0.75:.2f} ct/kWh"
             )
+
+        szenario_namen = load_global_assumptions().szenario_namen or ["Aurora 10/25"]
+        default_szenario = existing.marktpreisszenario if existing else "Aurora 10/25"
+        szenario_index = (
+            szenario_namen.index(default_szenario)
+            if default_szenario in szenario_namen
+            else 0
+        )
+        marktpreisszenario = st.selectbox(
+            "Marktpreisszenario", szenario_namen, index=szenario_index,
+            key=f"{form_key}_marktpreisszenario",
+            help="Bestimmt die Marktwert-Solar- und Anteil-negativer-Stunden-"
+                 "Kurve für dieses Projekt (siehe Globale Annahmen).",
+        )
 
         if pacht_einheit == "€/ha/Jahr":
             flaeche_key = f"{form_key}_flaeche"
@@ -351,6 +366,7 @@ def render_project_form(
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
         gemeindeabgabe_eur_mwh=gemeindeabgabe_mwh,
+        marktpreisszenario=marktpreisszenario,
         capex=CapexBreakdown(
             epc_eur=epc,
             netzanschluss_eur=netzanschluss,
@@ -847,27 +863,64 @@ def render_global_assumptions_page() -> None:
 
     ga = load_global_assumptions()
 
-    with st.expander("Preiskurven (Marktwert Solar & negative Stunden)", expanded=True):
-        jahre = sorted(
-            set(ga.marktwert_solar_ct_kwh_je_jahr)
-            | set(ga.anteil_negativer_stunden_pct_je_jahr)
+    with st.expander("Marktpreisszenarien", expanded=True):
+        st.caption(
+            "Kurven sind nach echtem Kalenderjahr indiziert. Je Projekt wird "
+            "eines dieser Szenarien ausgewählt; das Kalenderjahr, ab dem die "
+            "Kurve verwendet wird, ergibt sich aus dem Inbetriebnahmejahr "
+            "des jeweiligen Projekts."
         )
-        kurven_df = pd.DataFrame(
-            {
-                "Jahr": jahre,
-                "Marktwert Solar (ct/kWh)": [
-                    ga.marktwert_solar_ct_kwh_je_jahr.get(j) for j in jahre
-                ],
-                "Anteil neg. Stunden (%)": [
-                    (ga.anteil_negativer_stunden_pct_je_jahr.get(j) or 0) * 100
-                    for j in jahre
-                ],
-            }
+
+        if not ga.marktpreisszenarien:
+            st.info("Noch kein Marktpreisszenario vorhanden.")
+            edited_szenarien: dict[str, pd.DataFrame] = {}
+        else:
+            tabs = st.tabs([s.name for s in ga.marktpreisszenarien])
+            edited_szenarien: dict[str, pd.DataFrame] = {}
+            for tab, szenario in zip(tabs, ga.marktpreisszenarien):
+                with tab:
+                    jahre = sorted(
+                        set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+                        | set(szenario.anteil_negativer_stunden_pct_je_kalenderjahr)
+                    )
+                    kurven_df = pd.DataFrame(
+                        {
+                            "Kalenderjahr": jahre,
+                            "Marktwert Solar (ct/kWh)": [
+                                szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(j)
+                                for j in jahre
+                            ],
+                            "Anteil neg. Stunden (%)": [
+                                (
+                                    szenario.anteil_negativer_stunden_pct_je_kalenderjahr.get(j)
+                                    or 0
+                                )
+                                * 100
+                                for j in jahre
+                            ],
+                        }
+                    )
+                    edited_szenarien[szenario.name] = st.data_editor(
+                        kurven_df, width="stretch", hide_index=True,
+                        num_rows="dynamic", key=f"kurven_editor_{szenario.name}",
+                    )
+
+        st.divider()
+        st.markdown("**Neues Szenario anlegen**")
+        neuer_szenario_name = st.text_input(
+            "Name des neuen Szenarios", key="neues_szenario_name",
+            placeholder="z.B. Enervis 2026",
         )
-        edited_kurven = st.data_editor(
-            kurven_df, width="stretch", hide_index=True, num_rows="dynamic",
-            key="kurven_editor",
-        )
+        if st.button("➕ Szenario hinzufügen") and neuer_szenario_name.strip():
+            if neuer_szenario_name in ga.szenario_namen:
+                st.error("Ein Szenario mit diesem Namen existiert bereits.")
+            else:
+                ga.marktpreisszenarien.append(
+                    MarktpreisSzenario(name=neuer_szenario_name.strip())
+                )
+                save_global_assumptions_yaml(ga, GLOBAL_ASSUMPTIONS_PATH)
+                st.cache_data.clear()
+                st.rerun()
 
     with st.expander("Standardbetriebskosten"):
         opex_df = pd.DataFrame(
@@ -919,16 +972,31 @@ def render_global_assumptions_page() -> None:
         )
 
     if st.button("Speichern", type="primary"):
-        ga.marktwert_solar_ct_kwh_je_jahr = {
-            int(r["Jahr"]): float(r["Marktwert Solar (ct/kWh)"])
-            for _, r in edited_kurven.iterrows()
-            if pd.notna(r["Jahr"]) and pd.notna(r["Marktwert Solar (ct/kWh)"])
-        }
-        ga.anteil_negativer_stunden_pct_je_jahr = {
-            int(r["Jahr"]): float(r["Anteil neg. Stunden (%)"]) / 100
-            for _, r in edited_kurven.iterrows()
-            if pd.notna(r["Jahr"]) and pd.notna(r["Anteil neg. Stunden (%)"])
-        }
+        neue_szenarien = []
+        for szenario in ga.marktpreisszenarien:
+            edited = edited_szenarien.get(szenario.name)
+            if edited is None:
+                neue_szenarien.append(szenario)
+                continue
+            neue_szenarien.append(
+                MarktpreisSzenario(
+                    name=szenario.name,
+                    marktwert_solar_ct_kwh_je_kalenderjahr={
+                        int(r["Kalenderjahr"]): float(r["Marktwert Solar (ct/kWh)"])
+                        for _, r in edited.iterrows()
+                        if pd.notna(r["Kalenderjahr"])
+                        and pd.notna(r["Marktwert Solar (ct/kWh)"])
+                    },
+                    anteil_negativer_stunden_pct_je_kalenderjahr={
+                        int(r["Kalenderjahr"]): float(r["Anteil neg. Stunden (%)"]) / 100
+                        for _, r in edited.iterrows()
+                        if pd.notna(r["Kalenderjahr"])
+                        and pd.notna(r["Anteil neg. Stunden (%)"])
+                    },
+                )
+            )
+        ga.marktpreisszenarien = neue_szenarien
+
         ga.opex_standard = [
             OpexItem(
                 name=r["Position"],
