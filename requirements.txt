@@ -1,3 +1,8 @@
+# WICHTIG zu pyarrow: Version 25.0.0 hat einen reproduzierbaren
+# Segmentation-Fault-Bug beim Rendern von st.dataframe() (getestet gegen
+# numpy 2.5.1 / pandas 3.0.3). Die Versionen 21, 23 und 24 sind stabil.
+# Deshalb pyarrow < 25 explizit ausschliessen, alles andere aktuell halten
+# (Python 3.14 auf Streamlit Cloud braucht moderne Wheels).
 pydantic>=2.10
 pandas>=2.2
 numpy>=1.26
