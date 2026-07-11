@@ -1145,7 +1145,7 @@ def render_global_assumptions_page() -> None:
 col_logo, col_title = st.columns([1, 8], vertical_alignment="center")
 logo_pfad = Path(__file__).parent / "assets" / "TRI_Logo_Pure_RGB_Red.png"
 if logo_pfad.exists():
-    col_logo.image(str(logo_pfad), width=140)
+    col_logo.image(str(logo_pfad), width=84)
 col_title.title("TEA PV-Projektbewertung")
 
 nav = st.sidebar.radio(
