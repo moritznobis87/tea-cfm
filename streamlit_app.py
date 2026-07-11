@@ -45,7 +45,12 @@ DATA_DIR = Path(__file__).parent / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 
-st.set_page_config(page_title="TEA PV-Projektbewertung", layout="wide", page_icon="☀️")
+_logo_pfad_favicon = Path(__file__).parent / "assets" / "TRI_Logo_Pure_RGB_Red.png"
+st.set_page_config(
+    page_title="TEA PV-Projektbewertung",
+    layout="wide",
+    page_icon=str(_logo_pfad_favicon) if _logo_pfad_favicon.exists() else "☀️",
+)
 
 CUSTOM_CSS = """
 <style>
@@ -1010,7 +1015,7 @@ def render_global_assumptions_page() -> None:
                  "Verschattung, Verschmutzung, Ausfallzeiten).",
         )
 
-    with st.expander("Förderung, Finanzierung, Steuer", expanded=True):
+    with st.expander("Förderung, Finanzierung", expanded=True):
         col1, col2, col3 = st.columns(3)
         eag_foerderdauer = col1.number_input(
             "EAG-Förderdauer (Jahre)", min_value=1, value=ga.eag_foerderdauer_jahre
@@ -1026,7 +1031,7 @@ def render_global_assumptions_page() -> None:
             index=0 if ga.tilgungsart.value == "annuitaet" else 1,
         )
 
-        st.markdown("**Steuer**")
+    with st.expander("Steuern", expanded=False):
         tax_modus_optionen = ["pauschal_auf_ebt", "afa_koerperschaftsteuer"]
         tax_modus_labels = {
             "pauschal_auf_ebt": "Pauschal auf EBT (vereinfacht, keine AfA)",
@@ -1137,7 +1142,11 @@ def render_global_assumptions_page() -> None:
 # ---------------------------------------------------------------------------
 
 
-st.title("☀️ TEA PV-Projektbewertung")
+col_logo, col_title = st.columns([1, 8], vertical_alignment="center")
+logo_pfad = Path(__file__).parent / "assets" / "TRI_Logo_Pure_RGB_Red.png"
+if logo_pfad.exists():
+    col_logo.image(str(logo_pfad), width=140)
+col_title.title("TEA PV-Projektbewertung")
 
 nav = st.sidebar.radio(
     "Navigation",
