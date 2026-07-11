@@ -35,6 +35,7 @@ from engine.models import (
     MarktpreisSzenario,
     OpexItem,
     PVProject,
+    TaxModus,
     TilgungsArt,
 )
 from engine.pipeline import run_valuation
@@ -709,16 +710,26 @@ def render_project_dashboard(
         with st.expander("Detailtabelle (Erlöse, Betriebskosten, Zinsen, Steuer)"):
             detail_df = df[
                 [
-                    "jahr", "erloes_eur", "opex_gesamt_eur", "gemeindeabgabe_eur",
-                    "zinsen_eur", "tilgung_eur", "steuer_eur",
+                    "jahr", "marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
+                    "verguetungssatz_ct_kwh", "erloes_eur", "opex_gesamt_eur",
+                    "gemeindeabgabe_eur", "zinsen_eur", "tilgung_eur", "afa_eur",
+                    "steuerliches_ergebnis_vor_verlustvortrag_eur",
+                    "verlustvortrag_genutzt_eur", "verlustvortrag_bestand_eur",
+                    "steuerliches_ergebnis_eur", "steuer_eur",
                 ]
             ].copy()
             for col in detail_df.columns:
-                if col != "jahr":
-                    detail_df[col] = detail_df[col].round(0)
+                if col == "jahr":
+                    continue
+                nachkommastellen = 3 if "ct_kwh" in col else 0
+                detail_df[col] = detail_df[col].round(nachkommastellen)
             detail_df.columns = [
-                "Jahr", "Erlöse (€)", "Betriebskosten gesamt (€)",
-                "davon Gemeindeabgabe (€)", "Zinsen (€)", "Tilgung (€)", "Steuer (€)",
+                "Jahr", "Marktwert real (ct/kWh)", "Marktwert nominal (ct/kWh)",
+                "Vergütungssatz (ct/kWh)", "Erlöse (€)", "Betriebskosten gesamt (€)",
+                "davon Gemeindeabgabe (€)", "Zinsen (€)", "Tilgung (€)", "AfA (€)",
+                "Steuerl. Ergebnis vor Verlustvortrag (€)",
+                "Verlustvortrag genutzt (€)", "Verlustvortrag-Bestand Ende Jahr (€)",
+                "Steuerpflichtiges Ergebnis (€)", "Steuer (€)",
             ]
             st.dataframe(detail_df, width="stretch", hide_index=True)
 
@@ -884,6 +895,27 @@ def render_global_assumptions_page() -> None:
             "des jeweiligen Projekts."
         )
 
+        st.markdown("**Inflationierung der Marktwerte**")
+        st.caption(
+            "Marktpreisstudien (Aurora/Enervis) liefern typischerweise reale "
+            "Werte auf Preisbasis des Erscheinungsjahres, keine bereits "
+            "inflationierten Nominalwerte. Für die Cashflow-Rechnung wird "
+            "deshalb ein Inflationsaufschlag ab dem Basisjahr angewendet. "
+            "Der EAG-Zuschlagswert ist davon nicht betroffen (bleibt "
+            "gesetzlich nominal fix während der Förderdauer)."
+        )
+        col_infl1, col_infl2 = st.columns(2)
+        marktpreis_inflation = col_infl1.number_input(
+            "Inflation Marktwerte (%/Jahr)", min_value=0.0,
+            value=ga.marktpreis_inflation_pct_pa * 100, step=0.1,
+        )
+        marktpreis_basisjahr = col_infl2.number_input(
+            "Basisjahr der Kurven", min_value=2000, max_value=2100,
+            value=ga.marktpreis_inflation_basisjahr, step=1,
+            help="Preisbasis-Jahr der Marktpreisstudie - ab diesem Jahr "
+                 "wird die Inflation aufgeschlagen.",
+        )
+
         if not ga.marktpreisszenarien:
             st.info("Noch kein Marktpreisszenario vorhanden.")
             edited_szenarien: dict[str, pd.DataFrame] = {}
@@ -978,7 +1010,7 @@ def render_global_assumptions_page() -> None:
                  "Verschattung, Verschmutzung, Ausfallzeiten).",
         )
 
-    with st.expander("Förderung, Finanzierung, Steuer"):
+    with st.expander("Förderung, Finanzierung, Steuer", expanded=True):
         col1, col2, col3 = st.columns(3)
         eag_foerderdauer = col1.number_input(
             "EAG-Förderdauer (Jahre)", min_value=1, value=ga.eag_foerderdauer_jahre
@@ -989,14 +1021,59 @@ def render_global_assumptions_page() -> None:
         kreditlaufzeit = col3.number_input(
             "Kreditlaufzeit (Jahre)", min_value=1, value=ga.kreditlaufzeit_jahre
         )
-        col5, col6 = st.columns(2)
-        steuersatz = col5.number_input(
-            "Steuersatz (%)", min_value=0.0, value=ga.steuersatz_pct * 100, step=0.5
-        )
-        tilgungsart = col6.selectbox(
+        tilgungsart = st.selectbox(
             "Tilgungsart", ["annuitaet", "linear"],
             index=0 if ga.tilgungsart.value == "annuitaet" else 1,
         )
+
+        st.markdown("**Steuer**")
+        tax_modus_optionen = ["pauschal_auf_ebt", "afa_koerperschaftsteuer"]
+        tax_modus_labels = {
+            "pauschal_auf_ebt": "Pauschal auf EBT (vereinfacht, keine AfA)",
+            "afa_koerperschaftsteuer": "Körperschaftsteuer mit AfA (realistischer)",
+        }
+        tax_modus = st.radio(
+            "Steuermodus",
+            tax_modus_optionen,
+            format_func=lambda v: tax_modus_labels[v],
+            index=tax_modus_optionen.index(ga.tax_modus.value),
+            horizontal=True,
+        )
+
+        col4, col5 = st.columns(2)
+        steuersatz = col4.number_input(
+            "Steuersatz (%)", min_value=0.0, value=ga.steuersatz_pct * 100, step=0.5,
+            help="Österreich (KöSt): 23 % (Stand 2026).",
+        )
+        verlustvortrag_grenze = col5.number_input(
+            "Verlustvortrag-Verrechnungsgrenze (%)", min_value=0.0, max_value=100.0,
+            value=ga.verlustvortrag_verrechnungsgrenze_pct * 100, step=5.0,
+            help="Maximaler Anteil des Gewinns eines Jahres, der mit "
+                 "vorgetragenen Verlusten verrechnet werden darf. "
+                 "Österreich (KStG): 75 % - mindestens 25 % des Gewinns "
+                 "bleiben also immer steuerpflichtig, auch bei hohem "
+                 "Verlustvortrag. Gilt unabhängig vom Steuermodus.",
+        )
+
+        if tax_modus == "afa_koerperschaftsteuer":
+            col6, col7 = st.columns(2)
+            afa_nutzungsdauer = col6.number_input(
+                "AfA-Nutzungsdauer (Jahre)", min_value=1,
+                value=ga.afa_nutzungsdauer_jahre or 20,
+                help="Lineare Abschreibungsdauer der Investitionskosten. "
+                     "Für PV-Anlagen in Österreich üblich: 20 Jahre.",
+            )
+            freibetrag = col7.number_input(
+                "Freibetrag (€/Jahr)", min_value=0.0,
+                value=ga.freibetrag_eur, step=100.0,
+            )
+        else:
+            afa_nutzungsdauer = ga.afa_nutzungsdauer_jahre
+            freibetrag = ga.freibetrag_eur
+            st.caption(
+                "ℹ️ AfA und Freibetrag werden im Pauschalmodus nicht "
+                "angewendet. Der Verlustvortrag gilt trotzdem."
+            )
 
     if st.button("Speichern", type="primary"):
         neue_szenarien = []
@@ -1023,6 +1100,8 @@ def render_global_assumptions_page() -> None:
                 )
             )
         ga.marktpreisszenarien = neue_szenarien
+        ga.marktpreis_inflation_pct_pa = marktpreis_inflation / 100
+        ga.marktpreis_inflation_basisjahr = int(marktpreis_basisjahr)
 
         ga.opex_standard = [
             OpexItem(
@@ -1042,6 +1121,10 @@ def render_global_assumptions_page() -> None:
         ga.steuersatz_pct = steuersatz / 100
         ga.tilgungsart = TilgungsArt(tilgungsart)
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
+        ga.tax_modus = TaxModus(tax_modus)
+        ga.afa_nutzungsdauer_jahre = int(afa_nutzungsdauer) if afa_nutzungsdauer else None
+        ga.freibetrag_eur = float(freibetrag)
+        ga.verlustvortrag_verrechnungsgrenze_pct = verlustvortrag_grenze / 100
 
         save_global_assumptions_yaml(ga, GLOBAL_ASSUMPTIONS_PATH)
         st.cache_data.clear()
