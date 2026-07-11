@@ -6,14 +6,14 @@ anlagentyp: agri_pv
 nennleistung_kwp: 4500.0
 vollbenutzungsstunden_kwh_kwp: 1050.0
 pacht_eur_kwp_jahr: 4.5
-fremdkapitalzins_pct: 0.035
+fremdkapitalzins_pct: 0.042
 eigenkapitalquote_pct: 0.2
 eag_zuschlagswert_ct_kwh: 7.2
 gemeindeabgabe_eur_mwh: 2.0
 capex:
-  epc_eur: 2700000.0
-  netzanschluss_eur: 180000.0
-  trasse_eur: 90000.0
+  epc_eur: 2340000.0
+  netzanschluss_eur: 225000.0
+  trasse_eur: 180000.0
   sonstige_extern_eur: 59850.0
   agm_eur: 40050.0
   m_and_a_eur: 25200.0
