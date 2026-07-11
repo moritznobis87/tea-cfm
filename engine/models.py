@@ -172,10 +172,16 @@ class GlobalAssumptions(BaseModel):
     tilgungsart: TilgungsArt = TilgungsArt.ANNUITAET
 
     # Steuer
-    tax_modus: TaxModus = TaxModus.PAUSCHAL_AUF_EBT
+    tax_modus: TaxModus = TaxModus.AFA_KOERPERSCHAFTSTEUER
     steuersatz_pct: float = Field(ge=0, le=1, default=0.25)
     afa_nutzungsdauer_jahre: int | None = None
     freibetrag_eur: float = 0.0
+    # Verlustvortrag (§8 Abs. 4 Z 2 KStG): zeitlich unbegrenzt vortragbar,
+    # aber pro Gewinnjahr nur bis verlustvortrag_verrechnungsgrenze_pct des
+    # steuerlichen Ergebnisses verrechenbar (siehe tax.py). Kein "Ein/Aus"-
+    # Schalter, da Verlustvortrag gesetzlich vorgeschrieben ist - Kontrolle
+    # erfolgt ausschliesslich ueber die Verrechnungsgrenze selbst.
+    verlustvortrag_verrechnungsgrenze_pct: float = Field(ge=0, le=1, default=0.75)
 
     @model_validator(mode="after")
     def check_afa_fields(self) -> "GlobalAssumptions":
@@ -233,6 +239,7 @@ class EffectiveAssumptions(BaseModel):
     steuersatz_pct: float
     afa_nutzungsdauer_jahre: int | None
     freibetrag_eur: float
+    verlustvortrag_verrechnungsgrenze_pct: float
 
 
 class KPIs(BaseModel):

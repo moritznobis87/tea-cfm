@@ -35,16 +35,17 @@ from .models import (
 EINSTELLUNGEN_DEFAULTS = {
     "gueltig_ab": "",
     "gemeindeabgabe_eur_mwh_vorschlag": 2.0,
-    "degradation_pct_pa": 0.5,
+    "degradation_pct_pa": 0.25,
     "sicherheitsabschlag_pct": 0.0,
     "eag_foerderdauer_jahre": 20,
     "betriebsdauer_jahre": 25,
     "kreditlaufzeit_jahre": 20,
     "tilgungsart": "annuitaet",
-    "tax_modus": "pauschal_auf_ebt",
+    "tax_modus": "afa_koerperschaftsteuer",
     "steuersatz_pct": 23.0,
     "afa_nutzungsdauer_jahre": None,
     "freibetrag_eur": 0.0,
+    "verlustvortrag_verrechnungsgrenze_pct": 75.0,
 }
 
 
@@ -102,6 +103,10 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("steuersatz_pct", ga.steuersatz_pct * 100),
             ("afa_nutzungsdauer_jahre", ga.afa_nutzungsdauer_jahre),
             ("freibetrag_eur", ga.freibetrag_eur),
+            (
+                "verlustvortrag_verrechnungsgrenze_pct",
+                ga.verlustvortrag_verrechnungsgrenze_pct * 100,
+            ),
         ],
         columns=["Parameter", "Wert"],
     )
@@ -183,6 +188,10 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         steuersatz_pct=float(get("steuersatz_pct")) / 100,
         afa_nutzungsdauer_jahre=int(afa_wert) if afa_wert not in (None, "") else None,
         freibetrag_eur=float(get("freibetrag_eur")),
+        verlustvortrag_verrechnungsgrenze_pct=float(
+            get("verlustvortrag_verrechnungsgrenze_pct")
+        )
+        / 100,
     )
 
 

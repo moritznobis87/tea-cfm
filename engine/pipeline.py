@@ -78,6 +78,7 @@ def resolve_assumptions(
         steuersatz_pct=global_assumptions.steuersatz_pct,
         afa_nutzungsdauer_jahre=global_assumptions.afa_nutzungsdauer_jahre,
         freibetrag_eur=global_assumptions.freibetrag_eur,
+        verlustvortrag_verrechnungsgrenze_pct=global_assumptions.verlustvortrag_verrechnungsgrenze_pct,
     )
 
 
@@ -130,6 +131,7 @@ def run_valuation(
         assumptions.steuersatz_pct,
         assumptions.afa_nutzungsdauer_jahre,
         assumptions.freibetrag_eur,
+        assumptions.verlustvortrag_verrechnungsgrenze_pct,
     )
 
     cashflow = calculate_cashflow(
