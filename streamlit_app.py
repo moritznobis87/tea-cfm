@@ -427,7 +427,7 @@ def render_new_project_form() -> None:
 
 
 def render_import_export() -> None:
-    with st.sidebar.expander("📤 Projekte sichern / wiederherstellen"):
+    with st.sidebar.expander("Projekte sichern / wiederherstellen"):
         st.caption(
             "Streamlit Cloud hat kein dauerhaftes Dateisystem: Neu angelegte "
             "Projekte gehen bei einem Reboot/Redeploy verloren, wenn sie "
@@ -470,7 +470,7 @@ def render_import_export() -> None:
             except Exception as exc:
                 st.error(f"Fehler beim Einlesen der Excel-Datei: {exc}")
 
-    with st.sidebar.expander("🌍 Globale Annahmen sichern / wiederherstellen"):
+    with st.sidebar.expander("Globale Annahmen sichern / wiederherstellen"):
         st.caption(
             "Als Excel-Datei (3 Tabellenblätter: Preiskurven, "
             "Betriebskosten, Einstellungen) - bequemer zu bearbeiten als "
