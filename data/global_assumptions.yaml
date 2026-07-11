@@ -255,10 +255,11 @@ gemeindeabgabe_eur_kwh: 0.002
 degradation_pct_pa: 0.0025
 sicherheitsabschlag_pct: 0.0
 eag_foerderdauer_jahre: 20
-betriebsdauer_jahre: 25
+betriebsdauer_jahre: 30
 kreditlaufzeit_jahre: 20
 tilgungsart: annuitaet
-tax_modus: pauschal_auf_ebt
+tax_modus: afa_koerperschaftsteuer
 steuersatz_pct: 0.23
 afa_nutzungsdauer_jahre: 20
 freibetrag_eur: 0.0
+verlustvortrag_verrechnungsgrenze_pct: 0.75
