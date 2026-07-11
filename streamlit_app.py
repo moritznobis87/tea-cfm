@@ -168,6 +168,18 @@ def render_project_form(
         key=f"{form_key}_capex_einheit",
     )
 
+    # Der EPC-Default haengt vom Anlagentyp ab (520 €/kWp Agri-PV,
+    # 430 €/kWp Konventionell). Ein Anlagentyp-Wechsel muss den
+    # vorbelegten Wert deshalb ebenfalls neu triggern, sonst bleibt der
+    # beim ersten Rendern gesetzte Session-State-Wert stehen (siehe
+    # capex_mode_changed-Muster unten fuer die gleiche Problematik bei
+    # der Einheiten-Umschaltung).
+    anlagentyp_mode_key = f"{form_key}_anlagentyp_prev"
+    anlagentyp_changed = st.session_state.get(anlagentyp_mode_key) != anlagentyp_label
+    st.session_state[anlagentyp_mode_key] = anlagentyp_label
+    if anlagentyp_changed and not existing:
+        st.session_state.pop(f"{form_key}_epc", None)
+
     # Stabile Widget-Keys (KEIN Wechsel des Keys je Einheit!): ein
     # Einheiten-Wechsel triggert einen Rerun ausserhalb des Formulars, und
     # WIR schreiben den passend umgerechneten Wert direkt in den
@@ -217,7 +229,7 @@ def render_project_form(
         col5, col6, col7, col8 = st.columns(4)
         fk_zins = col5.number_input(
             "Fremdkapitalzins (%)", min_value=0.0,
-            value=existing.fremdkapitalzins_pct * 100 if existing else 3.5,
+            value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
             step=0.1, key=f"{form_key}_fkzins",
         )
         ek_anteil = col6.number_input(
@@ -302,20 +314,21 @@ def render_project_form(
             flaeche_ha = existing.projektflaeche_ha if existing else None
 
         st.markdown("**Investkosten (Details)**")
+        epc_default_eur_kwp = 520.0 if anlagentyp_label == "Agri-PV" else 430.0
         c1, c2, c3, c4 = st.columns(4)
         epc = capex_feld(
             c1, "EPC",
-            capex_defaults.epc_eur if existing else nennleistung_kwp * 600,
+            capex_defaults.epc_eur if existing else nennleistung_kwp * epc_default_eur_kwp,
             "epc",
         )
         netzanschluss = capex_feld(
             c2, "Netzanschluss",
-            capex_defaults.netzanschluss_eur if existing else 150000.0,
+            capex_defaults.netzanschluss_eur if existing else nennleistung_kwp * 50.0,
             "netz",
         )
         trasse = capex_feld(
             c3, "Trasse",
-            capex_defaults.trasse_eur if existing else 60000.0,
+            capex_defaults.trasse_eur if existing else nennleistung_kwp * 40.0,
             "trasse",
         )
         sonstige_extern = capex_feld(
