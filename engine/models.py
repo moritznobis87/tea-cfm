@@ -93,6 +93,10 @@ class PVProject(BaseModel):
     # Investkosten
     capex: CapexBreakdown = Field(default_factory=CapexBreakdown)
 
+    # Wahl des Marktpreisszenarios (siehe GlobalAssumptions.marktpreisszenarien).
+    # "Aurora 10/25" ist das Standardszenario.
+    marktpreisszenario: str = "Aurora 10/25"
+
     # Nur relevant, wenn Pacht zuletzt in €/ha/Jahr eingegeben wurde - dient
     # der Rueckumrechnung beim erneuten Oeffnen des €/ha-Eingabemodus.
     projektflaeche_ha: float | None = None
@@ -120,14 +124,28 @@ class OpexItem(BaseModel):
     indexierung_ab_jahr: int = 1
 
 
+class MarktpreisSzenario(BaseModel):
+    """Eine benannte Marktpreis-Prognose (z.B. 'Aurora 10/25'). Kurven sind
+    nach echtem KALENDERJAHR indiziert (nicht nach Betriebsjahr) - beim
+    Zuweisen zu einem Projekt wird ueber dessen Inbetriebnahmejahr auf die
+    passende Stelle der Kurve gemappt (siehe pipeline.resolve_assumptions
+    und revenue.calculate_revenue)."""
+
+    name: str
+    marktwert_solar_ct_kwh_je_kalenderjahr: dict[int, float] = Field(
+        default_factory=dict
+    )
+    anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float] = Field(
+        default_factory=dict
+    )
+
+
 class GlobalAssumptions(BaseModel):
     gueltig_ab: str = ""
 
-    # Preiskurven (Jahr = Betriebsjahr ab Inbetriebnahme, 1-indiziert)
-    marktwert_solar_ct_kwh_je_jahr: dict[int, float] = Field(default_factory=dict)
-    anteil_negativer_stunden_pct_je_jahr: dict[int, float] = Field(
-        default_factory=dict
-    )
+    # Mehrere benannte Marktpreisszenarien zur Auswahl je Projekt (siehe
+    # PVProject.marktpreisszenario). Nach Kalenderjahr indiziert.
+    marktpreisszenarien: list[MarktpreisSzenario] = Field(default_factory=list)
 
     # Standardbetriebskosten (Pacht kommt separat aus dem Projekt)
     opex_standard: list[OpexItem] = Field(default_factory=list)
@@ -170,6 +188,16 @@ class GlobalAssumptions(BaseModel):
             )
         return self
 
+    def get_szenario(self, name: str) -> MarktpreisSzenario | None:
+        for szenario in self.marktpreisszenarien:
+            if szenario.name == name:
+                return szenario
+        return None
+
+    @property
+    def szenario_namen(self) -> list[str]:
+        return [s.name for s in self.marktpreisszenarien]
+
 
 # ---------------------------------------------------------------------------
 # Ergebnis von resolve_assumptions() - vollstaendig aufgeloester Parametersatz
@@ -188,8 +216,9 @@ class EffectiveAssumptions(BaseModel):
     eag_zuschlagswert_effektiv_ct_kwh: float
     eag_foerderdauer_jahre: int
     betriebsdauer_jahre: int
-    marktwert_solar_ct_kwh_je_jahr: dict[int, float]
-    anteil_negativer_stunden_pct_je_jahr: dict[int, float]
+    marktpreisszenario_name: str
+    marktwert_solar_ct_kwh_je_kalenderjahr: dict[int, float]
+    anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float]
 
     opex_items: list[OpexItem]
     gemeindeabgabe_eur_kwh: float

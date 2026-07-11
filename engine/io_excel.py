@@ -8,7 +8,8 @@ bearbeiten als in YAML; die uebrigen Skalarwerte landen auf einem dritten
 Blatt als einfache Parameter-Wert-Liste.
 
 Struktur der Arbeitsmappe:
-- Blatt "Preiskurven": Jahr, Marktwert Solar (ct/kWh), Anteil neg. Stunden (%)
+- Blatt "Preiskurven": Kalenderjahr, Szenario, Marktwert Solar (ct/kWh),
+  Anteil neg. Stunden (%) - Langformat, ein oder mehrere Szenarien
 - Blatt "Betriebskosten": Position, EUR/kWp/Jahr, Index %/Jahr,
   Indexierung ab Jahr, Start Betriebsjahr
 - Blatt "Einstellungen": Parameter, Wert (alle uebrigen Skalarfelder)
@@ -24,6 +25,7 @@ from .models import (
     AnlagenTyp,
     CapexBreakdown,
     GlobalAssumptions,
+    MarktpreisSzenario,
     OpexItem,
     PVProject,
     TaxModus,
@@ -47,21 +49,30 @@ EINSTELLUNGEN_DEFAULTS = {
 
 
 def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
-    jahre = sorted(
-        set(ga.marktwert_solar_ct_kwh_je_jahr)
-        | set(ga.anteil_negativer_stunden_pct_je_jahr)
-    )
+    kurven_zeilen = []
+    for szenario in ga.marktpreisszenarien:
+        jahre = sorted(
+            set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+            | set(szenario.anteil_negativer_stunden_pct_je_kalenderjahr)
+        )
+        for jahr in jahre:
+            kurven_zeilen.append(
+                {
+                    "Kalenderjahr": jahr,
+                    "Szenario": szenario.name,
+                    "Marktwert Solar (ct/kWh)": (
+                        szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(jahr)
+                    ),
+                    "Anteil neg. Stunden (%)": (
+                        szenario.anteil_negativer_stunden_pct_je_kalenderjahr.get(jahr)
+                        or 0
+                    )
+                    * 100,
+                }
+            )
     kurven_df = pd.DataFrame(
-        {
-            "Jahr": jahre,
-            "Marktwert Solar (ct/kWh)": [
-                ga.marktwert_solar_ct_kwh_je_jahr.get(j) for j in jahre
-            ],
-            "Anteil neg. Stunden (%)": [
-                (ga.anteil_negativer_stunden_pct_je_jahr.get(j) or 0) * 100
-                for j in jahre
-            ],
-        }
+        kurven_zeilen,
+        columns=["Kalenderjahr", "Szenario", "Marktwert Solar (ct/kWh)", "Anteil neg. Stunden (%)"],
     )
 
     opex_df = pd.DataFrame(
@@ -115,16 +126,22 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
     opex_df = sheets["Betriebskosten"]
     einstellungen_df = sheets["Einstellungen"]
 
-    marktwert = {
-        int(r["Jahr"]): float(r["Marktwert Solar (ct/kWh)"])
-        for _, r in kurven_df.iterrows()
-        if pd.notna(r["Jahr"]) and pd.notna(r["Marktwert Solar (ct/kWh)"])
-    }
-    anteil_neg = {
-        int(r["Jahr"]): float(r["Anteil neg. Stunden (%)"]) / 100
-        for _, r in kurven_df.iterrows()
-        if pd.notna(r["Jahr"]) and pd.notna(r["Anteil neg. Stunden (%)"])
-    }
+    szenarien: dict[str, MarktpreisSzenario] = {}
+    for _, r in kurven_df.iterrows():
+        if pd.isna(r["Kalenderjahr"]) or pd.isna(r["Szenario"]):
+            continue
+        name = str(r["Szenario"])
+        if name not in szenarien:
+            szenarien[name] = MarktpreisSzenario(name=name)
+        jahr = int(r["Kalenderjahr"])
+        if pd.notna(r["Marktwert Solar (ct/kWh)"]):
+            szenarien[name].marktwert_solar_ct_kwh_je_kalenderjahr[jahr] = float(
+                r["Marktwert Solar (ct/kWh)"]
+            )
+        if pd.notna(r["Anteil neg. Stunden (%)"]):
+            szenarien[name].anteil_negativer_stunden_pct_je_kalenderjahr[jahr] = (
+                float(r["Anteil neg. Stunden (%)"]) / 100
+            )
 
     opex_items = [
         OpexItem(
@@ -153,8 +170,7 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
 
     return GlobalAssumptions(
         gueltig_ab=str(get("gueltig_ab")),
-        marktwert_solar_ct_kwh_je_jahr=marktwert,
-        anteil_negativer_stunden_pct_je_jahr=anteil_neg,
+        marktpreisszenarien=list(szenarien.values()),
         opex_standard=opex_items,
         gemeindeabgabe_eur_kwh=float(get("gemeindeabgabe_eur_mwh_vorschlag")) / 1000,
         degradation_pct_pa=float(get("degradation_pct_pa")) / 100,
@@ -178,7 +194,7 @@ PROJEKT_SPALTEN = [
     "id", "name", "inbetriebnahme_jahr", "inbetriebnahme_monat", "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
-    "gemeindeabgabe_eur_mwh", "projektflaeche_ha",
+    "gemeindeabgabe_eur_mwh", "marktpreisszenario", "projektflaeche_ha",
     "capex_epc_eur", "capex_netzanschluss_eur", "capex_trasse_eur",
     "capex_sonstige_extern_eur", "capex_agm_eur", "capex_m_and_a_eur",
     "capex_poenale_puffer_eur",
@@ -200,6 +216,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "eigenkapitalquote_pct": p.eigenkapitalquote_pct * 100,
             "eag_zuschlagswert_ct_kwh": p.eag_zuschlagswert_ct_kwh,
             "gemeindeabgabe_eur_mwh": p.gemeindeabgabe_eur_mwh,
+            "marktpreisszenario": p.marktpreisszenario,
             "projektflaeche_ha": p.projektflaeche_ha,
             "capex_epc_eur": p.capex.epc_eur,
             "capex_netzanschluss_eur": p.capex.netzanschluss_eur,
@@ -245,6 +262,11 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 eigenkapitalquote_pct=float(r["eigenkapitalquote_pct"]) / 100,
                 eag_zuschlagswert_ct_kwh=float(r["eag_zuschlagswert_ct_kwh"]),
                 gemeindeabgabe_eur_mwh=float(r["gemeindeabgabe_eur_mwh"]),
+                marktpreisszenario=(
+                    str(r["marktpreisszenario"])
+                    if pd.notna(r["marktpreisszenario"])
+                    else "Aurora 10/25"
+                ),
                 projektflaeche_ha=(
                     float(r["projektflaeche_ha"])
                     if pd.notna(r["projektflaeche_ha"])

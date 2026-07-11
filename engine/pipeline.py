@@ -21,7 +21,13 @@ from .cashflow import CashflowTimeseries, calculate_cashflow
 from .energy import calculate_energy_production
 from .financing import calculate_financing
 from .kpis import KPIs, calculate_kpis, calculate_npv_curve
-from .models import EffectiveAssumptions, GlobalAssumptions, OpexItem, PVProject
+from .models import (
+    EffectiveAssumptions,
+    GlobalAssumptions,
+    MarktpreisSzenario,
+    OpexItem,
+    PVProject,
+)
 from .opex import calculate_opex
 from .revenue import calculate_revenue
 from .tax import calculate_tax
@@ -36,6 +42,17 @@ def resolve_assumptions(
     )
     opex_items = [*global_assumptions.opex_standard, pacht_item]
 
+    szenario = global_assumptions.get_szenario(project.marktpreisszenario)
+    if szenario is None:
+        if global_assumptions.marktpreisszenarien:
+            # Fallback auf das erste verfuegbare Szenario, falls der im
+            # Projekt hinterlegte Name nicht (mehr) existiert - so bricht
+            # eine Berechnung nicht einfach ab, wenn z.B. ein Szenario in
+            # den Globalen Annahmen umbenannt/geloescht wurde.
+            szenario = global_assumptions.marktpreisszenarien[0]
+        else:
+            szenario = MarktpreisSzenario(name="(kein Szenario hinterlegt)")
+
     return EffectiveAssumptions(
         source_project_id=project.id,
         inbetriebnahme_jahr=project.inbetriebnahme_jahr,
@@ -47,8 +64,9 @@ def resolve_assumptions(
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
         eag_foerderdauer_jahre=global_assumptions.eag_foerderdauer_jahre,
         betriebsdauer_jahre=global_assumptions.betriebsdauer_jahre,
-        marktwert_solar_ct_kwh_je_jahr=global_assumptions.marktwert_solar_ct_kwh_je_jahr,
-        anteil_negativer_stunden_pct_je_jahr=global_assumptions.anteil_negativer_stunden_pct_je_jahr,
+        marktpreisszenario_name=szenario.name,
+        marktwert_solar_ct_kwh_je_kalenderjahr=szenario.marktwert_solar_ct_kwh_je_kalenderjahr,
+        anteil_negativer_stunden_pct_je_kalenderjahr=szenario.anteil_negativer_stunden_pct_je_kalenderjahr,
         opex_items=opex_items,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         capex_total_eur=project.capex.summe_eur,
