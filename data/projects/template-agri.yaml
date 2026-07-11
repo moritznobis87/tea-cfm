@@ -3,9 +3,9 @@ name: Template Agri
 inbetriebnahme_jahr: 2027
 inbetriebnahme_monat: 1
 anlagentyp: agri_pv
-nennleistung_kwp: 4500.0
-vollbenutzungsstunden_kwh_kwp: 1050.0
-pacht_eur_kwp_jahr: 4.5
+nennleistung_kwp: 3800.0
+vollbenutzungsstunden_kwh_kwp: 1400.0
+pacht_eur_kwp_jahr: 5.2631578947368425
 fremdkapitalzins_pct: 0.042
 eigenkapitalquote_pct: 0.2
 eag_zuschlagswert_ct_kwh: 7.2
@@ -19,4 +19,4 @@ capex:
   m_and_a_eur: 25200.0
   poenale_puffer_eur: 45000.0
 marktpreisszenario: Aurora 10/25
-projektflaeche_ha: 10.0
+projektflaeche_ha: 5.0

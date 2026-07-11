@@ -3,9 +3,9 @@ name: Template Konventionell
 inbetriebnahme_jahr: 2027
 inbetriebnahme_monat: 1
 anlagentyp: konventionell
-nennleistung_kwp: 8200.0
+nennleistung_kwp: 6000.0
 vollbenutzungsstunden_kwh_kwp: 1080.0
-pacht_eur_kwp_jahr: 3.2
+pacht_eur_kwp_jahr: 4.166666666666667
 fremdkapitalzins_pct: 0.042
 eigenkapitalquote_pct: 0.2
 eag_zuschlagswert_ct_kwh: 7.2
@@ -19,4 +19,4 @@ capex:
   m_and_a_eur: 41000.0
   poenale_puffer_eur: 82000.0
 marktpreisszenario: Aurora 10/25
-projektflaeche_ha: 10.0
+projektflaeche_ha: 5.0
