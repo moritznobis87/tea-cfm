@@ -961,6 +961,23 @@ def render_global_assumptions_page() -> None:
                  "sie je nach Gemeinde unterschiedlich sein kann.",
         )
 
+    with st.expander("Technische Standardannahmen", expanded=True):
+        st.caption(
+            "Gelten für die Produktionsberechnung aller Projekte."
+        )
+        col_deg, col_sich = st.columns(2)
+        degradation = col_deg.number_input(
+            "Degradation (%/Jahr)", min_value=0.0,
+            value=ga.degradation_pct_pa * 100, step=0.05,
+            help="Jährliche Leistungsminderung der Module.",
+        )
+        sicherheitsabschlag = col_sich.number_input(
+            "Sicherheitsabschlag Produktion (%)", min_value=0.0, max_value=100.0,
+            value=ga.sicherheitsabschlag_pct * 100, step=0.5,
+            help="Pauschaler Abschlag auf die berechnete Produktion (z.B. für "
+                 "Verschattung, Verschmutzung, Ausfallzeiten).",
+        )
+
     with st.expander("Förderung, Finanzierung, Steuer"):
         col1, col2, col3 = st.columns(3)
         eag_foerderdauer = col1.number_input(
@@ -972,10 +989,7 @@ def render_global_assumptions_page() -> None:
         kreditlaufzeit = col3.number_input(
             "Kreditlaufzeit (Jahre)", min_value=1, value=ga.kreditlaufzeit_jahre
         )
-        col4, col5, col6 = st.columns(3)
-        degradation = col4.number_input(
-            "Degradation (%/Jahr)", min_value=0.0, value=ga.degradation_pct_pa * 100, step=0.05
-        )
+        col5, col6 = st.columns(2)
         steuersatz = col5.number_input(
             "Steuersatz (%)", min_value=0.0, value=ga.steuersatz_pct * 100, step=0.5
         )
@@ -1024,6 +1038,7 @@ def render_global_assumptions_page() -> None:
         ga.betriebsdauer_jahre = int(betriebsdauer)
         ga.kreditlaufzeit_jahre = int(kreditlaufzeit)
         ga.degradation_pct_pa = degradation / 100
+        ga.sicherheitsabschlag_pct = sicherheitsabschlag / 100
         ga.steuersatz_pct = steuersatz / 100
         ga.tilgungsart = TilgungsArt(tilgungsart)
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
