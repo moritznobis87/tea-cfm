@@ -225,6 +225,8 @@ marktpreisszenarien:
     '2058': 0.0
     '2059': 0.0
     '2060': 0.0
+marktpreis_inflation_pct_pa: 0.02
+marktpreis_inflation_basisjahr: 2025
 opex_standard:
 - name: Technische Betriebsführung
   basiswert_eur_kwp: 3.0
