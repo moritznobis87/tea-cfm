@@ -147,6 +147,17 @@ class GlobalAssumptions(BaseModel):
     # PVProject.marktpreisszenario). Nach Kalenderjahr indiziert.
     marktpreisszenarien: list[MarktpreisSzenario] = Field(default_factory=list)
 
+    # Die Marktwert-Solar-Kurven aus Marktpreisstudien (Aurora/Enervis) sind
+    # typischerweise REALE Werte auf Preisbasis des Studien-Erscheinungsjahrs
+    # (marktpreis_inflation_basisjahr), keine bereits inflationierten
+    # Nominalwerte. Fuer eine nominale Cashflow-Rechnung wird deshalb ein
+    # Inflationsaufschlag ab diesem Basisjahr angewendet: nominal(jahr) =
+    # real(jahr) * (1+inflation)^(jahr - basisjahr). Der EAG-Zuschlagswert
+    # ist davon bewusst NICHT betroffen - er ist waehrend der Foerderdauer
+    # gesetzlich nominal fix, keine Indexierung.
+    marktpreis_inflation_pct_pa: float = Field(ge=0, default=0.02)
+    marktpreis_inflation_basisjahr: int = Field(default=2025)
+
     # Standardbetriebskosten (Pacht kommt separat aus dem Projekt)
     opex_standard: list[OpexItem] = Field(default_factory=list)
 
@@ -225,6 +236,8 @@ class EffectiveAssumptions(BaseModel):
     marktpreisszenario_name: str
     marktwert_solar_ct_kwh_je_kalenderjahr: dict[int, float]
     anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float]
+    marktpreis_inflation_pct_pa: float
+    marktpreis_inflation_basisjahr: int
 
     opex_items: list[OpexItem]
     gemeindeabgabe_eur_kwh: float

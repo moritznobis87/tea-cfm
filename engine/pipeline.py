@@ -67,6 +67,8 @@ def resolve_assumptions(
         marktpreisszenario_name=szenario.name,
         marktwert_solar_ct_kwh_je_kalenderjahr=szenario.marktwert_solar_ct_kwh_je_kalenderjahr,
         anteil_negativer_stunden_pct_je_kalenderjahr=szenario.anteil_negativer_stunden_pct_je_kalenderjahr,
+        marktpreis_inflation_pct_pa=global_assumptions.marktpreis_inflation_pct_pa,
+        marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
         opex_items=opex_items,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         capex_total_eur=project.capex.summe_eur,

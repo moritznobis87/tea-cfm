@@ -21,6 +21,17 @@ bevor in die Kurve nachgeschlagen wird. Liegt das Kalenderjahr ausserhalb
 der in der Kurve definierten Jahre (z.B. Projekt startet vor 2025 oder
 laeuft ueber 2060 hinaus), wird auf den jeweils naechstliegenden Rand-
 wert der Kurve zurueckgegriffen (Clamping), statt zu extrapolieren.
+
+INFLATIONIERUNG: Die Marktwert-Solar-Kurven aus Marktpreisstudien sind
+REALE Werte auf Preisbasis des Studien-Erscheinungsjahrs (typischerweise,
+z.B. "reale 2025-Preise"), keine bereits inflationierten Nominalwerte.
+Fuer eine nominale Cashflow-Rechnung wird deshalb ein Inflationsaufschlag
+angewendet: nominal(kalenderjahr) = real(kalenderjahr) *
+(1+inflation)^(kalenderjahr - basisjahr). Der EAG-Zuschlagswert bleibt
+davon UNBERUEHRT - er ist waehrend der Foerderdauer gesetzlich nominal
+fix (keine Indexierung). Der MAX(Marktwert, EAG)-Vergleich erfolgt daher
+konsistent zwischen dem bereits inflationierten (nominalen) Marktwert und
+dem nominal fixen EAG-Zuschlagswert.
 """
 
 from __future__ import annotations
@@ -29,7 +40,10 @@ import pandas as pd
 
 from .models import EffectiveAssumptions
 
-REVENUE_COLUMNS = ["jahr", "kalenderjahr", "verguetungssatz_ct_kwh", "erloes_eur"]
+REVENUE_COLUMNS = [
+    "jahr", "kalenderjahr", "marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
+    "verguetungssatz_ct_kwh", "erloes_eur",
+]
 
 
 def _kurve_nachschlagen(kalenderjahr: pd.Series, kurve: dict[int, float]) -> pd.Series:
@@ -46,15 +60,27 @@ def calculate_revenue(
     df = timeline[["jahr"]].copy()
     df["kalenderjahr"] = assumptions.inbetriebnahme_jahr + (df["jahr"] - 1)
 
-    marktwert = _kurve_nachschlagen(
+    marktwert_real = _kurve_nachschlagen(
         df["kalenderjahr"], assumptions.marktwert_solar_ct_kwh_je_kalenderjahr
     )
+    # Inflationsfaktor bewusst auf Basis des TATSAECHLICHEN Kalenderjahres
+    # (nicht des ggf. am Kurvenrand geklemmten Nachschlagejahres) - auch
+    # wenn ueber das letzte Kurvenjahr hinaus mit dem letzten bekannten
+    # Realpreis weitergerechnet wird, laeuft die allgemeine Geldentwertung
+    # unabhaengig davon weiter.
+    inflationsfaktor = (1 + assumptions.marktpreis_inflation_pct_pa) ** (
+        df["kalenderjahr"] - assumptions.marktpreis_inflation_basisjahr
+    )
+    marktwert_nominal = marktwert_real * inflationsfaktor
+
+    df["marktwert_real_ct_kwh"] = marktwert_real
+    df["marktwert_nominal_ct_kwh"] = marktwert_nominal
 
     innerhalb_foerderdauer = df["jahr"] <= assumptions.eag_foerderdauer_jahre
-    praemie = (assumptions.eag_zuschlagswert_effektiv_ct_kwh - marktwert).clip(
+    praemie = (assumptions.eag_zuschlagswert_effektiv_ct_kwh - marktwert_nominal).clip(
         lower=0
     )
-    satz_ct_kwh = marktwert + innerhalb_foerderdauer.astype(float) * praemie
+    satz_ct_kwh = marktwert_nominal + innerhalb_foerderdauer.astype(float) * praemie
 
     df["verguetungssatz_ct_kwh"] = satz_ct_kwh
 

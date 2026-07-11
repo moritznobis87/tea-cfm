@@ -46,6 +46,8 @@ EINSTELLUNGEN_DEFAULTS = {
     "afa_nutzungsdauer_jahre": None,
     "freibetrag_eur": 0.0,
     "verlustvortrag_verrechnungsgrenze_pct": 75.0,
+    "marktpreis_inflation_pct_pa": 2.0,
+    "marktpreis_inflation_basisjahr": 2025,
 }
 
 
@@ -107,6 +109,8 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
                 "verlustvortrag_verrechnungsgrenze_pct",
                 ga.verlustvortrag_verrechnungsgrenze_pct * 100,
             ),
+            ("marktpreis_inflation_pct_pa", ga.marktpreis_inflation_pct_pa * 100),
+            ("marktpreis_inflation_basisjahr", ga.marktpreis_inflation_basisjahr),
         ],
         columns=["Parameter", "Wert"],
     )
@@ -192,6 +196,8 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
             get("verlustvortrag_verrechnungsgrenze_pct")
         )
         / 100,
+        marktpreis_inflation_pct_pa=float(get("marktpreis_inflation_pct_pa")) / 100,
+        marktpreis_inflation_basisjahr=int(get("marktpreis_inflation_basisjahr")),
     )
 
 

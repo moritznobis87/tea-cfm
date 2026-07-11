@@ -25,6 +25,9 @@ import pandas as pd
 CASHFLOW_COLUMNS = [
     "jahr",
     "datum",
+    "marktwert_real_ct_kwh",
+    "marktwert_nominal_ct_kwh",
+    "verguetungssatz_ct_kwh",
     "erloes_eur",
     "opex_gesamt_eur",
     "gemeindeabgabe_eur",
@@ -107,6 +110,9 @@ def calculate_cashflow(
         {
             "jahr": timeline["jahr"],
             "datum": timeline["datum_ende"],
+            "marktwert_real_ct_kwh": revenue["marktwert_real_ct_kwh"].to_numpy(),
+            "marktwert_nominal_ct_kwh": revenue["marktwert_nominal_ct_kwh"].to_numpy(),
+            "verguetungssatz_ct_kwh": revenue["verguetungssatz_ct_kwh"].to_numpy(),
             "erloes_eur": revenue["erloes_eur"].to_numpy(),
             "opex_gesamt_eur": opex["opex_gesamt_eur"].to_numpy(),
             "gemeindeabgabe_eur": opex["gemeindeabgabe_eur"].to_numpy(),
@@ -137,6 +143,9 @@ def calculate_cashflow(
             {
                 "jahr": 0,
                 "datum": inbetriebnahme_datum,
+                "marktwert_real_ct_kwh": 0.0,
+                "marktwert_nominal_ct_kwh": 0.0,
+                "verguetungssatz_ct_kwh": 0.0,
                 "erloes_eur": 0.0,
                 "opex_gesamt_eur": 0.0,
                 "gemeindeabgabe_eur": 0.0,
