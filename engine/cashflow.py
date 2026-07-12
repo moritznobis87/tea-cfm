@@ -31,6 +31,7 @@ CASHFLOW_COLUMNS = [
     "erloes_eur",
     "opex_gesamt_eur",
     "gemeindeabgabe_eur",
+    "direktvermarktungskosten_eur",
     "zinsen_eur",
     "tilgung_eur",
     "afa_eur",
@@ -78,7 +79,7 @@ def calculate_cashflow(
     # "Pacht", "Technische Betriebsführung", ...) werden 1:1 durchgereicht,
     # damit die UI eine vollstaendige Aufschluesselung anzeigen kann.
     opex_posten_spalten = [
-        c for c in opex.columns if c not in ("jahr", "opex_gesamt_eur", "gemeindeabgabe_eur")
+        c for c in opex.columns if c not in ("jahr", "opex_gesamt_eur", "gemeindeabgabe_eur", "direktvermarktungskosten_eur")
     ]
 
     cf_operativ = (
@@ -116,6 +117,7 @@ def calculate_cashflow(
             "erloes_eur": revenue["erloes_eur"].to_numpy(),
             "opex_gesamt_eur": opex["opex_gesamt_eur"].to_numpy(),
             "gemeindeabgabe_eur": opex["gemeindeabgabe_eur"].to_numpy(),
+            "direktvermarktungskosten_eur": opex["direktvermarktungskosten_eur"].to_numpy(),
             **{spalte: opex[spalte].to_numpy() for spalte in opex_posten_spalten},
             "zinsen_eur": financing["zinsen_eur"].to_numpy(),
             "tilgung_eur": financing["tilgung_eur"].to_numpy(),
@@ -149,6 +151,7 @@ def calculate_cashflow(
                 "erloes_eur": 0.0,
                 "opex_gesamt_eur": 0.0,
                 "gemeindeabgabe_eur": 0.0,
+                "direktvermarktungskosten_eur": 0.0,
                 **{spalte: 0.0 for spalte in opex_posten_spalten},
                 "zinsen_eur": 0.0,
                 "tilgung_eur": 0.0,

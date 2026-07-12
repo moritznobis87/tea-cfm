@@ -89,6 +89,9 @@ class PVProject(BaseModel):
     eigenkapitalquote_pct: float = Field(ge=0, le=1)
     eag_zuschlagswert_ct_kwh: float = Field(gt=0)
     gemeindeabgabe_eur_mwh: float = Field(ge=0, default=2.0)
+    # Kosten der Direktvermarktung (Bilanzkreis, Prognose, Marktzugang),
+    # ueblicherweise ca. 0,1 ct/kWh = 1 EUR/MWh.
+    direktvermarktungskosten_eur_mwh: float = Field(ge=0, default=1.0)
 
     # Investkosten
     capex: CapexBreakdown = Field(default_factory=CapexBreakdown)
@@ -169,6 +172,17 @@ class GlobalAssumptions(BaseModel):
     # projektspezifisch (siehe PVProject.gemeindeabgabe_eur_mwh), da sie je
     # nach Standortgemeinde variieren kann.
     gemeindeabgabe_eur_kwh: float = Field(ge=0, default=0.002)
+    # Direktvermarktungskosten-Vorschlagswert (analog Gemeindeabgabe): dient
+    # nur als Vorbelegung im "Neues Projekt"-Formular, tatsaechlich
+    # angewendet wird PVProject.direktvermarktungskosten_eur_mwh.
+    direktvermarktungskosten_eur_kwh: float = Field(ge=0, default=0.001)
+
+    # Gewichtung des Anteils negativer Stunden (0% = wird komplett
+    # ignoriert, d.h. volle Verguetung auch in Stunden negativer Preise;
+    # 100% = volle gesetzliche Wirkung wie in den Preiskurven hinterlegt).
+    # Dient zum "Einblenden" des Effekts, z.B. fuer Sensitivitaets- oder
+    # Vergleichsrechnungen ohne diesen Abschlag.
+    negative_stunden_gewichtung_pct: float = Field(ge=0, le=1, default=1.0)
 
     # Technische Standardannahmen
     degradation_pct_pa: float = 0.0
@@ -241,6 +255,8 @@ class EffectiveAssumptions(BaseModel):
 
     opex_items: list[OpexItem]
     gemeindeabgabe_eur_kwh: float
+    direktvermarktungskosten_eur_kwh: float
+    negative_stunden_gewichtung_pct: float
 
     capex_total_eur: float
     eigenkapitalquote_pct: float

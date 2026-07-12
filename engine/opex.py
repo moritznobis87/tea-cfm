@@ -7,9 +7,9 @@ eintrag).
 
 Quellen: globale Standard-OPEX-Positionen (EUR/kWp/Jahr-basiert), die
 projektspezifische Pacht (wird in pipeline.py bereits zu einer
-gemeinsamen Liste zusammengefuehrt) sowie die Gemeindeabgabe
-(produktionsbasiert, EUR/kWh - deshalb kein OpexItem, sondern ein
-separater Parameter).
+gemeinsamen Liste zusammengefuehrt) sowie zwei produktionsbasierte
+Positionen (EUR/kWh, deshalb keine OpexItems, sondern separate Parameter):
+Gemeindeabgabe und Direktvermarktungskosten.
 """
 
 from __future__ import annotations
@@ -18,7 +18,9 @@ import pandas as pd
 
 from .models import OpexItem
 
-BASISSPALTEN = ["jahr", "opex_gesamt_eur", "gemeindeabgabe_eur"]
+BASISSPALTEN = [
+    "jahr", "opex_gesamt_eur", "gemeindeabgabe_eur", "direktvermarktungskosten_eur",
+]
 
 
 def calculate_opex(
@@ -27,6 +29,7 @@ def calculate_opex(
     nennleistung_kwp: float,
     energy: pd.DataFrame,
     gemeindeabgabe_eur_kwh: float = 0.0,
+    direktvermarktungskosten_eur_kwh: float = 0.0,
 ) -> pd.DataFrame:
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
@@ -51,9 +54,9 @@ def calculate_opex(
 
         df["opex_gesamt_eur"] += betrag
 
-    df["gemeindeabgabe_eur"] = (
-        energy["produktion_kwh"].to_numpy() * gemeindeabgabe_eur_kwh
-    )
-    df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"]
+    produktion_kwh = energy["produktion_kwh"].to_numpy()
+    df["gemeindeabgabe_eur"] = produktion_kwh * gemeindeabgabe_eur_kwh
+    df["direktvermarktungskosten_eur"] = produktion_kwh * direktvermarktungskosten_eur_kwh
+    df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"] + df["direktvermarktungskosten_eur"]
 
     return df[BASISSPALTEN + posten_spalten]

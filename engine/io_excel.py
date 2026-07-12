@@ -35,6 +35,8 @@ from .models import (
 EINSTELLUNGEN_DEFAULTS = {
     "gueltig_ab": "",
     "gemeindeabgabe_eur_mwh_vorschlag": 2.0,
+    "direktvermarktungskosten_eur_mwh_vorschlag": 1.0,
+    "negative_stunden_gewichtung_pct": 100.0,
     "degradation_pct_pa": 0.25,
     "sicherheitsabschlag_pct": 0.0,
     "eag_foerderdauer_jahre": 20,
@@ -95,6 +97,14 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
         [
             ("gueltig_ab", ga.gueltig_ab),
             ("gemeindeabgabe_eur_mwh_vorschlag", ga.gemeindeabgabe_eur_kwh * 1000),
+            (
+                "direktvermarktungskosten_eur_mwh_vorschlag",
+                ga.direktvermarktungskosten_eur_kwh * 1000,
+            ),
+            (
+                "negative_stunden_gewichtung_pct",
+                ga.negative_stunden_gewichtung_pct * 100,
+            ),
             ("degradation_pct_pa", ga.degradation_pct_pa * 100),
             ("sicherheitsabschlag_pct", ga.sicherheitsabschlag_pct * 100),
             ("eag_foerderdauer_jahre", ga.eag_foerderdauer_jahre),
@@ -182,6 +192,12 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         marktpreisszenarien=list(szenarien.values()),
         opex_standard=opex_items,
         gemeindeabgabe_eur_kwh=float(get("gemeindeabgabe_eur_mwh_vorschlag")) / 1000,
+        direktvermarktungskosten_eur_kwh=float(
+            get("direktvermarktungskosten_eur_mwh_vorschlag")
+        )
+        / 1000,
+        negative_stunden_gewichtung_pct=float(get("negative_stunden_gewichtung_pct"))
+        / 100,
         degradation_pct_pa=float(get("degradation_pct_pa")) / 100,
         sicherheitsabschlag_pct=float(get("sicherheitsabschlag_pct")) / 100,
         eag_foerderdauer_jahre=int(get("eag_foerderdauer_jahre")),
@@ -209,7 +225,8 @@ PROJEKT_SPALTEN = [
     "id", "name", "inbetriebnahme_jahr", "inbetriebnahme_monat", "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
-    "gemeindeabgabe_eur_mwh", "marktpreisszenario", "projektflaeche_ha",
+    "gemeindeabgabe_eur_mwh", "direktvermarktungskosten_eur_mwh",
+    "marktpreisszenario", "projektflaeche_ha",
     "capex_epc_eur", "capex_netzanschluss_eur", "capex_trasse_eur",
     "capex_sonstige_extern_eur", "capex_agm_eur", "capex_m_and_a_eur",
     "capex_poenale_puffer_eur",
@@ -231,6 +248,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "eigenkapitalquote_pct": p.eigenkapitalquote_pct * 100,
             "eag_zuschlagswert_ct_kwh": p.eag_zuschlagswert_ct_kwh,
             "gemeindeabgabe_eur_mwh": p.gemeindeabgabe_eur_mwh,
+            "direktvermarktungskosten_eur_mwh": p.direktvermarktungskosten_eur_mwh,
             "marktpreisszenario": p.marktpreisszenario,
             "projektflaeche_ha": p.projektflaeche_ha,
             "capex_epc_eur": p.capex.epc_eur,
@@ -277,6 +295,9 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 eigenkapitalquote_pct=float(r["eigenkapitalquote_pct"]) / 100,
                 eag_zuschlagswert_ct_kwh=float(r["eag_zuschlagswert_ct_kwh"]),
                 gemeindeabgabe_eur_mwh=float(r["gemeindeabgabe_eur_mwh"]),
+                direktvermarktungskosten_eur_mwh=float(
+                    r["direktvermarktungskosten_eur_mwh"]
+                ),
                 marktpreisszenario=(
                     str(r["marktpreisszenario"])
                     if pd.notna(r["marktpreisszenario"])

@@ -71,6 +71,8 @@ def resolve_assumptions(
         marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
         opex_items=opex_items,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
+        direktvermarktungskosten_eur_kwh=project.direktvermarktungskosten_eur_mwh / 1000,
+        negative_stunden_gewichtung_pct=global_assumptions.negative_stunden_gewichtung_pct,
         capex_total_eur=project.capex.summe_eur,
         eigenkapitalquote_pct=project.eigenkapitalquote_pct,
         fremdkapitalzins_pct=project.fremdkapitalzins_pct,
@@ -115,6 +117,7 @@ def run_valuation(
         assumptions.nennleistung_kwp,
         energy,
         assumptions.gemeindeabgabe_eur_kwh,
+        assumptions.direktvermarktungskosten_eur_kwh,
     )
     financing = calculate_financing(
         timeline,

@@ -84,9 +84,12 @@ def calculate_revenue(
 
     df["verguetungssatz_ct_kwh"] = satz_ct_kwh
 
-    anteil_negativ = _kurve_nachschlagen(
+    anteil_negativ_ungewichtet = _kurve_nachschlagen(
         df["kalenderjahr"], assumptions.anteil_negativer_stunden_pct_je_kalenderjahr
     )
+    # Gewichtung 0% = Effekt komplett ausgeblendet (volle Verguetung auch
+    # in Stunden negativer Preise), 100% = volle gesetzliche Wirkung.
+    anteil_negativ = anteil_negativ_ungewichtet * assumptions.negative_stunden_gewichtung_pct
     verguetete_produktion_kwh = energy["produktion_kwh"].to_numpy() * (
         1 - anteil_negativ.to_numpy()
     )
