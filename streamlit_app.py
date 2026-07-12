@@ -258,6 +258,19 @@ def render_project_form(
             value=gemeindeabgabe_default, step=0.5,
             key=f"{form_key}_gemeindeabgabe",
         )
+        col9, _, _, _ = st.columns(4)
+        direktvermarktung_default = (
+            existing.direktvermarktungskosten_eur_mwh
+            if existing
+            else load_global_assumptions().direktvermarktungskosten_eur_kwh * 1000
+        )
+        direktvermarktungskosten_mwh = col9.number_input(
+            "Direktvermarktungskosten (€/MWh)", min_value=0.0,
+            value=direktvermarktung_default, step=0.1,
+            key=f"{form_key}_direktvermarktung",
+            help="Kosten für Bilanzkreis, Prognose, Marktzugang - "
+                 "üblicherweise ca. 1 €/MWh (0,1 ct/kWh).",
+        )
         if anlagentyp_label == "Konventionell":
             st.caption(
                 f"ℹ️ Konventionell: automatischer Abschlag von 25 % wird angewendet "
@@ -385,6 +398,7 @@ def render_project_form(
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
         gemeindeabgabe_eur_mwh=gemeindeabgabe_mwh,
+        direktvermarktungskosten_eur_mwh=direktvermarktungskosten_mwh,
         marktpreisszenario=marktpreisszenario,
         capex=CapexBreakdown(
             epc_eur=epc,
@@ -717,7 +731,8 @@ def render_project_dashboard(
                 [
                     "jahr", "marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
                     "verguetungssatz_ct_kwh", "erloes_eur", "opex_gesamt_eur",
-                    "gemeindeabgabe_eur", "zinsen_eur", "tilgung_eur", "afa_eur",
+                    "gemeindeabgabe_eur", "direktvermarktungskosten_eur",
+                    "zinsen_eur", "tilgung_eur", "afa_eur",
                     "steuerliches_ergebnis_vor_verlustvortrag_eur",
                     "verlustvortrag_genutzt_eur", "verlustvortrag_bestand_eur",
                     "steuerliches_ergebnis_eur", "steuer_eur",
@@ -731,7 +746,8 @@ def render_project_dashboard(
             detail_df.columns = [
                 "Jahr", "Marktwert real (ct/kWh)", "Marktwert nominal (ct/kWh)",
                 "Vergütungssatz (ct/kWh)", "Erlöse (€)", "Betriebskosten gesamt (€)",
-                "davon Gemeindeabgabe (€)", "Zinsen (€)", "Tilgung (€)", "AfA (€)",
+                "davon Gemeindeabgabe (€)", "davon Direktvermarktungskosten (€)",
+                "Zinsen (€)", "Tilgung (€)", "AfA (€)",
                 "Steuerl. Ergebnis vor Verlustvortrag (€)",
                 "Verlustvortrag genutzt (€)", "Verlustvortrag-Bestand Ende Jahr (€)",
                 "Steuerpflichtiges Ergebnis (€)", "Steuer (€)",
@@ -921,6 +937,19 @@ def render_global_assumptions_page() -> None:
                  "wird die Inflation aufgeschlagen.",
         )
 
+        st.markdown("**Gewichtung negativer Stunden**")
+        st.caption(
+            "In Stunden negativer Strompreise entfällt gesetzlich die "
+            "Marktprämie. 100 % = volle Wirkung wie in den Preiskurven "
+            "hinterlegt. Niedrigere Werte blenden den Effekt teilweise "
+            "oder ganz aus, z.B. für Vergleichsrechnungen ohne diesen "
+            "Abschlag."
+        )
+        negative_stunden_gewichtung = st.slider(
+            "Gewichtung (%)", min_value=0, max_value=100,
+            value=int(round(ga.negative_stunden_gewichtung_pct * 100)), step=5,
+        )
+
         if not ga.marktpreisszenarien:
             st.info("Noch kein Marktpreisszenario vorhanden.")
             edited_szenarien: dict[str, pd.DataFrame] = {}
@@ -996,6 +1025,13 @@ def render_global_assumptions_page() -> None:
                  "tatsächlich angewendete Abgabe wird pro Projekt festgelegt "
                  "(im Projektformular unter 'Wirtschaftliche Parameter'), da "
                  "sie je nach Gemeinde unterschiedlich sein kann.",
+        )
+        direktvermarktungskosten = st.number_input(
+            "Direktvermarktungskosten – Vorschlagswert für neue Projekte (€/MWh)",
+            min_value=0.0, value=ga.direktvermarktungskosten_eur_kwh * 1000, step=0.1,
+            help="Kosten für Bilanzkreis, Prognose, Marktzugang - "
+                 "üblicherweise ca. 1 €/MWh. Dient nur als Vorbelegung; "
+                 "tatsächlich angewendet wird der projektspezifische Wert.",
         )
 
     with st.expander("Technische Standardannahmen", expanded=True):
@@ -1107,6 +1143,7 @@ def render_global_assumptions_page() -> None:
         ga.marktpreisszenarien = neue_szenarien
         ga.marktpreis_inflation_pct_pa = marktpreis_inflation / 100
         ga.marktpreis_inflation_basisjahr = int(marktpreis_basisjahr)
+        ga.negative_stunden_gewichtung_pct = negative_stunden_gewichtung / 100
 
         ga.opex_standard = [
             OpexItem(
@@ -1126,6 +1163,7 @@ def render_global_assumptions_page() -> None:
         ga.steuersatz_pct = steuersatz / 100
         ga.tilgungsart = TilgungsArt(tilgungsart)
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
+        ga.direktvermarktungskosten_eur_kwh = direktvermarktungskosten / 1000
         ga.tax_modus = TaxModus(tax_modus)
         ga.afa_nutzungsdauer_jahre = int(afa_nutzungsdauer) if afa_nutzungsdauer else None
         ga.freibetrag_eur = float(freibetrag)
