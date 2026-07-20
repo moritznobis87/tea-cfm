@@ -186,7 +186,7 @@ deckblatt_spezifischer_ertrag: "Spezifischer Ertrag"
 deckblatt_regel_negative_preise: "Regel negative Preise"
 deckblatt_regel_6h: "6-Stunden-Regel (Österreich)"
 deckblatt_regel_1h: "1-Stunden-Regel (Deutschland)"
-deckblatt_stand_zeile: "Stand: {datum} · Erstellt mit Nobis Analytics · Berechnungsgrundlage: EAG-Marktprämienmodell (gleitende Marktprämie), nominale Cashflow-Rechnung"
+deckblatt_stand_zeile: "Stand: {datum} · Erstellt mit {marken_name} · Berechnungsgrundlage: EAG-Marktprämienmodell (gleitende Marktprämie), nominale Cashflow-Rechnung"
 deckblatt_disclaimer: "Indikative Modellrechnung auf Basis der in Annex A und B dokumentierten Annahmen. Diese Unterlage dient der internen Entscheidungsvorbereitung; sie ist kein Angebot und keine Anlage-, Steuer- oder Rechtsberatung. Die Ergebnisse hängen wesentlich von den getroffenen Annahmen ab, insbesondere von Marktpreisprognosen und regulatorischen Rahmenbedingungen."
 inhaltsverzeichnis_titel: "Inhalt"
 

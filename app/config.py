@@ -18,6 +18,11 @@ PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 
 ASSETS_DIR = ROOT_DIR / "assets"
+#: Nobis-Analytics-Markenwerte (Standardmarke). Fuer die tatsaechlich
+#: AKTIVE Marke (inkl. verdecktem Schalter auf die vorherige
+#: Trianel-Gestaltung) siehe app.branding.aktive_marke() - dort werden
+#: diese Konstanten NICHT gelesen, sie dienen nur als Referenz/
+#: Ausgangswert der Registry in app/branding.py.
 LOGO_PATH = ASSETS_DIR / "nobis_logo.png"
 #: Beschnittene, quadratische Logovariante fuer den Browser-Tab.
 FAVICON_PATH = ASSETS_DIR / "favicon.png"

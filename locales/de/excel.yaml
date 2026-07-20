@@ -3,7 +3,7 @@
 # damit die Engine-Schicht ohne Streamlit-Abhaengigkeit auskommt).
 
 blatt_uebersicht: "Übersicht"
-titel_uebersicht: "Nobis Analytics – Pipeline-Ergebnisse"
+titel_uebersicht: "{marken_name} – Pipeline-Ergebnisse"
 hinweis_uebersicht: "Je Projekt ein eigener Reiter mit allen Auswertungen; alle Diagramme sind native Excel-Diagramme und über die danebenstehenden Tabellen editierbar."
 
 spalte_projekt: "Projekt"

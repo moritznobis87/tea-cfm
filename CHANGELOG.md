@@ -1,5 +1,43 @@
 # Changelog
 
+## v4.17 – Verdeckter Marken-Schalter: Trianel-Layout vs. Nobis Analytics (2026-07)
+
+- Neuer verdeckter Schalter zwischen der aktuellen Nobis-Analytics-
+  Gestaltung (Standard) und der vorherigen Trianel-Gestaltung.
+  Aktivierung ausschließlich über den URL-Parameter `?marke=trianel`
+  – nirgends in der Oberfläche verlinkt oder dokumentiert, daher
+  "verdeckt". Zurück zu Nobis Analytics: `?marke=nobis` oder Parameter
+  entfernen und neu laden.
+- **Original-Assets wiederhergestellt**, nicht nachgebaut: Das exakte
+  Trianel-Logo und -Favicon wurden aus einem alten, vom Nutzer
+  hochgeladenen Archivstand (`pv_platform_v2_2.zip`) extrahiert und
+  unter `assets/trianel/` abgelegt – die Originaldatei war beim
+  Rebrand (v4.15) unwiederbringlich gelöscht worden.
+- Neues Modul `app/branding.py`: zentrale Registry beider
+  Markenkonfigurationen (Farben, Logo, Favicon, Kopfzeilentexte).
+  `app/theme.py` (`wende_farben_an()`) und `app/report.py` (eigene
+  gespiegelte Konstanten, identische Funktion) machen die Farbpalette
+  zur Laufzeit umschaltbar; PDF-Bericht und Excel-Pipeline-Export
+  übernehmen Logo, Farben und Signatur-Text ebenfalls (kein
+  `{marken_name}`-Platzhalter mehr hart codiert).
+- Zwei echte Bugs beim Umbau gefunden und behoben, bevor sie live
+  gegangen wären: (1) `HEAT_SCALE` (IRR-Heatmap-Farbskala) rutschte
+  beim Einfügen der neuen Funktion versehentlich aus der `Colors`-
+  Klasse heraus und hätte die Heatmap mit `AttributeError` abstürzen
+  lassen; (2) das Plotly-Template wurde bisher nur einmal registriert
+  und cachte nach einem Markenwechsel die alte Farbpalette weiter.
+- Bekannte, bewusst in Kauf genommene Einschränkung (dokumentiert in
+  `app/branding.py`): Die Farbpalette ist prozessweiter, nicht
+  sitzungsspezifischer Zustand – bei echtem gleichzeitigem
+  Mehrnutzerbetrieb auf demselben Streamlit-Worker könnte sich in
+  seltenen, timing-abhängigen Fällen die Farbwahl zweier Sessions kurz
+  überschneiden (rein optisch, kein Datenrisiko). Für eine selten
+  genutzte, verdeckte Vergleichsansicht ein akzeptabler Kompromiss.
+- 8 neue Tests (Registry-Vollständigkeit, Original-Assets vorhanden,
+  App/PDF/Excel-Export folgen dem Schalter, Rückfall auf Nobis bei
+  unbekanntem Parameter, Zustand bleibt zwischen Tests nicht hängen);
+  Suite: 184, zweifach hintereinander stabil gelaufen.
+
 ## v4.16 – Kopfzeile: abgeschnittenes Logo/Sprach-Popover behoben (2026-07)
 
 - **Ursache 1 (Layout):** Bei breitem Fenster ohne Zeilenumbruch im

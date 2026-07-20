@@ -3,7 +3,7 @@
 # la couche moteur reste sans dépendance à Streamlit).
 
 blatt_uebersicht: "Vue d'ensemble"
-titel_uebersicht: "Nobis Analytics – Résultats du portefeuille"
+titel_uebersicht: "{marken_name} – Résultats du portefeuille"
 hinweis_uebersicht: "Un onglet par projet avec toutes les analyses ; tous les graphiques sont des graphiques Excel natifs et modifiables via les tableaux situés à côté."
 
 spalte_projekt: "Projet"

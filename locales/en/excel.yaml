@@ -3,7 +3,7 @@
 # so the engine layer stays free of any Streamlit dependency).
 
 blatt_uebersicht: "Overview"
-titel_uebersicht: "Nobis Analytics – Pipeline Results"
+titel_uebersicht: "{marken_name} – Pipeline Results"
 hinweis_uebersicht: "One tab per project with all analyses; all charts are native Excel charts and editable via the tables next to them."
 
 spalte_projekt: "Project"

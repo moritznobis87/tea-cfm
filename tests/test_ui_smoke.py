@@ -178,9 +178,10 @@ class TestKPIUndChartBugfixes:
         """CSS-Sicherheitsnetz: falls die JS-Anpassung einen Reflow einmal
         nicht rechtzeitig einholt, muss der Wert sauber mit '…'
         abgeschnitten werden statt hart (unleserlich) geclippt."""
-        from app.theme import _CSS
+        from app.theme import _baue_css
 
-        block = _CSS[_CSS.index(".kpi-card .kpi-value"):]
+        css = _baue_css()
+        block = css[css.index(".kpi-card .kpi-value"):]
         block = block[:block.index("}")]
         assert "text-overflow: ellipsis" in block
         assert "overflow: hidden" in block

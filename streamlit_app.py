@@ -11,22 +11,32 @@ from __future__ import annotations
 
 import streamlit as st
 
+from app.branding import aktive_marke
+
+# Verdeckter Marken-Schalter: URL-Parameter ?marke=trianel zeigt die
+# vorherige Trianel-Gestaltung, sonst (Standard) Nobis Analytics -
+# siehe app/branding.py fuer Details. Muss vor set_page_config/
+# apply_theme ermittelt und angewendet werden.
+_MARKE = aktive_marke()
+
 # Markenfarbe und Schrift zur Laufzeit fixieren: .streamlit/config.toml
-# greift nur, wenn die App aus dem Projektordner gestartet wird. Damit das
-# Trianel-Rot unabhaengig vom Startverzeichnis gilt, werden die Theme-
-# Optionen hier zusaetzlich gesetzt (vor set_page_config, damit sie in der
-# ersten an den Browser gesendeten Session ankommen).
+# greift nur, wenn die App aus dem Projektordner gestartet wird. Damit die
+# Akzentfarbe unabhaengig vom Startverzeichnis (und vom aktiven Marken-
+# Schalter) gilt, werden die Theme-Optionen hier zusaetzlich gesetzt (vor
+# set_page_config, damit sie in der ersten an den Browser gesendeten
+# Session ankommen).
 from streamlit import config as _st_config  # noqa: E402
 
-from app.config import APP_TITLE, FAVICON_PATH, LOGO_PATH
-from app.theme import Colors, apply_theme
+from app.theme import apply_theme, wende_farben_an  # noqa: E402
+
+wende_farben_an(_MARKE["farben"])
 
 _INTER = (
     "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700"
     "&display=swap, sans-serif"
 )
 for _option, _wert in [
-    ("theme.primaryColor", Colors.BRAND),
+    ("theme.primaryColor", _MARKE["farben"]["BRAND"]),
     ("theme.font", _INTER),
     ("theme.headingFont", _INTER),
 ]:
@@ -34,9 +44,9 @@ for _option, _wert in [
         _st_config.set_option(_option, _wert)
 
 st.set_page_config(
-    page_title=APP_TITLE,
+    page_title=_MARKE["app_titel"],
     layout="wide",
-    page_icon=str(FAVICON_PATH) if FAVICON_PATH.exists() else "☀️",
+    page_icon=str(_MARKE["favicon"]) if _MARKE["favicon"].exists() else "☀️",
 )
 apply_theme()
 
@@ -64,11 +74,11 @@ with st.container(key="app_header"):
     col_logo, col_title, col_sprache = st.columns(
         [2.2, 7, 1.4], vertical_alignment="center"
     )
-    if LOGO_PATH.exists():
-        col_logo.image(str(LOGO_PATH), width=190)
+    if _MARKE["logo"].exists():
+        col_logo.image(str(_MARKE["logo"]), width=_MARKE["logo_breite"])
     col_title.markdown(
         f"""<div>
-        <p class="app-hero-title">{txt("oberflaeche.app_titel")}</p>
+        <p class="app-hero-title">{_MARKE["kopfzeile_titel"]}</p>
         <p class="app-hero-sub">{txt("oberflaeche.app_untertitel")}</p>
         </div>""",
         unsafe_allow_html=True,

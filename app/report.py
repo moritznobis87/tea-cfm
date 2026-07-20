@@ -81,6 +81,25 @@ NEGATIVE = "#C0392B"
 NEUTRAL = "#8A97A6"
 SERIES = [INK, BRAND, NEUTRAL, POSITIVE, INK_SOFT]
 
+
+def wende_farben_an(farben: dict) -> None:
+    """Ueberschreibt die Modul-Farbkonstanten zur Laufzeit (verdeckter
+    Marken-Schalter, siehe app.branding) - Gegenstueck zu
+    app.theme.wende_farben_an, hier als Modulglobale statt
+    Klassenattribute, da report.py bewusst ohne Streamlit-Import
+    auskommt. Von app.services vor jedem build_pdf_report()-Aufruf
+    passend zur aktiven Marke aufgerufen; POSITIVE/NEGATIVE bleiben
+    unveraendert (semantische Farben, keine Markenfarben)."""
+    global BRAND, INK, INK_SOFT, MUTED, NEUTRAL, LINE, WASH, SERIES
+    BRAND = farben["BRAND"]
+    INK = farben["INK"]
+    INK_SOFT = farben["INK_SOFT"]
+    MUTED = farben["MUTED"]
+    NEUTRAL = farben["NEUTRAL"]
+    LINE = farben["LINE"]
+    WASH = farben["WASH"]
+    SERIES = [INK, BRAND, NEUTRAL, POSITIVE, INK_SOFT]
+
 _SEITE_B, _SEITE_H = A4
 _RAND_L, _RAND_R, _RAND_O, _RAND_U = 2.0 * cm, 2.0 * cm, 2.3 * cm, 2.0 * cm
 _INHALT_B = _SEITE_B - _RAND_L - _RAND_R
@@ -572,11 +591,13 @@ class _Kapitel(Paragraph):
 
 
 class _BerichtDoc(BaseDocTemplate):
-    def __init__(self, puffer, projekt_name: str, **kw):
+    def __init__(self, puffer, projekt_name: str,
+                 marken_name: str = "Nobis Analytics", **kw):
         super().__init__(puffer, pagesize=A4, leftMargin=_RAND_L,
                          rightMargin=_RAND_R, topMargin=_RAND_O,
                          bottomMargin=_RAND_U, **kw)
         self._projekt_name = projekt_name
+        self._marken_name = marken_name
         frame = Frame(_RAND_L, _RAND_U, _INHALT_B,
                       _SEITE_H - _RAND_O - _RAND_U, id="inhalt")
         self.addPageTemplates([
@@ -601,7 +622,7 @@ class _BerichtDoc(BaseDocTemplate):
         canv.setStrokeColor(colors.HexColor(LINE))
         canv.line(_RAND_L, 1.35 * cm, _SEITE_B - _RAND_R, 1.35 * cm)
         canv.setFont("Helvetica", 7.5)
-        canv.drawString(_RAND_L, 1.0 * cm, "Nobis Analytics")
+        canv.drawString(_RAND_L, 1.0 * cm, self._marken_name)
         canv.drawCentredString(_SEITE_B / 2, 1.0 * cm,
                                date.today().strftime("%d.%m.%Y"))
         canv.drawRightString(_SEITE_B - _RAND_R, 1.0 * cm,
@@ -694,6 +715,9 @@ class ReportInputs:
     diskontsatz_pct: float             # fuer NPV/LCOE/MC-NPV
     ziel_irr_pct: float = 0.08
     logo_path: Path | None = None
+    #: Signatur in Fusszeile und PDF-Autor-Metadaten (verdeckter
+    #: Marken-Schalter, siehe app.branding) - Standard "Nobis Analytics".
+    marken_name: str = "Nobis Analytics"
     # Optionales EAG-Ausschreibungsmodell: dict mit "df" (Historie),
     # "prognose" (GebotsPrognose, Momentum-Modus), "formel_zeile" (Text
     # mit eingesetzten Stuetzstellen). None -> Kapitel entfaellt.
@@ -709,8 +733,9 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     typ = "Agri-PV" if p.anlagentyp == AnlagenTyp.AGRI_PV else "Konventionell"
 
     puffer = io.BytesIO()
-    doc = _BerichtDoc(puffer, projekt_name=p.name, title=f"Wirtschaftlichkeitsanalyse {p.name}",
-                      author="Nobis Analytics")
+    doc = _BerichtDoc(puffer, projekt_name=p.name, marken_name=inputs.marken_name,
+                      title=f"Wirtschaftlichkeitsanalyse {p.name}",
+                      author=inputs.marken_name)
     story: list = []
 
     # ------------------------------------------------------------------ Deckblatt
@@ -783,7 +808,8 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(deck_tabelle)
     story.append(Spacer(1, 7.2 * cm))
     story.append(Paragraph(
-        txt("bericht.deckblatt_stand_zeile", datum=heute), _STYLE_CAPTION,
+        txt("bericht.deckblatt_stand_zeile", datum=heute,
+            marken_name=inputs.marken_name), _STYLE_CAPTION,
     ))
     story.append(Paragraph(txt("bericht.deckblatt_disclaimer"), _STYLE_CAPTION))
     story.append(NextPageTemplate("inhalt"))

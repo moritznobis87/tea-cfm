@@ -363,10 +363,13 @@ def pipeline_ergebnis_excel(
     projekte: list[tuple[PVProject, str]],
     ga: GlobalAssumptions,
     n_mc: int = 300,
+    marken_name: str = "Nobis Analytics",
 ) -> bytes:
     """Erstellt die Ergebnis-Arbeitsmappe: Blatt 'Übersicht' plus je
     Projekt ein Reiter mit allen Auswertungen als native Excel-
-    Diagramme. `projekte`: Liste (Projekt, gewuenschter Blattname)."""
+    Diagramme. `projekte`: Liste (Projekt, gewuenschter Blattname).
+    `marken_name`: Signatur im Uebersichtstitel (verdeckter
+    Marken-Schalter, siehe app.branding)."""
     wb = Workbook()
     ws = wb.active
     ws.title = _t("blatt_uebersicht")
@@ -374,7 +377,8 @@ def pipeline_ergebnis_excel(
     ws.column_dimensions["A"].width = 30
     for sp in "BCDEFGHI":
         ws.column_dimensions[sp].width = 14
-    ws.cell(row=1, column=1, value=_t("titel_uebersicht")).font = _F_TITEL
+    ws.cell(row=1, column=1,
+            value=_t("titel_uebersicht", marken_name=marken_name)).font = _F_TITEL
 
     zeilen = []
     ergebnisse: list[tuple[PVProject, str]] = []

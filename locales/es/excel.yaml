@@ -4,7 +4,7 @@
 # dependa de Streamlit).
 
 blatt_uebersicht: "Resumen"
-titel_uebersicht: "Nobis Analytics – Resultados de la cartera"
+titel_uebersicht: "{marken_name} – Resultados de la cartera"
 hinweis_uebersicht: "Una pestaña por proyecto con todos los análisis; todos los gráficos son gráficos nativos de Excel y editables mediante las tablas contiguas."
 
 spalte_projekt: "Proyecto"

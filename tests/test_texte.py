@@ -478,11 +478,17 @@ class TestFarbschemaNobisAnalytics:
         assert report.INK == Colors.INK
 
     def test_keine_alten_farbcodes_im_quellcode(self):
+        """app/branding.py haelt BEIDE Paletten bewusst vor (Registry
+        des verdeckten Marken-Schalters, siehe TestVerdeckterMarkenSchalter)
+        und wird deshalb ausgenommen - ueberall sonst duerfen die alten
+        Trianel-Farbcodes nicht als aktive/Standardwerte auftauchen."""
         import pathlib
 
         muster = self._ALTE_FARBEN | {"20, 53, 48", "20,53,48",
                                       "138, 166, 160", "138,166,160"}
         for pfad in pathlib.Path("app").rglob("*.py"):
+            if pfad.name == "branding.py":
+                continue
             inhalt = pfad.read_text(encoding="utf-8")
             for alt in muster:
                 assert alt not in inhalt, f"{pfad}: {alt}"
@@ -571,3 +577,155 @@ class TestKopfzeileLaeuftSchnellDurch:
             "Session-State-Zuweisung - liegt es ausserhalb des if-Blocks, "
             "feuert es bei jeder Schleifeniteration unbedingt."
         )
+
+
+class TestVerdeckterMarkenSchalter:
+    """End-to-End-Tests des verdeckten Marken-Schalters (app/branding.py):
+    URL-Parameter ?marke=trianel zeigt die vorherige Trianel-Gestaltung
+    (Original-Assets, wiederhergestellt aus einem frueheren Archiv),
+    ohne Parameter gilt Nobis Analytics."""
+
+    def test_registry_haelt_beide_marken_vollstaendig(self):
+        from app.branding import MARKEN
+
+        assert set(MARKEN) == {"nobis", "trianel"}
+        for code, marke in MARKEN.items():
+            for schluessel in ("app_titel", "kopfzeile_titel", "logo",
+                              "logo_breite", "favicon", "farben"):
+                assert schluessel in marke, f"{code}.{schluessel}"
+            for farbschluessel in ("BRAND", "INK", "INK_SOFT", "MUTED",
+                                   "NEUTRAL", "LINE", "WASH"):
+                assert farbschluessel in marke["farben"], f"{code}.{farbschluessel}"
+
+    def test_trianel_assets_sind_die_wiederhergestellten_originale(self):
+        """Keine Neuerstellung/Annaeherung - die Original-Bilddateien
+        aus dem Archiv vor dem Rebrand."""
+        from app.branding import MARKEN
+
+        logo = MARKEN["trianel"]["logo"]
+        favicon = MARKEN["trianel"]["favicon"]
+        assert logo.exists() and logo.stat().st_size > 10_000
+        assert favicon.exists() and favicon.stat().st_size > 500
+
+    def test_ohne_parameter_zeigt_nobis_analytics(self):
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(
+            str(Path(__file__).parent.parent / "streamlit_app.py"),
+            default_timeout=60,
+        )
+        at.run()
+        assert not at.exception, at.exception
+        md = " ".join(m.value for m in at.markdown if m.value)
+        assert "PV-Projektbewertung" in md
+        assert "TEA PV-Projektbewertung" not in md
+
+    def test_parameter_trianel_zeigt_alte_gestaltung(self):
+        from streamlit.testing.v1 import AppTest
+
+        try:
+            at = AppTest.from_file(
+                str(Path(__file__).parent.parent / "streamlit_app.py"),
+                default_timeout=60,
+            )
+            at.query_params["marke"] = "trianel"
+            at.run()
+            assert not at.exception, at.exception
+            md = " ".join(m.value for m in at.markdown if m.value)
+            assert "TEA PV-Projektbewertung" in md
+            # Farben tatsaechlich umgeschaltet (nicht nur der Text).
+            from app.theme import Colors
+            assert Colors.BRAND == "#BE172B"
+            assert Colors.INK == "#143530"
+        finally:
+            # Colors ist bewusst einfacher, prozessweiter Zustand (siehe
+            # Einschraenkung in app/branding.py) - ohne Reset wuerde
+            # dieser Test alle NACHFOLGENDEN Tests in der gesamten
+            # Suite verunreinigen, nicht nur diese Datei.
+            from app.branding import MARKEN
+            from app.theme import wende_farben_an
+            wende_farben_an(MARKEN["nobis"]["farben"])
+
+    def test_unbekannter_parameter_faellt_auf_nobis_zurueck(self):
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(
+            str(Path(__file__).parent.parent / "streamlit_app.py"),
+            default_timeout=60,
+        )
+        at.query_params["marke"] = "does-not-exist"
+        at.run()
+        assert not at.exception, at.exception
+        md = " ".join(m.value for m in at.markdown if m.value)
+        assert "TEA PV-Projektbewertung" not in md
+
+    def test_pdf_bericht_folgt_dem_schalter(self):
+        """Der PDF-Export respektiert die aktive Marke (Farben, Logo,
+        Fusszeilen-/Autor-Signatur), nicht nur die Live-App.
+        services.build_project_report() ermittelt die Marke intern
+        selbst ueber aktive_marke() - fuer den Test ausserhalb einer
+        echten Streamlit-Session (dort faellt aktive_marke() mangels
+        Session-Kontext auf "nobis" zurueck) wird sie deshalb gemockt,
+        nicht nur die Farben vorbelegt."""
+        import io
+        from unittest.mock import patch
+
+        from pypdf import PdfReader
+
+        from app import branding, report, services
+
+        try:
+            with patch(
+                "app.branding.aktive_marke",
+                return_value=branding.MARKEN["trianel"],
+            ):
+                pdf = services.build_project_report("template-agri", 0.08)
+            assert pdf is not None
+            text = "\n".join(
+                s.extract_text() for s in PdfReader(io.BytesIO(pdf)).pages
+            )
+            assert "Nobis Analytics" not in text
+            assert "TEA PV-Projektbewertung" in text
+        finally:
+            # Colors/report sind bewusst einfacher, prozessweiter Zustand
+            # (siehe Einschraenkung in app/branding.py) - ohne Reset
+            # wuerde dieser Test alle NACHFOLGENDEN Tests in der
+            # gesamten Suite verunreinigen, nicht nur diese Datei.
+            report.wende_farben_an(branding.MARKEN["nobis"]["farben"])
+
+    def test_nach_trianel_test_faellt_theme_auf_nobis_zurueck(self):
+        """Reihenfolge-Unabhaengigkeit: stellt sicher, dass ein
+        vorheriger Test dieser Klasse den globalen Colors-Zustand nicht
+        fuer nachfolgende Tests (in DIESER oder anderen Testdateien)
+        verschmutzt zuruecklaesst."""
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(
+            str(Path(__file__).parent.parent / "streamlit_app.py"),
+            default_timeout=60,
+        )
+        at.run()
+        assert not at.exception
+        from app.theme import Colors
+        assert Colors.BRAND == "#167B88"
+
+    def test_excel_export_folgt_dem_schalter(self):
+        """Auch der Pipeline-Excel-Export (io_ergebnis_excel.py, reine
+        Engine-Funktion ohne Streamlit-Abhaengigkeit) uebernimmt den
+        Markennamen als expliziten Parameter statt festen Text."""
+        import io
+
+        from openpyxl import load_workbook
+
+        from engine import pipeline_ergebnis_excel
+        from tests.conftest import _baue_global_assumptions, _baue_projekt
+
+        projekt = _baue_projekt()
+        daten = pipeline_ergebnis_excel(
+            [(projekt, projekt.name)], _baue_global_assumptions(),
+            n_mc=30, marken_name="TEA PV-Projektbewertung",
+        )
+        wb = load_workbook(io.BytesIO(daten))
+        titel = wb["Übersicht"]["A1"].value
+        assert "TEA PV-Projektbewertung" in titel
+        assert "Nobis Analytics" not in titel

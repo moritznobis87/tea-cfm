@@ -369,10 +369,14 @@ def build_project_report(project_id: str, diskontsatz_pct: float,
     """Stellt alle Berichtsbausteine aus den (gecachten) Services zusammen
     und erzeugt den PDF-Bericht. Monte Carlo laeuft mit den dokumentierten
     Standardparametern (400 Laeufe, Standard-Sigmas, fester Seed)."""
-    from app.config import LOGO_PATH
+    from app.branding import aktive_marke
     from app.report import ReportInputs, build_pdf_report
+    from app.report import wende_farben_an as report_farben_anwenden
     from engine import MC_STANDARD_SIGMAS, calculate_lcoe
     from engine.kpis import npv_at
+
+    marke = aktive_marke()
+    report_farben_anwenden(marke["farben"])
 
     path = PROJECTS_DIR / f"{project_id}.yaml"
     result = get_valuation(project_id)
@@ -395,7 +399,8 @@ def build_project_report(project_id: str, diskontsatz_pct: float,
         npv_eur=npv_at(result.cashflow, diskontsatz_pct),
         diskontsatz_pct=diskontsatz_pct,
         ziel_irr_pct=ziel_irr_pct,
-        logo_path=LOGO_PATH,
+        logo_path=marke["logo"],
+        marken_name=marke["app_titel"],
         auktion=_auktions_paket_fuer_bericht(),
     )
     return build_pdf_report(inputs)
@@ -512,10 +517,14 @@ def build_pipeline_excel(n_mc: int = 300) -> bytes:
     """Ergebnis-Export der gesamten Pipeline: Blatt 'Übersicht' plus je
     Projekt ein Reiter mit allen Auswertungen als native Excel-
     Diagramme (inaktive Projekte enthalten und markiert)."""
+    from app.branding import aktive_marke
     from engine import pipeline_ergebnis_excel
 
     projekte = [
         (get_project(pid), get_project(pid).name)
         for pid in list_project_files()
     ]
-    return pipeline_ergebnis_excel(projekte, get_global_assumptions(), n_mc=n_mc)
+    return pipeline_ergebnis_excel(
+        projekte, get_global_assumptions(), n_mc=n_mc,
+        marken_name=aktive_marke()["app_titel"],
+    )
