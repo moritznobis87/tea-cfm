@@ -61,7 +61,7 @@ def calculate_tax(
 
     rows = []
     verlustvortrag_bop = 0.0
-    for jahr, ebt_ohne_afa in zip(revenue["jahr"], ebt_vor_afa):
+    for jahr, ebt_ohne_afa in zip(revenue["jahr"], ebt_vor_afa, strict=True):
         # AfA nur innerhalb der Nutzungsdauer - danach ist das Wirtschaftsgut
         # steuerlich voll abgeschrieben, eine weitere Abschreibung waere
         # unzulaessig.

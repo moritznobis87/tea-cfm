@@ -33,6 +33,53 @@ class TilgungsArt(str, Enum):
     LINEAR = "linear"
 
 
+class DirektvermarktungsModus(str, Enum):
+    """Bemessung der Direktvermarktungskosten (Bilanzkreis, Prognose,
+    Marktzugang).
+
+    ABSOLUT:           fester Betrag je erzeugter MWh (Projektfeld
+                       direktvermarktungskosten_eur_mwh), z.B. 1 EUR/MWh.
+    RELATIV_MARKTWERT: Anteil am nominalen Jahresmarktwert je erzeugter
+                       kWh (globaler Prozentsatz), z.B. 10 % vom Marktwert -
+                       die Kosten atmen dann mit dem Preisniveau.
+    """
+
+    ABSOLUT = "absolut"
+    RELATIV_MARKTWERT = "relativ_marktwert"
+
+
+class NegativeStundenRegel(str, Enum):
+    """Regel, ab welcher Dauer zusammenhaengend negativer Preise die
+    Marktpraemie entfaellt - bestimmt, welche der beiden Negativmengen-
+    Zeitreihen eines Szenarios angewendet wird.
+
+    SECHS_STUNDEN: Praemie entfaellt erst, wenn mindestens 6 Stunden am
+                   Stueck negative Preise auftreten (Standard Oesterreich,
+                   EAG).
+    EINE_STUNDE:   Praemie entfaellt bereits ab 1 Stunde am Stueck
+                   negativer Preise (Regelung Deutschland) - die
+                   betroffene Erzeugungsmenge ist entsprechend groesser.
+    """
+
+    SECHS_STUNDEN = "6h"
+    EINE_STUNDE = "1h"
+
+
+class NegativeStundenModus(str, Enum):
+    """Verhalten der Anlage in Stunden negativer Strompreise (in denen die
+    Marktpraemie gesetzlich entfaellt).
+
+    ABREGELUNG: Die Anlage wird abgeregelt - fuer den Anteil negativer
+    Stunden entfallen die Erloese vollstaendig.
+    MARKTWERT:  Die Anlage speist weiter ein - fuer den Anteil negativer
+    Stunden entfaellt nur die Marktpraemie, der Jahresmarktwert wird
+    weiterhin verguetet.
+    """
+
+    MARKTWERT = "marktwert"
+    ABREGELUNG = "abregelung"
+
+
 class TaxModus(str, Enum):
     PAUSCHAL_AUF_EBT = "pauschal_auf_ebt"
     AFA_KOERPERSCHAFTSTEUER = "afa_koerperschaftsteuer"
@@ -51,6 +98,8 @@ class CapexBreakdown(BaseModel):
     epc_eur: float = 0.0
     netzanschluss_eur: float = 0.0
     trasse_eur: float = 0.0
+    widmung_eur: float = 0.0
+    genehmigung_eur: float = 0.0
     sonstige_extern_eur: float = 0.0
     agm_eur: float = 0.0
     m_and_a_eur: float = 0.0
@@ -62,6 +111,8 @@ class CapexBreakdown(BaseModel):
             self.epc_eur
             + self.netzanschluss_eur
             + self.trasse_eur
+            + self.widmung_eur
+            + self.genehmigung_eur
             + self.sonstige_extern_eur
             + self.agm_eur
             + self.m_and_a_eur
@@ -75,6 +126,10 @@ class PVProject(BaseModel):
 
     id: str
     name: str
+    # Inaktive Projekte bleiben erhalten, werden aber aus der Portfolio-
+    # Analytik ausgeblendet und koennen aus den kumulierten KPIs
+    # herausgerechnet werden - Pipeline-Bereinigung ohne Loeschen.
+    aktiv: bool = True
     inbetriebnahme_jahr: int = Field(default_factory=lambda: datetime.now().year + 1)
     inbetriebnahme_monat: int = Field(ge=1, le=12, default=1)
 
@@ -138,9 +193,42 @@ class MarktpreisSzenario(BaseModel):
     marktwert_solar_ct_kwh_je_kalenderjahr: dict[int, float] = Field(
         default_factory=dict
     )
-    anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float] = Field(
+    # Erzeugungsmenge in Stunden negativer Preise, als Anteil (0-1) der
+    # PV-Jahreserzeugung - je Regel eine eigene Zeitreihe. Die 1h-Regel
+    # erfasst mehr Stunden und damit groessere Mengen als die 6h-Regel.
+    erzeugungsmenge_negativ_6h_pct_je_kalenderjahr: dict[int, float] = Field(
         default_factory=dict
     )
+    erzeugungsmenge_negativ_1h_pct_je_kalenderjahr: dict[int, float] = Field(
+        default_factory=dict
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migriere_legacy_negativkurve(cls, data):
+        """Aeltere Datenstaende (YAML/Direktkonstruktion) kennen nur EINE
+        Negativkurve unter 'anteil_negativer_stunden_pct_je_kalenderjahr'.
+        Sie wird in beide Regel-Zeitreihen uebernommen (fachlich: gleiche
+        Annahme fuer 6h und 1h, solange keine getrennten Daten vorliegen).
+        """
+        if isinstance(data, dict):
+            legacy = data.pop("anteil_negativer_stunden_pct_je_kalenderjahr", None)
+            if legacy is not None:
+                data.setdefault(
+                    "erzeugungsmenge_negativ_6h_pct_je_kalenderjahr", legacy
+                )
+                data.setdefault(
+                    "erzeugungsmenge_negativ_1h_pct_je_kalenderjahr", dict(legacy)
+                )
+        return data
+
+    def erzeugungsmenge_negativ(
+        self, regel: NegativeStundenRegel
+    ) -> dict[int, float]:
+        """Die zur Regel gehoerende Negativmengen-Zeitreihe."""
+        if regel == NegativeStundenRegel.EINE_STUNDE:
+            return self.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr
+        return self.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr
 
 
 class GlobalAssumptions(BaseModel):
@@ -161,6 +249,20 @@ class GlobalAssumptions(BaseModel):
     marktpreis_inflation_pct_pa: float = Field(ge=0, default=0.02)
     marktpreis_inflation_basisjahr: int = Field(default=2025)
 
+    # Allgemeine Kosteninflation: wirkt auf ALLE Kostenpositionen ohne
+    # eigene Preislogik - Pacht, Gemeindeabgabe und Direktvermarktungs-
+    # kosten (absoluter Modus) eskalieren damit ab dem 2. Betriebsjahr
+    # (Eingaben = Preisstand bei Inbetriebnahme). Die Standard-OPEX-
+    # Positionen tragen ihre eigene, sichtbare Indexierung (Vorbelegung
+    # ebenfalls 2 %/a ab Jahr 1); Direktvermarktung im Relativ-Modus
+    # folgt bereits dem nominalen Marktwert.
+    kosten_inflation_pct_pa: float = Field(ge=0, default=0.02)
+
+    # Regel fuer den Praemienentfall bei negativen Preisen (6h = Standard
+    # Oesterreich/EAG, 1h = Regelung Deutschland). Bestimmt, welche
+    # Negativmengen-Zeitreihe der Szenarien angewendet wird.
+    negative_stunden_regel: NegativeStundenRegel = NegativeStundenRegel.SECHS_STUNDEN
+
     # Standardbetriebskosten (Pacht kommt separat aus dem Projekt)
     opex_standard: list[OpexItem] = Field(default_factory=list)
 
@@ -176,6 +278,11 @@ class GlobalAssumptions(BaseModel):
     # nur als Vorbelegung im "Neues Projekt"-Formular, tatsaechlich
     # angewendet wird PVProject.direktvermarktungskosten_eur_mwh.
     direktvermarktungskosten_eur_kwh: float = Field(ge=0, default=0.001)
+    # Bemessungsmodus der Direktvermarktungskosten (gilt fuer alle
+    # Projekte). Im Modus RELATIV_MARKTWERT ersetzt der Prozentsatz die
+    # projektspezifischen EUR/MWh-Werte.
+    direktvermarktung_modus: DirektvermarktungsModus = DirektvermarktungsModus.ABSOLUT
+    direktvermarktung_pct_marktwert: float = Field(ge=0, le=1, default=0.10)
 
     # Gewichtung des Anteils negativer Stunden (0% = wird komplett
     # ignoriert, d.h. volle Verguetung auch in Stunden negativer Preise;
@@ -183,6 +290,7 @@ class GlobalAssumptions(BaseModel):
     # Dient zum "Einblenden" des Effekts, z.B. fuer Sensitivitaets- oder
     # Vergleichsrechnungen ohne diesen Abschlag.
     negative_stunden_gewichtung_pct: float = Field(ge=0, le=1, default=1.0)
+    negative_stunden_modus: NegativeStundenModus = NegativeStundenModus.MARKTWERT
 
     # Technische Standardannahmen
     degradation_pct_pa: float = 0.0
@@ -195,6 +303,9 @@ class GlobalAssumptions(BaseModel):
     # Finanzierung
     kreditlaufzeit_jahre: int = Field(gt=0, default=20)
     tilgungsart: TilgungsArt = TilgungsArt.ANNUITAET
+    #: Jahr 1 nur Zinsen, Tilgung ab Jahr 2 (verlaengert den
+    #: Schuldendienst um ein Jahr, Anzahl der Tilgungsraten bleibt gleich).
+    tilgungsfreies_anlaufjahr: bool = False
 
     # Steuer
     tax_modus: TaxModus = TaxModus.AFA_KOERPERSCHAFTSTEUER
@@ -209,7 +320,7 @@ class GlobalAssumptions(BaseModel):
     verlustvortrag_verrechnungsgrenze_pct: float = Field(ge=0, le=1, default=0.75)
 
     @model_validator(mode="after")
-    def check_afa_fields(self) -> "GlobalAssumptions":
+    def check_afa_fields(self) -> GlobalAssumptions:
         if (
             self.tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER
             and self.afa_nutzungsdauer_jahre is None
@@ -249,20 +360,27 @@ class EffectiveAssumptions(BaseModel):
     betriebsdauer_jahre: int
     marktpreisszenario_name: str
     marktwert_solar_ct_kwh_je_kalenderjahr: dict[int, float]
+    # Aufgeloeste Negativmengen-Kurve gemaess gewaehlter Regel (6h/1h).
     anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float]
+    negative_stunden_regel: NegativeStundenRegel
     marktpreis_inflation_pct_pa: float
     marktpreis_inflation_basisjahr: int
+    kosten_inflation_pct_pa: float
 
     opex_items: list[OpexItem]
     gemeindeabgabe_eur_kwh: float
     direktvermarktungskosten_eur_kwh: float
+    direktvermarktung_modus: DirektvermarktungsModus
+    direktvermarktung_pct_marktwert: float
     negative_stunden_gewichtung_pct: float
+    negative_stunden_modus: NegativeStundenModus
 
     capex_total_eur: float
     eigenkapitalquote_pct: float
     fremdkapitalzins_pct: float
     kreditlaufzeit_jahre: int
     tilgungsart: TilgungsArt
+    tilgungsfreies_anlaufjahr: bool
 
     tax_modus: TaxModus
     steuersatz_pct: float
@@ -272,8 +390,12 @@ class EffectiveAssumptions(BaseModel):
 
 
 class KPIs(BaseModel):
+    """Kern-Kennzahlen eines Projekts aus Eigenkapitalsicht."""
+
     equity_irr: float | None
     npv_eur: float
     payback_jahre: float | None
     capex_total_eur: float
+    #: Eigenkapitaleinsatz im Jahr 0 (CAPEX abzueglich Kreditaufnahme).
+    eigenkapital_eur: float = 0.0
     dscr_min: float | None = None

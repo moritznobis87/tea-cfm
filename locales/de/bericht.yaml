@@ -1,0 +1,307 @@
+# Freitext des PDF-Berichts (app/report.py): Kapitelueberschriften,
+# Abschnittstitel (H2) sowie die vollstaendigen Fliesstext-Absaetze und
+# Bildunterschriften von Kapitel 8 "EAG-Ausschreibungsmodell".
+# Platzhalter ({name}) entsprechen genau den Werten, die im Code als
+# Schluesselwortargumente an txt(...) uebergeben werden.
+
+# --- Kapitelueberschriften (Nummer wird separat aus dem Code gesetzt) --------
+kapitel_1_titel: "Management Summary"
+kapitel_2_titel: "Ergebnisrechnung"
+kapitel_3_titel: "Erlöse und Förderung"
+kapitel_4_titel: "Finanzierung"
+kapitel_5_titel: "Sensitivitätsanalyse"
+kapitel_6_titel: "Risikoanalyse (Monte-Carlo-Simulation)"
+kapitel_7_titel: "Szenarienvergleich"
+kapitel_8_titel: "EAG-Ausschreibungsmodell"
+kapitel_a_titel: "Annex: Annahmen der Berechnung"
+kapitel_b_titel: "Annex: Zeitreihen"
+
+# --- Abschnittstitel (H2) ------------------------------------------------------
+abschnitt_cashflow_vermoegen: "Gesamt-Cashflow und Vermögensaufbau"
+abschnitt_wertbruecke: "Wertbrücke über die Gesamtlaufzeit"
+abschnitt_cashflow_uebersicht: "Cashflow-Übersicht (Auszug)"
+abschnitt_verguetung_marktwert: "Vergütungssatz und Marktwert"
+abschnitt_markterloes_praemie: "Markterlös und Marktprämie"
+abschnitt_dscr: "Schuldendienstdeckung (DSCR)"
+abschnitt_schuldenprofil: "Schuldenprofil"
+abschnitt_npv_diskontsatz: "Kapitalwert über den Diskontsatz"
+abschnitt_tornado: "Tornado-Analyse"
+abschnitt_eag_varianten: "EAG-Zuschlagswert-Varianten"
+abschnitt_auktion_historie: "Historie der Ausschreibungen"
+abschnitt_auktion_fitting: "Anpassung der Verteilungsfunktionen an die historischen Runden"
+abschnitt_auktion_modell: "Modellbeschreibung"
+abschnitt_auktion_prognose: "Prognose der nächsten Runde"
+abschnitt_opex_positionen: "Betriebskosten-Positionen"
+abschnitt_capex: "Investitionskosten"
+
+# --- Kapitel 8 "EAG-Ausschreibungsmodell": Fliesstext-Absaetze ---------------
+# Platzhalter entsprechen genau den Werten, die zuvor als f-String im
+# Python-Code eingesetzt wurden (Zahlen/Daten aus der Berechnung); alle
+# uebrigen (historische) Zahlen im Text sind feststehende Fakten und
+# bleiben Teil des uebersetzbaren Fliesstexts.
+auktion_historie_intro: >-
+  Österreich vergibt die EAG-Marktprämie für Photovoltaik seit Dezember 2022
+  über wettbewerbliche Ausschreibungen der EAG-Abwicklungsstelle (OeMAG). Der
+  Mechanismus ist eine Pay-as-Bid-Auktion mit Gebotspreisreihung: Gebote
+  werden aufsteigend gereiht und bis zur ausgeschriebenen Menge bezuschlagt;
+  jeder Gewinner erhält seinen eigenen Gebotswert als anzulegenden Wert über
+  die 20-jährige Förderdauer. Der zulässige Höchstwert ist per Verordnung
+  fixiert und wurde schrittweise von 9,33 über 8,98 auf aktuell 7,77 ct/kWh
+  (2026/2027) abgesenkt. Die Datenbasis umfasst {n_runden} Runden seit
+  {erste_datum}.
+
+auktion_historie_unterzeichnet: >-
+  Die Historie zerfällt in zwei klar getrennte Regime. Bis einschließlich
+  April 2025 waren die Runden unterzeichnet: Das Gebotsvolumen blieb unter
+  der ausgeschriebenen Menge, erhebliche Restmengen (z. B. 302 von 700 MW in
+  der ersten Runde) blieben unbezuschlagt, und der höchste Zuschlagswert lag
+  exakt an der Preisobergrenze – ohne Wettbewerbsdruck bieten Teilnehmer
+  rational nahe am zulässigen Maximum (mengengewichtete Durchschnitte von
+  8,85 bis 9,22 ct/kWh bei einer Obergrenze von 9,33 ct/kWh). Genau dieses
+  Verhalten beschreibt die Auktionsliteratur zu Pay-as-Bid-Verfahren
+  (Haufe/Ehrhart 2018; Kreiss et al. 2017): Ohne bindende Mengenrestriktion
+  existiert kein Anreiz zum Unterbieten.
+
+auktion_historie_wettbewerb: >-
+  Seit Juli 2025 ist das Bild gekippt: Die Nachfrage übersteigt die
+  ausgeschriebene Menge (die EAG-Abwicklungsstelle meldet anhaltend 'enormes
+  Interesse'), die Restmengen liegen nahe null und der Grenzzuschlag löst
+  sich von der Obergrenze – er fiel über die vier Wettbewerbsrunden von 8,48
+  auf zuletzt {grenzzuschlag_ct} ({letzte_datum}), bei sinkender Schrittweite
+  (−1,19 → −0,49 → −0,11 ct). Zugleich verdichten sich die Zuschlagswerte:
+  Bieter 'shaden' ihre Gebote knapp unter den erwarteten Grenzzuschlag und
+  lernen über die Runden. Da die OeMAG das eingereichte Gebotsvolumen nicht
+  veröffentlicht, ist der Überzeichnungsgrad der Wettbewerbsrunden nicht
+  direkt beobachtbar und wird im Modell als latente Größe behandelt.
+
+abb_14_caption: >-
+  Abb. 14: Zuschlagswerte (Min/Ø/Max) und Preisobergrenze aller {n_runden}
+  Runden. Grau hinterlegt: Wettbewerbsphase ab 07/2025 (Grenzzuschlag
+  unterhalb der Obergrenze).
+
+auktion_fitting_intro: >-
+  Je Runde veröffentlicht die OeMAG ausschließlich Aggregate der
+  bezuschlagten Gebote (Minimum, mengengewichteter Durchschnitt, Maximum)
+  sowie die Mengen – Einzelgebote und Gebotsvolumen bleiben unbekannt.
+  Nichtparametrische Verfahren (KDE, Mischmodelle auf Rohgeboten) scheiden
+  damit aus; stattdessen wird je Runde eine auf das Intervall [0,
+  Preisobergrenze] beschränkte parametrische Verteilung über zwei
+  Momenten-/Quantilbedingungen kalibriert: Der mengengewichtete Durchschnitt
+  wird als (bei überzeichneten Runden am Grenzzuschlag trunkierter)
+  Erwartungswert getroffen, das veröffentlichte Minimum als 2-%-Quantil
+  aller Gebote interpretiert (das günstigste Gebot gewinnt stets;
+  Größenordnung 40–80 Gebote je Runde). Für überzeichnete Runden ergibt sich
+  die Wettbewerbsquote r = Gebotsmenge / ausgeschriebene Menge dann implizit
+  aus der Lage des Grenzzuschlags in der Verteilung (zuletzt r ≈
+  {wettbewerbsquote}). Die so geschätzten Verteilungen zeigen den
+  Regimewechsel unmittelbar: Cap-Klumpung in den unterzeichneten Runden,
+  Linksverschiebung und Verdichtung unter Wettbewerb.
+
+abb_15_caption: >-
+  Abb. 15: Je Runde geschätzte Gebotsverteilungen (Farbverlauf von grau =
+  älteste zu rot = jüngste Runde; unterzeichnete Runden gestrichelt).
+
+modell_verteilungsfamilie: >-
+  Verteilungsfamilie. Gebote b werden als an der Preisobergrenze
+  P<sub>max</sub> gespiegelte Inverse-Gamma-Verteilung modelliert:
+  b = P<sub>max</sub> − Y mit Y ~ InvGamma(α, β). Die Dichte fällt rechts zur
+  Obergrenze sehr steil auf null und läuft nach links langsam aus – exakt
+  das für Pay-as-Bid unter Wettbewerb erwartete Bild:
+
+modell_kalibrierung: >-
+  Kalibrierung je Runde. Die Parameter (α, β) je Runde folgen aus den
+  beiden Bedingungen (mengengewichteter Durchschnitt m̄, Minimum
+  b<sub>min</sub>, Grenzzuschlag p<sub>m</sub>, ε = 0,02); die
+  Wettbewerbsquote überzeichneter Runden ist latent:
+
+modell_punktprognose_intro: >-
+  Punktprognose der nächsten Runde. Grenzzuschlag und Ø-Zuschlag werden
+  getrennt per rekursiver Differenzenextrapolation über die
+  Wettbewerbsrunden fortgeschrieben. Für eine Zeitreihe x<sub>t</sub>
+  werden Differenzen rekursiv gebildet; die höchste verwendete Ordnung m
+  bleibt konstant, alle niedrigeren werden – gedämpft mit λ<sub>k</sub> ∈
+  [0, 1] – rekursiv fortgeschrieben (Standard: m = 2, λ = 1):
+
+modell_punktprognose_ergebnis: >-
+  Das Verfahren berücksichtigt damit Trend und Trendänderung: Flacht der
+  Rückgang ab, erwartet es eine weitere Abflachung statt konstanter
+  Fortschreibung. Das Minimum folgt einem Random Walk (keine stabile
+  Dynamik in der Historie); anschließend wird auf Minimum ≤ Ø ≤
+  Grenzzuschlag < P<sub>max</sub> projiziert und aus den Punktprognosen
+  die Verteilung der nächsten Runde gebaut (Ø-Bedingung stark gewichtet,
+  Minimum als weicher Tail-Anker). {formel_zeile}
+
+modell_unsicherheit_intro: >-
+  Unsicherheit und Gebotsentscheidung. Die Unsicherheit des
+  Grenzzuschlags wird als an der Obergrenze trunkierte Normalverteilung
+  um die Punktprognose modelliert (σ aus der Streuung der historischen
+  Rundenänderungen). Als Price-Taker gilt für die Zuschlagswahrscheinlichkeit
+  des eigenen Gebots und das empfohlene Gebot zur Zielwahrscheinlichkeit z:
+
+modell_zuschlagsdichte_intro: >-
+  Die dargestellte Verteilung der Zuschlagswerte ist die am Grenzzuschlag
+  abgeschnittene, renormierte Gebotsdichte:
+
+abb_16_caption: >-
+  Abb. 16: Prognostizierte Verteilung der nächsten Runde – Dichte der
+  Zuschlagswerte (am Grenzzuschlag {grenzzuschlag_ct} abgeschnitten),
+  gestrichelt die Verteilung aller Gebote, graues Band: P10–P90 der
+  Grenzzuschlag-Unsicherheit; grün: angesetzter Projektwert {projektwert_ct}.
+
+abb_17_caption: >-
+  Abb. 17: Gebotswert und Zuschlagswahrscheinlichkeit P(Grenzzuschlag > Gebot)
+  über die Prognoseunsicherheit; der angesetzte Projektwert erreicht
+  {wahrscheinlichkeit_pct}.
+
+tab_3_spalte_wahrscheinlichkeit: "Ziel-Zuschlagswahrscheinlichkeit"
+tab_3_spalte_gebotswert: "Gebotswert"
+tab_3_caption: >-
+  Tab. 3: Empfohlene Gebotswerte je gewünschter Zuschlagswahrscheinlichkeit
+  (Quantile der prognostizierten Grenzzuschlag-Verteilung).
+
+# --- Kapitel 8: dynamische Formel-Zeile (app/services.py) --------------------
+auktion_formel_zeile: "Stützstellen Grenzzuschlag: {maxes} ct ⇒ Prognose {grenzzuschlag} ct; Ø-Prognose {mittel} ct."
+
+# --- Charts Kapitel 1-4 (Matplotlib-Labels; teils dieselben Begriffe ---
+# --- wie diagramme.yaml, dort wiederverwendet) --------------------------
+chart_umsatzerloese_label: "Umsatz-\nerlöse"
+chart_betriebskosten_label: "Betriebs-\nkosten"
+chart_kreditaufnahme_label: "Kredit-\naufnahme"
+chart_equity_cashflow_label: "Equity-\nCashflow"
+chart_summe_laufzeit: "Summe Laufzeit"
+chart_marktwert_solar_nominal: "Marktwert Solar (nominal)"
+chart_marktpraemie_eag: "Marktprämie (EAG)"
+chart_erloese_label: "Erlöse"
+
+# --- Deckblatt -----------------------------------------------------------------
+deckblatt_anlagentyp: "Anlagentyp"
+deckblatt_marktpreisszenario: "Marktpreisszenario"
+deckblatt_nennleistung: "Nennleistung"
+deckblatt_eag_zuschlagswert: "EAG-Zuschlagswert"
+deckblatt_effektiv_suffix: " (effektiv {wert})"
+deckblatt_inbetriebnahme: "Inbetriebnahme"
+deckblatt_betrachtungszeitraum: "Betrachtungszeitraum"
+deckblatt_betriebsjahre: "{n} Betriebsjahre"
+deckblatt_spezifischer_ertrag: "Spezifischer Ertrag"
+deckblatt_regel_negative_preise: "Regel negative Preise"
+deckblatt_regel_6h: "6-Stunden-Regel (Österreich)"
+deckblatt_regel_1h: "1-Stunden-Regel (Deutschland)"
+deckblatt_stand_zeile: "Stand: {datum} · Erstellt mit Nobis Analytics · Berechnungsgrundlage: EAG-Marktprämienmodell (gleitende Marktprämie), nominale Cashflow-Rechnung"
+deckblatt_disclaimer: "Indikative Modellrechnung auf Basis der in Annex A und B dokumentierten Annahmen. Diese Unterlage dient der internen Entscheidungsvorbereitung; sie ist kein Angebot und keine Anlage-, Steuer- oder Rechtsberatung. Die Ergebnisse hängen wesentlich von den getroffenen Annahmen ab, insbesondere von Marktpreisprognosen und regulatorischen Rahmenbedingungen."
+inhaltsverzeichnis_titel: "Inhalt"
+
+# --- Kapitel 1: Management Summary --------------------------------------------
+summary_text: "Das Projekt {name} ({typ}, {leistung}, Inbetriebnahme {monat}/{jahr}) erreicht auf Basis des Marktpreisszenarios „{szenario}“ eine Eigenkapitalrendite von <b>{irr}</b> und liegt damit {differenz} Prozentpunkte {richtung} der Zielrendite von {ziel} %. Der Kapitalwert bei einem Diskontsatz von {diskontsatz} % beträgt {npv}. Der Schuldendienst ist über die gesamte Kreditlaufzeit {dscr_status}. Über die Betriebsdauer stammen {praemien_anteil} der Erlöse aus der EAG-Marktprämie. In der Monte-Carlo-Simulation ({n_laeufe} Läufe) wird die Zielrendite in {prob_ziel} der Läufe erreicht."
+summary_richtung_ueber: "über"
+summary_richtung_unter: "unter"
+summary_dscr_gedeckt: "gedeckt (min. DSCR {dscr})"
+summary_dscr_nicht_gedeckt: "NICHT durchgängig gedeckt (min. DSCR {dscr})"
+abb_1_caption: "Abb. 1: Jährlicher Gesamt-Cashflow (Balken) und kumulierter Equity-Cashflow (Linie). Jahr 0 = Investitionszeitpunkt."
+abb_2_caption: "Abb. 2: Von den Umsatzerlösen der gesamten Betriebsdauer über Betriebskosten, Zinsen, Steuern und Finanzierung zum kumulierten Equity-Cashflow."
+tab_1_col_jahr: "Jahr"
+tab_1_col_erloese: "Erlöse"
+tab_1_col_betriebskosten: "Betriebs-\nkosten"
+tab_1_col_zinsen: "Zinsen"
+tab_1_col_steuer: "Steuer"
+tab_1_col_cf_gesamt: "CF gesamt"
+tab_1_col_cf_kumuliert: "CF kumuliert"
+tab_1_caption: "Tab. 1: Alle Beträge in €. Vollständige Zeitreihe inkl. AfA, Verlustvortrag und Tilgung über den Excel-Export der App."
+abb_3_caption: "Abb. 3: Gleitende Marktprämie nach EAG: Vergütet wird das Maximum aus Marktwert und (nominal fixem) EAG-Zuschlagswert; die Fläche zwischen den Kurven ist die Marktprämie. Nach dem Förderende trägt der Markt allein."
+abb_4_caption: "Abb. 4: Aufteilung der Erlöse. Über die Gesamtlaufzeit stammen {praemien_anteil} der Erlöse ({betrag}) aus der Marktprämie."
+finanzierungsstruktur_text: "Finanzierungsstruktur: {ek_pct} Eigenkapital ({ek_betrag}), {fk_pct} Fremdkapital ({fk_betrag}) zu {fk_zins} über {laufzeit} Jahre ({tilgungsart}{anlaufjahr_suffix})."
+finanzierungsstruktur_anlaufjahr_suffix: ", tilgungsfreies Anlaufjahr"
+abb_5_caption: "Abb. 5: DSCR je Betriebsjahr der Kreditlaufzeit; minimaler Wert {dscr_min}."
+abb_6_caption: "Abb. 6: Restschuld (Fläche) sowie Zinsen und Tilgung (Schuldendienst) über die Kreditlaufzeit."
+capex_sonstige: "Sonstige"
+capex_poenale_puffer_kurz: "Pönale/Puffer"
+abb_7_caption: "Abb. 7: Kapital- und Investitionsstruktur."
+abb_8_caption: "Abb. 8: NPV-Kurve; die Nullstelle entspricht per Definition der EK-Rendite (IRR)."
+
+# --- Kapitel 5-7: Sensitivität, Risiko, Szenarien -----------------------------
+abb_9_caption: "Abb. 9: Wirkung der Einzelvariation jedes Werttreibers um ±10 % auf die EK-Rendite (alle übrigen Annahmen konstant), sortiert nach Spannweite. Grün: Verbesserung, Rot: Verschlechterung gegenüber der Basis."
+be_text_nicht_erreichbar: "Die Zielrendite von {ziel} % ist im untersuchten Gebotsbereich (bis 15 ct/kWh) nicht erreichbar."
+be_text_ohne_praemie: "Die Zielrendite von {ziel} % wird bereits ohne nennenswerte Prämie erreicht – der Marktwert trägt das Projekt allein."
+be_text_breakeven: "Break-even-Gebot: Für eine Zielrendite von {ziel} % ist ein anzulegender Wert von mindestens <b>{breakeven}</b> erforderlich. Gegenüber dem angesetzten Zuschlagswert von {angesetzt} besteht damit ein {label} von {differenz}."
+be_puffer: "Puffer"
+be_fehlbetrag: "Fehlbetrag"
+abb_10_caption: "Abb. 10: EK-Rendite bei Variation des EAG-Zuschlagswerts um ±5 % / ±10 %. {be_text}"
+sigma_produktion: "Spezifischer Ertrag"
+sigma_marktwert: "Marktwert-Niveau"
+sigma_capex: "Investitionskosten"
+sigma_opex: "Betriebskosten"
+mc_methodik_text: "Simultane Zufallsvariation der wesentlichen Werttreiber über {n_laeufe} vollständige Bewertungsläufe (Normalverteilung um die Basisannahme; Standardabweichungen: {sigma_text}; fester Startwert für Reproduzierbarkeit)."
+mc_kachel_p10: "P10 (KONSERVATIV)"
+mc_kachel_p50: "P50 (MEDIAN)"
+mc_kachel_p90: "P90 (OPTIMISTISCH)"
+mc_kachel_p_irr: "P(IRR ≥ {ziel} %)"
+mc_kachel_npv_median: "NPV-MEDIAN ({satz} %)"
+abb_11_caption: "Abb. 11: Verteilung der EK-Rendite."
+abb_12_caption: "Abb. 12: Bandbreite des kumulierten Equity-Cashflows (inneres Band P25–P75, äußeres Band P10–P90, Linie = Median)."
+szenarien_intro_text: "Identisches Projekt, gerechnet über alle hinterlegten Marktpreisszenarien; dem Projekt zugewiesen ist „{szenario}“."
+abb_13_caption: "Abb. 13: EK-Rendite je Szenario (links) und kumulierter Equity-Cashflow im Zeitverlauf (rechts)."
+tab_2_col_szenario: "Szenario"
+tab_2_col_ek_rendite: "EK-Rendite"
+tab_2_col_npv_bei: "NPV bei {satz} %"
+tab_2_col_erloese_gesamt: "Erlöse gesamt"
+
+# --- Annex A: Annahmen --------------------------------------------------------
+annex_a_intro: "Vollständig aufgelöster Parametersatz dieser Berechnung (Projektmaske zusammengeführt mit den Globalen Annahmen)."
+annex_a_col_parameter: "Parameter"
+annex_a_col_wert: "Wert"
+annex_a_nennleistung: "Nennleistung"
+annex_a_eigenkapitalquote: "Eigenkapitalquote"
+annex_a_spezifischer_ertrag: "Spezifischer Ertrag"
+annex_a_fremdkapitalzins: "Fremdkapitalzins"
+annex_a_degradation: "Degradation"
+annex_a_kreditlaufzeit: "Kreditlaufzeit"
+annex_a_kreditlaufzeit_wert: "{jahre} Jahre ({tilgungsart})"
+annex_a_sicherheitsabschlag: "Sicherheitsabschlag"
+annex_a_tilgungsfreies_anlaufjahr: "Tilgungsfreies Anlaufjahr"
+annex_a_ja: "Ja"
+annex_a_nein: "Nein"
+annex_a_betrachtungsdauer: "Betrachtungsdauer"
+annex_a_betrachtungsdauer_wert: "{jahre} Jahre"
+annex_a_steuermodus_steuersatz: "Steuermodus / Steuersatz"
+annex_a_eag_zuschlag_effektiv: "EAG-Zuschlag (effektiv)"
+annex_a_afa_nutzungsdauer: "AfA-Nutzungsdauer"
+annex_a_afa_nutzungsdauer_wert: "{jahre} Jahre"
+annex_a_foerderdauer: "Förderdauer"
+annex_a_foerderdauer_wert: "{jahre} Jahre"
+annex_a_capex_gesamt: "CAPEX gesamt"
+annex_a_inflation_marktwerte: "Inflation Marktwerte"
+annex_a_inflation_marktwerte_wert: "{pct} p.a. ab {basisjahr}"
+annex_a_gemeindeabgabe: "Gemeindeabgabe"
+annex_a_regel_negative_preise: "Regel negative Preise"
+annex_a_regel_6h_kurz: "6h (Österreich)"
+annex_a_regel_1h_kurz: "1h (Deutschland)"
+annex_a_direktvermarktung: "Direktvermarktung"
+annex_a_direktvermarktung_relativ: "{pct} vom Marktwert"
+annex_a_gewichtung_neg_stunden: "Gewichtung neg. Stunden"
+annex_a_negativstunden_modus: "Negativstunden-Modus"
+annex_a_abregelung_kurz: "Abregelung"
+annex_a_rueckfall_marktwert: "Rückfall auf Marktwert"
+annex_a_pacht: "Pacht"
+annex_a_kosteninflation: "Kosteninflation"
+annex_a_kosteninflation_wert: "{pct} p.a. (Pacht, Gemeindeabgabe, Direktvermarktung)"
+tab_a1_caption: "Tab. A-1: Aufgelöste Annahmen."
+annex_a_col_position: "Position"
+annex_a_col_eur_kwp_jahr: "€/kWp/Jahr"
+annex_a_col_index_pct: "Index %/Jahr"
+annex_a_col_index_ab_jahr: "Index ab Jahr"
+annex_a_col_start_betriebsjahr: "Start Betriebsjahr"
+tab_a2_caption: "Tab. A-2: Standardbetriebskosten zzgl. produktionsabhängiger Positionen (Gemeindeabgabe, Direktvermarktung) und Pacht."
+annex_a_col_betrag: "Betrag (€)"
+annex_a_capex_summe: "Summe"
+tab_a3_caption: "Tab. A-3: Investitionskosten nach Position."
+
+# --- Annex B: Zeitreihen -------------------------------------------------------
+annex_b_intro: "Verwendetes Marktpreisszenario „{szenario}“: Marktwerte real (Preisbasis {basis}) und nominal (inflationiert mit {inflation} p.a.) sowie Erzeugungsmengen in Stunden negativer Preise je Regel. Angewendet wird die {regel}-Zeitreihe."
+annex_b_col_kalenderjahr: "Kalender-\njahr"
+annex_b_col_marktwert_real: "Marktwert real\n(ct/kWh)"
+annex_b_col_marktwert_nominal: "Marktwert nominal\n(ct/kWh)"
+annex_b_col_menge_neg_6h: "Menge negativ 6h\n(% der Erzeugung)"
+annex_b_col_menge_neg_1h: "Menge negativ 1h\n(% der Erzeugung)"
+tab_b1_caption: "Tab. B-1: Zeitreihen des verwendeten Szenarios."
+annex_b_alle_szenarien_titel: "Marktwerte aller hinterlegten Szenarien (real)"
+annex_b_col_kalenderjahr_kurz: "Kalenderjahr"
+tab_b2_caption: "Tab. B-2: Marktwert Solar (real, ct/kWh) je Szenario – Grundlage des Szenarienvergleichs in Kapitel 7."

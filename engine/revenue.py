@@ -38,11 +38,11 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .models import EffectiveAssumptions
+from .models import EffectiveAssumptions, NegativeStundenModus
 
 REVENUE_COLUMNS = [
     "jahr", "kalenderjahr", "marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
-    "verguetungssatz_ct_kwh", "erloes_eur",
+    "verguetungssatz_ct_kwh", "erloes_eur", "erloes_markt_eur", "erloes_praemie_eur",
 ]
 
 
@@ -90,10 +90,33 @@ def calculate_revenue(
     # Gewichtung 0% = Effekt komplett ausgeblendet (volle Verguetung auch
     # in Stunden negativer Preise), 100% = volle gesetzliche Wirkung.
     anteil_negativ = anteil_negativ_ungewichtet * assumptions.negative_stunden_gewichtung_pct
-    verguetete_produktion_kwh = energy["produktion_kwh"].to_numpy() * (
-        1 - anteil_negativ.to_numpy()
-    )
 
-    df["erloes_eur"] = verguetete_produktion_kwh * satz_ct_kwh.to_numpy() / 100.0
+    produktion_kwh = energy["produktion_kwh"].to_numpy()
+    satz = satz_ct_kwh.to_numpy()
+
+    # Aufteilung des Erloeses in Markterloes (Verkauf zum nominalen
+    # Marktwert) und Marktpraemie (Differenz Verguetungssatz - Marktwert,
+    # nur waehrend der Foerderdauer > 0). Die Praemie entfaellt in Stunden
+    # negativer Preise in BEIDEN Modi - die Modi unterscheiden sich nur
+    # darin, ob der Markterloes fuer diesen Anteil erhalten bleibt.
+    mw = marktwert_nominal.to_numpy()
+    neg = anteil_negativ.to_numpy()
+    praemie_je_kwh = satz - mw  # >= 0, nach Foerderdauer exakt 0
+
+    if assumptions.negative_stunden_modus == NegativeStundenModus.MARKTWERT:
+        # Anlage wird NICHT abgeregelt: Fuer den Anteil negativer Stunden
+        # entfaellt nur die Marktpraemie, der (nominale) Jahresmarktwert
+        # wird weiterhin verguetet. Nach der Foerderdauer ist der Satz
+        # ohnehin der Marktwert - dieser Modus hat dann keine Wirkung mehr.
+        df["erloes_markt_eur"] = produktion_kwh * mw / 100.0
+        df["erloes_praemie_eur"] = produktion_kwh * (1 - neg) * praemie_je_kwh / 100.0
+    else:
+        # ABREGELUNG (Standard): Fuer den Anteil negativer Stunden
+        # entfallen die Erloese vollstaendig - die Menge wird nicht
+        # eingespeist.
+        df["erloes_markt_eur"] = produktion_kwh * (1 - neg) * mw / 100.0
+        df["erloes_praemie_eur"] = produktion_kwh * (1 - neg) * praemie_je_kwh / 100.0
+
+    df["erloes_eur"] = df["erloes_markt_eur"] + df["erloes_praemie_eur"]
 
     return df[REVENUE_COLUMNS]

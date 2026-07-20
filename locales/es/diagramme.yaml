@@ -1,0 +1,88 @@
+# Textos de gráficos: títulos, etiquetas de ejes, nombres de leyenda,
+# anotaciones. Las etiquetas de eje reutilizables (p. ej. "Año de
+# explotación") usan una clave genérica para mantenerse coherentes en
+# toda la aplicación.
+
+# --- Etiquetas recurrentes de ejes/magnitudes --------------------------------------
+achse_betriebsjahr: "Año de explotación"
+achse_jahr: "Año"
+achse_cashflow_jahr: "Flujo de caja (año)"
+achse_cashflow_jahr_eur: "Flujo de caja (año) en €"
+achse_eur: "€"
+achse_ct_kwh: "ct/kWh"
+achse_dscr: "DSCR (x)"
+achse_npv_eur: "VAN (€)"
+achse_diskontsatz_pct: "Tasa de descuento (%)"
+achse_irr_pct: "TIR (%)"
+achse_wahrscheinlichkeitsdichte: "Densidad de probabilidad"
+achse_gebotswert: "Valor de la oferta (ct/kWh)"
+achse_eigenes_gebot: "Oferta propia (ct/kWh)"
+achse_zuschlagswahrscheinlichkeit: "Probabilidad de adjudicación"
+achse_anzahl_laeufe: "Número de simulaciones"
+achse_bezuschlagt_pct: "Adjudicado (%)"
+
+# --- Gráficos de flujo de caja / resultados ------------------------------------------------
+chart_equity_waterfall_titel: "Cascada de capital propio"
+chart_total_cashflow_titel: "Flujo de caja total"
+chart_operating_cf_titel: "Flujo de caja operativo"
+chart_opex_stacked_titel: "Costes operativos"
+serie_betriebskosten: "Costes operativos"
+serie_verguetungssatz: "Tarifa regulada"
+serie_marktwert_nominal: "Valor de mercado (nominal)"
+serie_eigenkapital: "Capital propio"
+serie_fremdkapital: "Capital ajeno"
+serie_zinsen: "Intereses"
+serie_tilgung: "Amortización"
+serie_dscr: "DSCR"
+serie_dscr_grenze: "DSCR = 1,0x (umbral de cobertura)"
+serie_markterloes: "Ingreso de mercado"
+serie_marktpraemie: "Prima de mercado"
+
+# --- VAN / sensibilidad ------------------------------------------------------
+chart_npv_kurve_titel: "Valor actual neto según la tasa de descuento"
+chart_tornado_titel: "Sensibilidad de la TIR del capital propio (±10 %)"
+chart_irr_heatmap_titel: "TIR del capital propio: mapa de sensibilidad"
+chart_eag_sensitivitaet_titel: "Sensibilidad del valor de adjudicación EAG"
+
+# --- Monte Carlo / escenarios --------------------------------------------------
+chart_mc_histogramm_titel: "Distribución de la TIR del capital propio (simulación Monte Carlo)"
+chart_mc_fan_titel: "Flujo de caja acumulado: rango de las simulaciones"
+chart_szenario_balken_titel: "TIR del capital propio por escenario de precio de mercado"
+chart_szenario_balken_beschreibung: "TIR por escenario de precio de mercado (barras) con VAN al pasar el cursor."
+chart_szenario_kumuliert_titel: "Flujo de caja acumulado por escenario"
+
+# --- Modelo de subasta ------------------------------------------------------
+chart_auktion_historie_titel: "Subastas históricas"
+serie_preisobergrenze: "Precio máximo"
+serie_hoechster_zuschlag: "Valor de adjudicación más alto"
+serie_mittlerer_zuschlag: "Valor de adjudicación medio (ponderado)"
+serie_niedrigster_zuschlag: "Valor de adjudicación más bajo"
+serie_bezuschlagungsquote: "Adjudicado / licitado"
+chart_gebotsdichte_titel: "Distribución estimada de las ofertas"
+serie_gebotsdichte: "Densidad de ofertas"
+serie_alle_gebote: "Todas las ofertas"
+serie_zuschlagswerte: "Valores de adjudicación"
+annotation_preisobergrenze: "Precio máximo"
+annotation_erwartungswert: "Valor esperado"
+annotation_median: "Mediana"
+annotation_empfohlenes_gebot: "Oferta recomendada"
+annotation_grenzzuschlag_p10_p90: "Valor de adjudicación marginal P10–P90"
+annotation_wettbewerbsphase: "Fase competitiva"
+chart_zuschlagskurve_titel: "Oferta ↔ probabilidad de adjudicación"
+serie_arbeitspunkt: "Punto de trabajo"
+
+serie_gemeindeabgabe: "Tasa municipal"
+serie_direktvermarktung: "Venta directa"
+
+serie_umsatzerloese: "Ingresos"
+serie_kreditaufnahme: "Disposición del crédito"
+serie_operativer_cf: "FC operativo"
+serie_investition: "Inversión"
+serie_equity_cashflow: "Flujo de caja del capital propio"
+serie_zinsen_waterfall: "Intereses"
+serie_foerderende: "Fin del apoyo"
+serie_steuern: "Impuestos"
+annotation_eag_zuschlagswert_fix: "Valor de adjudicación EAG (fijo, nominal)"
+achse_jahr_kurz: "Año"
+achse_kumulierter_cf: "Flujo de caja acumulado del capital propio (€)"
+achse_irr_kurz: "Rentabilidad del capital propio"

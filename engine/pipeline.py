@@ -38,7 +38,9 @@ def resolve_assumptions(
     project: PVProject, global_assumptions: GlobalAssumptions
 ) -> EffectiveAssumptions:
     pacht_item = OpexItem(
-        name="Pacht", basiswert_eur_kwp=project.pacht_eur_kwp_jahr
+        name="Pacht", basiswert_eur_kwp=project.pacht_eur_kwp_jahr,
+        index_pct_pa=global_assumptions.kosten_inflation_pct_pa,
+        indexierung_ab_jahr=1,
     )
     opex_items = [*global_assumptions.opex_standard, pacht_item]
 
@@ -66,18 +68,26 @@ def resolve_assumptions(
         betriebsdauer_jahre=global_assumptions.betriebsdauer_jahre,
         marktpreisszenario_name=szenario.name,
         marktwert_solar_ct_kwh_je_kalenderjahr=szenario.marktwert_solar_ct_kwh_je_kalenderjahr,
-        anteil_negativer_stunden_pct_je_kalenderjahr=szenario.anteil_negativer_stunden_pct_je_kalenderjahr,
+        anteil_negativer_stunden_pct_je_kalenderjahr=szenario.erzeugungsmenge_negativ(
+            global_assumptions.negative_stunden_regel
+        ),
+        negative_stunden_regel=global_assumptions.negative_stunden_regel,
         marktpreis_inflation_pct_pa=global_assumptions.marktpreis_inflation_pct_pa,
         marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
+        kosten_inflation_pct_pa=global_assumptions.kosten_inflation_pct_pa,
         opex_items=opex_items,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         direktvermarktungskosten_eur_kwh=project.direktvermarktungskosten_eur_mwh / 1000,
+        direktvermarktung_modus=global_assumptions.direktvermarktung_modus,
+        direktvermarktung_pct_marktwert=global_assumptions.direktvermarktung_pct_marktwert,
         negative_stunden_gewichtung_pct=global_assumptions.negative_stunden_gewichtung_pct,
+        negative_stunden_modus=global_assumptions.negative_stunden_modus,
         capex_total_eur=project.capex.summe_eur,
         eigenkapitalquote_pct=project.eigenkapitalquote_pct,
         fremdkapitalzins_pct=project.fremdkapitalzins_pct,
         kreditlaufzeit_jahre=global_assumptions.kreditlaufzeit_jahre,
         tilgungsart=global_assumptions.tilgungsart,
+        tilgungsfreies_anlaufjahr=global_assumptions.tilgungsfreies_anlaufjahr,
         tax_modus=global_assumptions.tax_modus,
         steuersatz_pct=global_assumptions.steuersatz_pct,
         afa_nutzungsdauer_jahre=global_assumptions.afa_nutzungsdauer_jahre,
@@ -100,7 +110,18 @@ def run_valuation(
     project: PVProject, global_assumptions: GlobalAssumptions
 ) -> ValuationResult:
     assumptions = resolve_assumptions(project, global_assumptions)
+    return run_valuation_from_assumptions(assumptions, project.id)
 
+
+def run_valuation_from_assumptions(
+    assumptions: EffectiveAssumptions,
+    project_id: str,
+    compute_npv_curve: bool = True,
+) -> ValuationResult:
+    """Bewertung direkt aus einem (ggf. modifizierten) aufgeloesten
+    Parametersatz - Grundlage fuer Sensitivitaeten, Heatmaps und
+    Monte-Carlo-Simulationen, die viele Varianten rechnen und dabei den
+    Merge-Schritt und (optional) die NPV-Kurve einsparen wollen."""
     inbetriebnahme_datum = date(
         assumptions.inbetriebnahme_jahr, assumptions.inbetriebnahme_monat, 1
     )
@@ -118,6 +139,10 @@ def run_valuation(
         energy,
         assumptions.gemeindeabgabe_eur_kwh,
         assumptions.direktvermarktungskosten_eur_kwh,
+        direktvermarktung_modus=assumptions.direktvermarktung_modus,
+        direktvermarktung_pct_marktwert=assumptions.direktvermarktung_pct_marktwert,
+        marktwert_nominal_ct_kwh=revenue["marktwert_nominal_ct_kwh"].to_numpy(),
+        kosten_inflation_pct_pa=assumptions.kosten_inflation_pct_pa,
     )
     financing = calculate_financing(
         timeline,
@@ -126,6 +151,7 @@ def run_valuation(
         assumptions.fremdkapitalzins_pct,
         assumptions.kreditlaufzeit_jahre,
         assumptions.tilgungsart,
+        assumptions.tilgungsfreies_anlaufjahr,
     )
     tax = calculate_tax(
         revenue,
@@ -141,6 +167,7 @@ def run_valuation(
 
     cashflow = calculate_cashflow(
         timeline=timeline,
+        energy=energy,
         revenue=revenue,
         opex=opex,
         financing=financing,
@@ -148,14 +175,16 @@ def run_valuation(
         capex_total_eur=assumptions.capex_total_eur,
         eigenkapitalquote_pct=assumptions.eigenkapitalquote_pct,
         inbetriebnahme_datum=inbetriebnahme_datum,
-        project_id=project.id,
+        project_id=project_id,
     )
 
     kpis = calculate_kpis(cashflow)
-    npv_curve = calculate_npv_curve(cashflow)
+    npv_curve = (
+        calculate_npv_curve(cashflow) if compute_npv_curve else pd.DataFrame()
+    )
 
     return ValuationResult(
-        project_id=project.id,
+        project_id=project_id,
         effective_assumptions=assumptions,
         cashflow=cashflow,
         kpis=kpis,

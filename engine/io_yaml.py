@@ -16,7 +16,7 @@ from .models import GlobalAssumptions, PVProject
 
 
 def load_project_yaml(path: str | Path) -> PVProject:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return PVProject.model_validate(raw)
 
@@ -29,7 +29,7 @@ def save_project_yaml(project: PVProject, path: str | Path) -> None:
 
 
 def load_global_assumptions_yaml(path: str | Path) -> GlobalAssumptions:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return GlobalAssumptions.model_validate(raw)
 

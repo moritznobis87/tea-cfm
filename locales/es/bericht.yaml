@@ -1,0 +1,324 @@
+# Texto libre del informe PDF (app/report.py): títulos de capítulos,
+# títulos de sección (H2) y los párrafos narrativos completos con los
+# pies de figura del capítulo 8 «Modelo de subasta EAG».
+# Los marcadores ({name}) coinciden exactamente con los valores
+# pasados como argumentos con nombre a txt(...) en el código.
+
+# --- Títulos de capítulos (el número se fija por separado en el código) --------
+kapitel_1_titel: "Resumen ejecutivo"
+kapitel_2_titel: "Cuenta de resultados"
+kapitel_3_titel: "Ingresos y régimen de apoyo"
+kapitel_4_titel: "Financiación"
+kapitel_5_titel: "Análisis de sensibilidad"
+kapitel_6_titel: "Análisis de riesgo (simulación Monte Carlo)"
+kapitel_7_titel: "Comparación de escenarios"
+kapitel_8_titel: "Modelo de subasta EAG"
+kapitel_a_titel: "Anexo: hipótesis del cálculo"
+kapitel_b_titel: "Anexo: series temporales"
+
+# --- Títulos de sección (H2) ------------------------------------------------------
+abschnitt_cashflow_vermoegen: "Flujo de caja total y acumulación de patrimonio"
+abschnitt_wertbruecke: "Puente de valor a lo largo de toda la vida útil"
+abschnitt_cashflow_uebersicht: "Resumen del flujo de caja (extracto)"
+abschnitt_verguetung_marktwert: "Tarifa regulada y valor de mercado"
+abschnitt_markterloes_praemie: "Ingreso de mercado y prima de mercado"
+abschnitt_dscr: "Cobertura del servicio de la deuda (DSCR)"
+abschnitt_schuldenprofil: "Perfil de la deuda"
+abschnitt_npv_diskontsatz: "Valor actual neto según la tasa de descuento"
+abschnitt_tornado: "Análisis tornado"
+abschnitt_eag_varianten: "Variantes del valor de adjudicación EAG"
+abschnitt_auktion_historie: "Historial de las subastas"
+abschnitt_auktion_fitting: "Ajuste de las funciones de distribución a las rondas históricas"
+abschnitt_auktion_modell: "Descripción del modelo"
+abschnitt_auktion_prognose: "Previsión de la próxima ronda"
+abschnitt_opex_positionen: "Partidas de costes operativos"
+abschnitt_capex: "Inversión en capital"
+
+# --- Capítulo 8 «Modelo de subasta EAG»: párrafos narrativos ---------------
+# Los marcadores coinciden exactamente con los valores previamente
+# insertados como f-strings en el código Python (cifras/fechas del
+# cálculo); el resto de cifras (históricas) del texto son datos fijos
+# y permanecen como parte del texto traducible.
+auktion_historie_intro: >-
+  Austria adjudica la prima de mercado EAG para fotovoltaica desde
+  diciembre de 2022 mediante subastas competitivas gestionadas por el
+  organismo liquidador EAG (OeMAG). El mecanismo es una subasta
+  pay-as-bid con ordenación de ofertas por precio: las ofertas se
+  ordenan de forma ascendente y se adjudican hasta la cantidad
+  licitada; cada ganador recibe su propia oferta como valor aplicable
+  durante el periodo de apoyo de 20 años. El precio máximo permitido
+  está fijado por reglamento y se ha reducido escalonadamente de 9,33
+  pasando por 8,98 hasta 7,77 ct/kWh actualmente (2026/2027). La base
+  de datos abarca {n_runden} rondas desde {erste_datum}.
+
+auktion_historie_unterzeichnet: >-
+  El historial se divide en dos regímenes claramente diferenciados.
+  Hasta abril de 2025 inclusive, las rondas estuvieron infrasuscritas:
+  el volumen de ofertas se mantuvo por debajo de la cantidad licitada,
+  cantidades residuales considerables (p. ej., 302 de 700 MW en la
+  primera ronda) quedaron sin adjudicar, y el valor de adjudicación más
+  alto se situó exactamente en el precio máximo; sin presión
+  competitiva, los participantes ofertan racionalmente cerca del máximo
+  permitido (promedios ponderados de 8,85 a 9,22 ct/kWh con un límite
+  de 9,33 ct/kWh). Este es precisamente el comportamiento descrito por
+  la literatura sobre subastas pay-as-bid (Haufe/Ehrhart 2018; Kreiss et
+  al. 2017): sin una restricción de cantidad vinculante, no existe
+  incentivo para ofertar por debajo.
+
+auktion_historie_wettbewerb: >-
+  Desde julio de 2025 la situación se ha invertido: la demanda supera
+  la cantidad licitada (el organismo liquidador EAG sigue informando de
+  un «interés enorme»), las cantidades residuales están cerca de cero y
+  el valor de adjudicación marginal se ha desligado del límite máximo:
+  cayó a lo largo de las cuatro rondas competitivas de 8,48 hasta
+  {grenzzuschlag_ct} más recientemente ({letzte_datum}), con un
+  incremento decreciente (−1,19 → −0,49 → −0,11 ct). Al mismo tiempo,
+  los valores de adjudicación se concentran: los oferentes ajustan sus
+  ofertas justo por debajo del valor de adjudicación marginal esperado
+  y aprenden de una ronda a otra. Dado que la OeMAG no publica el
+  volumen de ofertas presentado, el grado de sobresuscripción de las
+  rondas competitivas no es directamente observable y se trata en el
+  modelo como una magnitud latente.
+
+abb_14_caption: >-
+  Fig. 14: valores de adjudicación (mín./media/máx.) y precio máximo de
+  las {n_runden} rondas. Sombreado en gris: fase competitiva desde
+  07/2025 (valor de adjudicación marginal por debajo del límite).
+
+auktion_fitting_intro: >-
+  Para cada ronda, la OeMAG publica únicamente agregados de las ofertas
+  adjudicadas (mínimo, media ponderada, máximo) junto con las
+  cantidades; las ofertas individuales y el volumen de ofertas
+  permanecen desconocidos. Los métodos no paramétricos (KDE, modelos de
+  mezcla sobre ofertas brutas) quedan así descartados; en su lugar, se
+  calibra por ronda una distribución paramétrica acotada al intervalo
+  [0, precio máximo] mediante dos condiciones de momento/cuantil: la
+  media ponderada se ajusta como valor esperado (truncado en el valor
+  de adjudicación marginal para las rondas sobresuscritas), y el
+  mínimo publicado se interpreta como el cuantil del 2 % de todas las
+  ofertas (la oferta más barata gana siempre; del orden de 40 a 80
+  ofertas por ronda). Para las rondas sobresuscritas, la tasa de
+  sobresuscripción r = volumen de ofertas / cantidad licitada resulta
+  entonces implícitamente de la posición del valor de adjudicación
+  marginal en la distribución (recientemente r ≈ {wettbewerbsquote}).
+  Las distribuciones así estimadas muestran directamente el cambio de
+  régimen: concentración en el límite en las rondas infrasuscritas,
+  desplazamiento hacia la izquierda y concentración bajo competencia.
+
+abb_15_caption: >-
+  Fig. 15: distribuciones de ofertas estimadas por ronda (degradado de
+  color de gris = ronda más antigua a rojo = ronda más reciente; rondas
+  infrasuscritas discontinuas).
+
+modell_verteilungsfamilie: >-
+  Familia de distribución. Las ofertas b se modelan como una
+  distribución gamma inversa reflejada en el precio máximo
+  P<sub>max</sub>: b = P<sub>max</sub> − Y con Y ~ InvGamma(α, β). La
+  densidad cae muy abruptamente a cero hacia el límite máximo y decae
+  lentamente hacia la izquierda, exactamente la forma esperada para
+  pay-as-bid bajo competencia:
+
+modell_kalibrierung: >-
+  Calibración por ronda. Los parámetros (α, β) de cada ronda se derivan
+  de las dos condiciones (media ponderada m̄, mínimo b<sub>min</sub>,
+  valor de adjudicación marginal p<sub>m</sub>, ε = 0,02); la tasa de
+  sobresuscripción de las rondas sobresuscritas es latente:
+
+modell_punktprognose_intro: >-
+  Previsión puntual de la próxima ronda. El valor de adjudicación
+  marginal y el valor de adjudicación medio se extrapolan por separado
+  mediante extrapolación recursiva de diferencias sobre las rondas
+  competitivas. Para una serie temporal x<sub>t</sub>, las diferencias
+  se forman de manera recursiva; el orden más alto utilizado, m, se
+  mantiene constante, y todos los órdenes inferiores se prolongan
+  recursivamente, amortiguados por λ<sub>k</sub> ∈ [0, 1]
+  (predeterminado: m = 2, λ = 1):
+
+modell_punktprognose_ergebnis: >-
+  El método tiene en cuenta así tanto la tendencia como su variación:
+  si el descenso se aplana, prevé un mayor aplanamiento en lugar de una
+  extrapolación constante. El mínimo sigue un paseo aleatorio (sin
+  dinámica estable en el historial); a continuación se proyecta sobre
+  mínimo ≤ media ≤ valor de adjudicación marginal < P<sub>max</sub>, y a
+  partir de las previsiones puntuales se construye la distribución de
+  la próxima ronda (la condición de la media se pondera fuertemente, el
+  mínimo actúa como anclaje suave de la cola). {formel_zeile}
+
+modell_unsicherheit_intro: >-
+  Incertidumbre y decisión de la oferta. La incertidumbre del valor de
+  adjudicación marginal se modela como una distribución normal
+  truncada en el límite máximo alrededor de la previsión puntual (σ a
+  partir de la dispersión de las variaciones históricas entre rondas).
+  Como tomador de precios, la probabilidad de adjudicación de la
+  propia oferta y la oferta recomendada para una probabilidad objetivo
+  z vienen dadas por:
+
+modell_zuschlagsdichte_intro: >-
+  La distribución de valores de adjudicación mostrada es la densidad
+  de ofertas truncada y renormalizada en el valor de adjudicación
+  marginal:
+
+abb_16_caption: >-
+  Fig. 16: distribución prevista de la próxima ronda: densidad de los
+  valores de adjudicación (truncada en el valor de adjudicación
+  marginal {grenzzuschlag_ct}), discontinua: distribución de todas las
+  ofertas, banda gris: P10–P90 de la incertidumbre del valor de
+  adjudicación marginal; en verde: valor de proyecto asumido
+  {projektwert_ct}.
+
+abb_17_caption: >-
+  Fig. 17: valor de la oferta y probabilidad de adjudicación
+  P(valor de adjudicación marginal > oferta) sobre la incertidumbre de
+  la previsión; el valor de proyecto asumido alcanza
+  {wahrscheinlichkeit_pct}.
+
+tab_3_spalte_wahrscheinlichkeit: "Probabilidad de adjudicación objetivo"
+tab_3_spalte_gebotswert: "Valor de la oferta"
+tab_3_caption: >-
+  Tab. 3: valores de oferta recomendados según la probabilidad de
+  adjudicación deseada (cuantiles de la distribución prevista del
+  valor de adjudicación marginal).
+
+
+# --- Lote 2: portada, capítulos 1-7, anexos A/B ---
+auktion_formel_zeile: "Puntos de apoyo, valor de adjudicación marginal: {maxes} ct ⇒ previsión {grenzzuschlag} ct; previsión media {mittel} ct."
+chart_umsatzerloese_label: "Ingresos"
+chart_betriebskosten_label: "Costes
+operativos"
+chart_kreditaufnahme_label: "Disposición
+del crédito"
+chart_equity_cashflow_label: "Flujo de caja
+del capital propio"
+chart_summe_laufzeit: "Total del periodo"
+chart_marktwert_solar_nominal: "Valor de mercado solar (nominal)"
+chart_marktpraemie_eag: "Prima de mercado (EAG)"
+chart_erloese_label: "Ingresos"
+deckblatt_anlagentyp: "Tipo de instalación"
+deckblatt_marktpreisszenario: "Escenario de precio de mercado"
+deckblatt_nennleistung: "Potencia nominal"
+deckblatt_eag_zuschlagswert: "Valor de adjudicación EAG"
+deckblatt_effektiv_suffix: " (efectivo {wert})"
+deckblatt_inbetriebnahme: "Puesta en marcha"
+deckblatt_betrachtungszeitraum: "Periodo de análisis"
+deckblatt_betriebsjahre: "{n} años de explotación"
+deckblatt_spezifischer_ertrag: "Rendimiento específico"
+deckblatt_regel_negative_preise: "Regla para precios negativos"
+deckblatt_regel_6h: "Regla de 6 horas (Austria)"
+deckblatt_regel_1h: "Regla de 1 hora (Alemania)"
+deckblatt_stand_zeile: "Fecha: {datum} · Creado con Nobis Analytics · Base de cálculo: modelo de prima de mercado EAG (prima de mercado deslizante), cálculo de flujo de caja nominal"
+deckblatt_disclaimer: "Cálculo de modelo indicativo basado en los supuestos documentados en los anexos A y B. Este documento sirve de apoyo a la toma de decisiones interna; no constituye una oferta ni asesoramiento de inversión, fiscal o legal. Los resultados dependen sustancialmente de los supuestos adoptados, en particular de las previsiones de precios de mercado y del marco regulatorio."
+inhaltsverzeichnis_titel: "Índice"
+summary_text: "El proyecto {name} ({typ}, {leistung}, puesta en marcha {monat}/{jahr}) alcanza, sobre la base del escenario de precio de mercado „{szenario}“, una rentabilidad del capital propio de <b>{irr}</b>, situándose {differenz} puntos porcentuales por {richtung} de la rentabilidad objetivo de {ziel} %. El valor actual neto a una tasa de descuento del {diskontsatz} % asciende a {npv}. El servicio de la deuda está {dscr_status} durante todo el plazo del crédito. A lo largo del periodo de explotación, el {praemien_anteil} de los ingresos proviene de la prima de mercado EAG. En la simulación Monte Carlo ({n_laeufe} simulaciones), la rentabilidad objetivo se alcanza en el {prob_ziel} de las simulaciones."
+summary_richtung_ueber: "encima"
+summary_richtung_unter: "debajo"
+summary_dscr_gedeckt: "cubierto (DSCR mín. {dscr})"
+summary_dscr_nicht_gedeckt: "NO cubierto de forma continua (DSCR mín. {dscr})"
+abb_1_caption: "Fig. 1: flujo de caja total anual (barras) y flujo de caja acumulado del capital propio (línea). Año 0 = fecha de inversión."
+abb_2_caption: "Fig. 2: desde los ingresos de todo el periodo de explotación, pasando por costes operativos, intereses, impuestos y financiación, hasta el flujo de caja acumulado del capital propio."
+tab_1_col_jahr: "Año"
+tab_1_col_erloese: "Ingresos"
+tab_1_col_betriebskosten: "Costes
+operativos"
+tab_1_col_zinsen: "Intereses"
+tab_1_col_steuer: "Impuesto"
+tab_1_col_cf_gesamt: "FC total"
+tab_1_col_cf_kumuliert: "FC acumulado"
+tab_1_caption: "Tab. 1: todos los importes en €. Serie temporal completa incl. amortización fiscal, arrastre de pérdidas y amortización del crédito disponible a través de la exportación a Excel de la aplicación."
+abb_3_caption: "Fig. 3: prima de mercado deslizante según la EAG: se retribuye el máximo entre el valor de mercado y el valor de adjudicación EAG (fijo, nominal); el área entre las curvas es la prima de mercado. Tras el fin del periodo de apoyo, el mercado sostiene el proyecto por sí solo."
+abb_4_caption: "Fig. 4: reparto de los ingresos. A lo largo de toda la vida útil, el {praemien_anteil} de los ingresos ({betrag}) proviene de la prima de mercado."
+finanzierungsstruktur_text: "Estructura de financiación: {ek_pct} de capital propio ({ek_betrag}), {fk_pct} de capital ajeno ({fk_betrag}) al {fk_zins} durante {laufzeit} años ({tilgungsart}{anlaufjahr_suffix})."
+finanzierungsstruktur_anlaufjahr_suffix: ", año de gracia sin amortización"
+abb_5_caption: "Fig. 5: DSCR por año de explotación del plazo del crédito; valor mínimo {dscr_min}."
+abb_6_caption: "Fig. 6: deuda pendiente (área), así como intereses y amortización (servicio de la deuda) durante el plazo del crédito."
+capex_sonstige: "Otros"
+capex_poenale_puffer_kurz: "Penalización/margen"
+abb_7_caption: "Fig. 7: estructura de capital e inversión."
+abb_8_caption: "Fig. 8: curva de VAN; el punto donde cruza cero corresponde, por definición, a la rentabilidad del capital propio (TIR)."
+abb_9_caption: "Fig. 9: efecto de variar individualmente cada factor de valor en ±10 % sobre la rentabilidad del capital propio (manteniendo constantes el resto de supuestos), ordenado por amplitud. Verde: mejora, rojo: empeoramiento respecto a la base."
+be_text_nicht_erreichbar: "La rentabilidad objetivo del {ziel} % no es alcanzable dentro del rango de ofertas analizado (hasta 15 ct/kWh)."
+be_text_ohne_praemie: "La rentabilidad objetivo del {ziel} % ya se alcanza sin una prima significativa – el valor de mercado sostiene el proyecto por sí solo."
+be_text_breakeven: "Oferta de equilibrio: para una rentabilidad objetivo del {ziel} % se requiere un valor aplicable de al menos <b>{breakeven}</b>. Frente al valor de adjudicación asumido de {angesetzt}, esto deja un {label} de {differenz}."
+be_puffer: "margen"
+be_fehlbetrag: "déficit"
+abb_10_caption: "Fig. 10: rentabilidad del capital propio al variar el valor de adjudicación EAG en ±5 % / ±10 %. {be_text}"
+sigma_produktion: "Rendimiento específico"
+sigma_marktwert: "Nivel de valor de mercado"
+sigma_capex: "Costes de inversión"
+sigma_opex: "Costes operativos"
+mc_methodik_text: "Variación aleatoria simultánea de los principales factores de valor a lo largo de {n_laeufe} simulaciones completas (distribución normal en torno al supuesto base; desviaciones estándar: {sigma_text}; semilla fija para reproducibilidad)."
+mc_kachel_p10: "P10 (CONSERVADOR)"
+mc_kachel_p50: "P50 (MEDIANA)"
+mc_kachel_p90: "P90 (OPTIMISTA)"
+mc_kachel_p_irr: "P(TIR ≥ {ziel} %)"
+mc_kachel_npv_median: "VAN MEDIANA ({satz} %)"
+abb_11_caption: "Fig. 11: distribución de la rentabilidad del capital propio."
+abb_12_caption: "Fig. 12: rango del flujo de caja acumulado del capital propio (banda interior P25–P75, banda exterior P10–P90, línea = mediana)."
+szenarien_intro_text: "Proyecto idéntico, calculado sobre todos los escenarios de precio de mercado guardados; el escenario asignado al proyecto es „{szenario}“."
+abb_13_caption: "Fig. 13: rentabilidad del capital propio por escenario (izquierda) y flujo de caja acumulado del capital propio a lo largo del tiempo (derecha)."
+tab_2_col_szenario: "Escenario"
+tab_2_col_ek_rendite: "Rentabilidad del capital propio"
+tab_2_col_npv_bei: "VAN al {satz} %"
+tab_2_col_erloese_gesamt: "Ingresos totales"
+annex_a_intro: "Conjunto de parámetros completamente resuelto para este cálculo (formulario de proyecto combinado con los Supuestos globales)."
+annex_a_col_parameter: "Parámetro"
+annex_a_col_wert: "Valor"
+annex_a_nennleistung: "Potencia nominal"
+annex_a_eigenkapitalquote: "Ratio de capital propio"
+annex_a_spezifischer_ertrag: "Rendimiento específico"
+annex_a_fremdkapitalzins: "Tipo de interés de la deuda"
+annex_a_degradation: "Degradación"
+annex_a_kreditlaufzeit: "Plazo del crédito"
+annex_a_kreditlaufzeit_wert: "{jahre} años ({tilgungsart})"
+annex_a_sicherheitsabschlag: "Margen de seguridad"
+annex_a_tilgungsfreies_anlaufjahr: "Año de gracia sin amortización"
+annex_a_ja: "Sí"
+annex_a_nein: "No"
+annex_a_betrachtungsdauer: "Periodo de análisis"
+annex_a_betrachtungsdauer_wert: "{jahre} años"
+annex_a_steuermodus_steuersatz: "Modo fiscal / tipo impositivo"
+annex_a_eag_zuschlag_effektiv: "Valor de adjudicación EAG (efectivo)"
+annex_a_afa_nutzungsdauer: "Vida útil de amortización fiscal"
+annex_a_afa_nutzungsdauer_wert: "{jahre} años"
+annex_a_foerderdauer: "Periodo de apoyo"
+annex_a_foerderdauer_wert: "{jahre} años"
+annex_a_capex_gesamt: "CAPEX total"
+annex_a_inflation_marktwerte: "Inflación valores de mercado"
+annex_a_inflation_marktwerte_wert: "{pct} p.a. desde {basisjahr}"
+annex_a_gemeindeabgabe: "Tasa municipal"
+annex_a_regel_negative_preise: "Regla para precios negativos"
+annex_a_regel_6h_kurz: "6h (Austria)"
+annex_a_regel_1h_kurz: "1h (Alemania)"
+annex_a_direktvermarktung: "Venta directa"
+annex_a_direktvermarktung_relativ: "{pct} del valor de mercado"
+annex_a_gewichtung_neg_stunden: "Ponderación horas negativas"
+annex_a_negativstunden_modus: "Modo horas negativas"
+annex_a_abregelung_kurz: "Limitación"
+annex_a_rueckfall_marktwert: "Vuelta al valor de mercado"
+annex_a_pacht: "Arrendamiento"
+annex_a_kosteninflation: "Inflación de costes"
+annex_a_kosteninflation_wert: "{pct} p.a. (arrendamiento, tasa municipal, venta directa)"
+tab_a1_caption: "Tab. A-1: supuestos resueltos."
+annex_a_col_position: "Partida"
+annex_a_col_eur_kwp_jahr: "€/kWp/año"
+annex_a_col_index_pct: "Índice %/año"
+annex_a_col_index_ab_jahr: "Indexado desde el año"
+annex_a_col_start_betriebsjahr: "Inicio año de explotación"
+tab_a2_caption: "Tab. A-2: costes operativos estándar más partidas dependientes de la producción (tasa municipal, venta directa) y arrendamiento."
+annex_a_col_betrag: "Importe (€)"
+annex_a_capex_summe: "Total"
+tab_a3_caption: "Tab. A-3: costes de inversión por partida."
+annex_b_intro: "Escenario de precio de mercado utilizado, «{szenario}»: valores de mercado reales (base de precios {basis}) y nominales (indexados al {inflation} p.a.), así como cantidades producidas en horas de precios negativos según la regla. Se aplica la serie temporal de {regel}."
+annex_b_col_kalenderjahr: "Año
+natural"
+annex_b_col_marktwert_real: "Valor de mercado real
+(ct/kWh)"
+annex_b_col_marktwert_nominal: "Valor de mercado nominal
+(ct/kWh)"
+annex_b_col_menge_neg_6h: "Cantidad negativa 6h
+(% de la producción)"
+annex_b_col_menge_neg_1h: "Cantidad negativa 1h
+(% de la producción)"
+tab_b1_caption: "Tab. B-1: series temporales del escenario utilizado."
+annex_b_alle_szenarien_titel: "Valores de mercado de todos los escenarios guardados (real)"
+annex_b_col_kalenderjahr_kurz: "Año natural"
+tab_b2_caption: "Tab. B-2: valor de mercado solar (real, ct/kWh) por escenario – base de la comparación de escenarios del capítulo 7."

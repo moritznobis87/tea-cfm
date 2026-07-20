@@ -1,0 +1,309 @@
+# Free text of the PDF report (app/report.py): chapter headings,
+# section titles (H2) and the full narrative paragraphs and figure
+# captions of chapter 8 "EAG Auction Model".
+# Placeholders ({name}) exactly match the values passed as keyword
+# arguments to txt(...) in the code.
+
+# --- Chapter headings (number is set separately in code) --------
+kapitel_1_titel: "Management Summary"
+kapitel_2_titel: "Results Statement"
+kapitel_3_titel: "Revenue and Support Scheme"
+kapitel_4_titel: "Financing"
+kapitel_5_titel: "Sensitivity Analysis"
+kapitel_6_titel: "Risk Analysis (Monte Carlo Simulation)"
+kapitel_7_titel: "Scenario Comparison"
+kapitel_8_titel: "EAG Auction Model"
+kapitel_a_titel: "Annex: Assumptions Used"
+kapitel_b_titel: "Annex: Time Series"
+
+# --- Section titles (H2) ------------------------------------------------------
+abschnitt_cashflow_vermoegen: "Total cashflow and equity build-up"
+abschnitt_wertbruecke: "Value bridge over the full term"
+abschnitt_cashflow_uebersicht: "Cashflow overview (excerpt)"
+abschnitt_verguetung_marktwert: "Feed-in tariff and market value"
+abschnitt_markterloes_praemie: "Market revenue and market premium"
+abschnitt_dscr: "Debt service coverage (DSCR)"
+abschnitt_schuldenprofil: "Debt profile"
+abschnitt_npv_diskontsatz: "Net present value by discount rate"
+abschnitt_tornado: "Tornado analysis"
+abschnitt_eag_varianten: "EAG award value variants"
+abschnitt_auktion_historie: "History of the auctions"
+abschnitt_auktion_fitting: "Fitting distribution functions to the historical rounds"
+abschnitt_auktion_modell: "Model description"
+abschnitt_auktion_prognose: "Forecast for the next round"
+abschnitt_opex_positionen: "Operating cost items"
+abschnitt_capex: "Capital expenditure"
+
+# --- Chapter 8 "EAG Auction Model": narrative paragraphs ---------------
+# Placeholders exactly match the values previously inserted as f-string
+# interpolations in the Python code (figures/dates from the
+# calculation); all other (historical) figures in the text are fixed
+# facts and remain part of the translatable prose.
+auktion_historie_intro: >-
+  Austria has been awarding the EAG market premium for photovoltaics
+  since December 2022 through competitive auctions run by the EAG
+  settlement agency (OeMAG). The mechanism is a pay-as-bid auction with
+  price-ranked bidding: bids are ranked in ascending order and awarded
+  up to the tendered volume; each winner receives their own bid as the
+  applicable feed-in value over the 20-year support period. The
+  permissible ceiling price is fixed by ordinance and has been lowered
+  in steps from 9.33 via 8.98 to currently 7.77 ct/kWh (2026/2027). The
+  data set comprises {n_runden} rounds since {erste_datum}.
+
+auktion_historie_unterzeichnet: >-
+  The history splits into two clearly separated regimes. Through April
+  2025, rounds were undersubscribed: the bid volume stayed below the
+  tendered volume, substantial residual volumes (e.g. 302 of 700 MW in
+  the first round) went unawarded, and the highest award value sat
+  exactly at the price cap – with no competitive pressure, participants
+  rationally bid close to the permissible maximum (volume-weighted
+  averages of 8.85 to 9.22 ct/kWh against a cap of 9.33 ct/kWh). This is
+  precisely the behaviour described by the auction literature on
+  pay-as-bid schemes (Haufe/Ehrhart 2018; Kreiss et al. 2017): without a
+  binding volume constraint, there is no incentive to underbid.
+
+auktion_historie_wettbewerb: >-
+  Since July 2025 the picture has flipped: demand exceeds the tendered
+  volume (the EAG settlement agency continues to report "enormous
+  interest"), residual volumes are close to zero and the marginal award
+  value has decoupled from the cap – it fell over the four competitive
+  rounds from 8.48 to most recently {grenzzuschlag_ct} ({letzte_datum}),
+  with a shrinking step size (−1.19 → −0.49 → −0.11 ct). At the same
+  time, award values are concentrating: bidders shade their bids just
+  below the expected marginal award value and learn across rounds.
+  Since OeMAG does not publish the submitted bid volume, the
+  oversubscription ratio of the competitive rounds is not directly
+  observable and is treated in the model as a latent quantity.
+
+abb_14_caption: >-
+  Fig. 14: Award values (min/avg/max) and price cap across all
+  {n_runden} rounds. Shaded grey: competitive phase from 07/2025
+  onward (marginal award value below the cap).
+
+auktion_fitting_intro: >-
+  For each round, OeMAG publishes only aggregates of the awarded bids
+  (minimum, volume-weighted average, maximum) along with the volumes –
+  individual bids and bid volumes remain unknown. Non-parametric
+  methods (KDE, mixture models on raw bids) are therefore ruled out;
+  instead, a parametric distribution bounded to the interval [0, price
+  cap] is calibrated per round via two moment/quantile conditions: the
+  volume-weighted average is matched as the expected value (truncated
+  at the marginal award value for oversubscribed rounds), and the
+  published minimum is interpreted as the 2% quantile of all bids (the
+  cheapest bid always wins; on the order of 40–80 bids per round). For
+  oversubscribed rounds, the oversubscription ratio r = bid volume /
+  tendered volume then follows implicitly from where the marginal award
+  value falls in the distribution (most recently r ≈
+  {wettbewerbsquote}). The distributions estimated this way show the
+  regime shift directly: clustering at the cap in undersubscribed
+  rounds, a leftward shift and concentration under competition.
+
+abb_15_caption: >-
+  Fig. 15: Estimated bid distributions per round (colour gradient from
+  grey = oldest to red = most recent round; undersubscribed rounds
+  dashed).
+
+modell_verteilungsfamilie: >-
+  Distribution family. Bids b are modelled as an inverse-gamma
+  distribution mirrored at the price cap P<sub>max</sub>: b =
+  P<sub>max</sub> − Y with Y ~ InvGamma(α, β). The density drops very
+  steeply to zero towards the cap and tapers off slowly to the left –
+  exactly the picture expected for pay-as-bid under competition:
+
+modell_kalibrierung: >-
+  Calibration per round. The parameters (α, β) for each round follow
+  from two conditions (volume-weighted average m̄, minimum
+  b<sub>min</sub>, marginal award value p<sub>m</sub>, ε = 0.02); the
+  oversubscription ratio of oversubscribed rounds is latent:
+
+modell_punktprognose_intro: >-
+  Point forecast for the next round. The marginal award value and the
+  average award value are each extrapolated separately using recursive
+  difference extrapolation over the competitive rounds. For a time
+  series x<sub>t</sub>, differences are formed recursively; the highest
+  order used, m, is held constant, and all lower orders are extended
+  recursively – damped by λ<sub>k</sub> ∈ [0, 1] (default: m = 2, λ = 1):
+
+modell_punktprognose_ergebnis: >-
+  The method thus accounts for both the trend and its change: if the
+  decline is flattening, it expects further flattening rather than a
+  constant extrapolation. The minimum follows a random walk (no stable
+  dynamics in the history); the result is then projected onto minimum ≤
+  average ≤ marginal award value < P<sub>max</sub>, and the distribution
+  for the next round is built from the point forecasts (the average
+  condition weighted heavily, the minimum serving as a soft tail
+  anchor). {formel_zeile}
+
+modell_unsicherheit_intro: >-
+  Uncertainty and bid decision. The uncertainty of the marginal award
+  value is modelled as a normal distribution truncated at the cap
+  around the point forecast (σ from the spread of historical
+  round-to-round changes). As a price taker, the award probability of
+  one's own bid and the recommended bid for a target probability z are
+  given by:
+
+modell_zuschlagsdichte_intro: >-
+  The distribution of award values shown is the bid density truncated
+  and renormalised at the marginal award value:
+
+abb_16_caption: >-
+  Fig. 16: Forecast distribution for the next round – density of award
+  values (truncated at the marginal award value {grenzzuschlag_ct}),
+  dashed: distribution of all bids, grey band: P10–P90 of the marginal
+  award value uncertainty; green: assumed project value
+  {projektwert_ct}.
+
+abb_17_caption: >-
+  Fig. 17: Bid value and award probability P(marginal award value >
+  bid) over the forecast uncertainty; the assumed project value
+  reaches {wahrscheinlichkeit_pct}.
+
+tab_3_spalte_wahrscheinlichkeit: "Target award probability"
+tab_3_spalte_gebotswert: "Bid value"
+tab_3_caption: >-
+  Tab. 3: Recommended bid values by desired award probability
+  (quantiles of the forecast marginal-award-value distribution).
+
+
+# --- Batch 2: cover page, chapters 1-7, annex A/B ---
+auktion_formel_zeile: "Support points, marginal award value: {maxes} ct ⇒ forecast {grenzzuschlag} ct; avg. forecast {mittel} ct."
+chart_umsatzerloese_label: "Revenue"
+chart_betriebskosten_label: "Operating
+costs"
+chart_kreditaufnahme_label: "Loan
+drawdown"
+chart_equity_cashflow_label: "Equity
+cashflow"
+chart_summe_laufzeit: "Total over term"
+chart_marktwert_solar_nominal: "Market value solar (nominal)"
+chart_marktpraemie_eag: "Market premium (EAG)"
+chart_erloese_label: "Revenue"
+deckblatt_anlagentyp: "Plant type"
+deckblatt_marktpreisszenario: "Market price scenario"
+deckblatt_nennleistung: "Nominal capacity"
+deckblatt_eag_zuschlagswert: "EAG award value"
+deckblatt_effektiv_suffix: " (effective {wert})"
+deckblatt_inbetriebnahme: "Commissioning"
+deckblatt_betrachtungszeitraum: "Assessment period"
+deckblatt_betriebsjahre: "{n} operating years"
+deckblatt_spezifischer_ertrag: "Specific yield"
+deckblatt_regel_negative_preise: "Rule for negative prices"
+deckblatt_regel_6h: "6-hour rule (Austria)"
+deckblatt_regel_1h: "1-hour rule (Germany)"
+deckblatt_stand_zeile: "As of: {datum} · Created with Nobis Analytics · Calculation basis: EAG market premium model (sliding market premium), nominal cashflow calculation"
+deckblatt_disclaimer: "Indicative model calculation based on the assumptions documented in Annex A and B. This document supports internal decision-making; it is not an offer and does not constitute investment, tax or legal advice. The results depend materially on the assumptions made, in particular on market price forecasts and the regulatory framework."
+inhaltsverzeichnis_titel: "Contents"
+summary_text: "The project {name} ({typ}, {leistung}, commissioning {monat}/{jahr}) achieves an equity return of <b>{irr}</b> based on the market price scenario „{szenario}“, {differenz} percentage points {richtung} the target return of {ziel} %. The net present value at a discount rate of {diskontsatz} % is {npv}. Debt service is {dscr_status} over the full credit term. Over the operating period, {praemien_anteil} of revenue comes from the EAG market premium. In the Monte Carlo simulation ({n_laeufe} runs), the target return is achieved in {prob_ziel} of the runs."
+summary_richtung_ueber: "above"
+summary_richtung_unter: "below"
+summary_dscr_gedeckt: "covered (min. DSCR {dscr})"
+summary_dscr_nicht_gedeckt: "NOT consistently covered (min. DSCR {dscr})"
+abb_1_caption: "Fig. 1: Annual total cashflow (bars) and cumulative equity cashflow (line). Year 0 = investment date."
+abb_2_caption: "Fig. 2: From the revenue of the full operating period, via operating costs, interest, taxes and financing, to the cumulative equity cashflow."
+tab_1_col_jahr: "Year"
+tab_1_col_erloese: "Revenue"
+tab_1_col_betriebskosten: "Operating
+costs"
+tab_1_col_zinsen: "Interest"
+tab_1_col_steuer: "Tax"
+tab_1_col_cf_gesamt: "Total CF"
+tab_1_col_cf_kumuliert: "Cumulative CF"
+tab_1_caption: "Tab. 1: All amounts in €. Full time series incl. depreciation, loss carryforward and repayment available via the app's Excel export."
+abb_3_caption: "Fig. 3: Sliding market premium under EAG: the greater of market value and (fixed nominal) EAG award value is paid; the area between the curves is the market premium. After the support period ends, the market carries the project alone."
+abb_4_caption: "Fig. 4: Revenue split. Over the full term, {praemien_anteil} of revenue ({betrag}) comes from the market premium."
+finanzierungsstruktur_text: "Financing structure: {ek_pct} equity ({ek_betrag}), {fk_pct} debt ({fk_betrag}) at {fk_zins} over {laufzeit} years ({tilgungsart}{anlaufjahr_suffix})."
+finanzierungsstruktur_anlaufjahr_suffix: ", repayment-free grace year"
+abb_5_caption: "Fig. 5: DSCR per operating year of the credit term; minimum value {dscr_min}."
+abb_6_caption: "Fig. 6: Remaining debt (area) as well as interest and repayment (debt service) over the credit term."
+capex_sonstige: "Other"
+capex_poenale_puffer_kurz: "Penalty/buffer"
+abb_7_caption: "Fig. 7: Capital and investment structure."
+abb_8_caption: "Fig. 8: NPV curve; the zero crossing corresponds by definition to the equity return (IRR)."
+abb_9_caption: "Fig. 9: Effect of individually varying each value driver by ±10 % on the equity return (all other assumptions held constant), sorted by range. Green: improvement, red: deterioration versus the base case."
+be_text_nicht_erreichbar: "The target return of {ziel} % is not achievable within the examined bid range (up to 15 ct/kWh)."
+be_text_ohne_praemie: "The target return of {ziel} % is already achieved without a meaningful premium – the market value carries the project alone."
+be_text_breakeven: "Break-even bid: for a target return of {ziel} %, a feed-in value of at least <b>{breakeven}</b> is required. Compared with the assumed award value of {angesetzt}, this leaves a {label} of {differenz}."
+be_puffer: "buffer"
+be_fehlbetrag: "shortfall"
+abb_10_caption: "Fig. 10: Equity return when varying the EAG award value by ±5 % / ±10 %. {be_text}"
+sigma_produktion: "Specific yield"
+sigma_marktwert: "Market value level"
+sigma_capex: "Investment costs"
+sigma_opex: "Operating costs"
+mc_methodik_text: "Simultaneous random variation of the key value drivers over {n_laeufe} complete valuation runs (normal distribution around the base assumption; standard deviations: {sigma_text}; fixed seed for reproducibility)."
+mc_kachel_p10: "P10 (CONSERVATIVE)"
+mc_kachel_p50: "P50 (MEDIAN)"
+mc_kachel_p90: "P90 (OPTIMISTIC)"
+mc_kachel_p_irr: "P(IRR ≥ {ziel} %)"
+mc_kachel_npv_median: "NPV MEDIAN ({satz} %)"
+abb_11_caption: "Fig. 11: Distribution of the equity return."
+abb_12_caption: "Fig. 12: Range of the cumulative equity cashflow (inner band P25–P75, outer band P10–P90, line = median)."
+szenarien_intro_text: "Identical project, calculated across all stored market price scenarios; the scenario assigned to the project is „{szenario}“."
+abb_13_caption: "Fig. 13: Equity return by scenario (left) and cumulative equity cashflow over time (right)."
+tab_2_col_szenario: "Scenario"
+tab_2_col_ek_rendite: "Equity return"
+tab_2_col_npv_bei: "NPV at {satz} %"
+tab_2_col_erloese_gesamt: "Total revenue"
+annex_a_intro: "Fully resolved parameter set for this calculation (project form merged with the Global Assumptions)."
+annex_a_col_parameter: "Parameter"
+annex_a_col_wert: "Value"
+annex_a_nennleistung: "Nominal capacity"
+annex_a_eigenkapitalquote: "Equity ratio"
+annex_a_spezifischer_ertrag: "Specific yield"
+annex_a_fremdkapitalzins: "Debt interest rate"
+annex_a_degradation: "Degradation"
+annex_a_kreditlaufzeit: "Credit term"
+annex_a_kreditlaufzeit_wert: "{jahre} years ({tilgungsart})"
+annex_a_sicherheitsabschlag: "Safety margin"
+annex_a_tilgungsfreies_anlaufjahr: "Repayment-free grace year"
+annex_a_ja: "Yes"
+annex_a_nein: "No"
+annex_a_betrachtungsdauer: "Assessment period"
+annex_a_betrachtungsdauer_wert: "{jahre} years"
+annex_a_steuermodus_steuersatz: "Tax mode / tax rate"
+annex_a_eag_zuschlag_effektiv: "EAG award value (effective)"
+annex_a_afa_nutzungsdauer: "Depreciation period"
+annex_a_afa_nutzungsdauer_wert: "{jahre} years"
+annex_a_foerderdauer: "Support period"
+annex_a_foerderdauer_wert: "{jahre} years"
+annex_a_capex_gesamt: "Total CAPEX"
+annex_a_inflation_marktwerte: "Market value inflation"
+annex_a_inflation_marktwerte_wert: "{pct} p.a. from {basisjahr}"
+annex_a_gemeindeabgabe: "Municipal levy"
+annex_a_regel_negative_preise: "Rule for negative prices"
+annex_a_regel_6h_kurz: "6h (Austria)"
+annex_a_regel_1h_kurz: "1h (Germany)"
+annex_a_direktvermarktung: "Direct marketing"
+annex_a_direktvermarktung_relativ: "{pct} of market value"
+annex_a_gewichtung_neg_stunden: "Weighting, negative hours"
+annex_a_negativstunden_modus: "Negative-hours mode"
+annex_a_abregelung_kurz: "Curtailment"
+annex_a_rueckfall_marktwert: "Falls back to market value"
+annex_a_pacht: "Lease"
+annex_a_kosteninflation: "Cost inflation"
+annex_a_kosteninflation_wert: "{pct} p.a. (lease, municipal levy, direct marketing)"
+tab_a1_caption: "Tab. A-1: Resolved assumptions."
+annex_a_col_position: "Item"
+annex_a_col_eur_kwp_jahr: "€/kWp/year"
+annex_a_col_index_pct: "Index %/year"
+annex_a_col_index_ab_jahr: "Indexed from year"
+annex_a_col_start_betriebsjahr: "Start operating year"
+tab_a2_caption: "Tab. A-2: Standard operating costs plus production-based items (municipal levy, direct marketing) and lease."
+annex_a_col_betrag: "Amount (€)"
+annex_a_capex_summe: "Total"
+tab_a3_caption: "Tab. A-3: Investment costs by item."
+annex_b_intro: "Market price scenario used, „{szenario}“: market values real (price basis {basis}) and nominal (inflated at {inflation} p.a.), plus generation volumes in hours of negative prices per rule. The {regel} time series is applied."
+annex_b_col_kalenderjahr: "Calendar
+year"
+annex_b_col_marktwert_real: "Market value real
+(ct/kWh)"
+annex_b_col_marktwert_nominal: "Market value nominal
+(ct/kWh)"
+annex_b_col_menge_neg_6h: "Volume negative 6h
+(% of generation)"
+annex_b_col_menge_neg_1h: "Volume negative 1h
+(% of generation)"
+tab_b1_caption: "Tab. B-1: Time series of the scenario used."
+annex_b_alle_szenarien_titel: "Market values of all stored scenarios (real)"
+annex_b_col_kalenderjahr_kurz: "Calendar year"
+tab_b2_caption: "Tab. B-2: Market value solar (real, ct/kWh) by scenario – basis for the scenario comparison in Chapter 7."

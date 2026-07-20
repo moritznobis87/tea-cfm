@@ -24,8 +24,11 @@ import pandas as pd
 from .models import (
     AnlagenTyp,
     CapexBreakdown,
+    DirektvermarktungsModus,
     GlobalAssumptions,
     MarktpreisSzenario,
+    NegativeStundenModus,
+    NegativeStundenRegel,
     OpexItem,
     PVProject,
     TaxModus,
@@ -36,13 +39,19 @@ EINSTELLUNGEN_DEFAULTS = {
     "gueltig_ab": "",
     "gemeindeabgabe_eur_mwh_vorschlag": 2.0,
     "direktvermarktungskosten_eur_mwh_vorschlag": 1.0,
+    "direktvermarktung_modus": "absolut",
+    "negative_stunden_regel": "6h",
+    "kosten_inflation_pct_pa": 0.02,
+    "direktvermarktung_pct_marktwert": 10.0,
     "negative_stunden_gewichtung_pct": 100.0,
+    "negative_stunden_modus": "marktwert",
     "degradation_pct_pa": 0.25,
     "sicherheitsabschlag_pct": 0.0,
     "eag_foerderdauer_jahre": 20,
     "betriebsdauer_jahre": 25,
     "kreditlaufzeit_jahre": 20,
     "tilgungsart": "annuitaet",
+    "tilgungsfreies_anlaufjahr": "NEIN",
     "tax_modus": "afa_koerperschaftsteuer",
     "steuersatz_pct": 23.0,
     "afa_nutzungsdauer_jahre": None,
@@ -58,7 +67,8 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
     for szenario in ga.marktpreisszenarien:
         jahre = sorted(
             set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
-            | set(szenario.anteil_negativer_stunden_pct_je_kalenderjahr)
+            | set(szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr)
+            | set(szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr)
         )
         for jahr in jahre:
             kurven_zeilen.append(
@@ -68,8 +78,17 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
                     "Marktwert Solar (ct/kWh)": (
                         szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(jahr)
                     ),
-                    "Anteil neg. Stunden (%)": (
-                        szenario.anteil_negativer_stunden_pct_je_kalenderjahr.get(jahr)
+                    "Erzeugungsmenge neg. Stunden 6h (%)": (
+                        szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.get(
+                            jahr
+                        )
+                        or 0
+                    )
+                    * 100,
+                    "Erzeugungsmenge neg. Stunden 1h (%)": (
+                        szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr.get(
+                            jahr
+                        )
                         or 0
                     )
                     * 100,
@@ -77,7 +96,11 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             )
     kurven_df = pd.DataFrame(
         kurven_zeilen,
-        columns=["Kalenderjahr", "Szenario", "Marktwert Solar (ct/kWh)", "Anteil neg. Stunden (%)"],
+        columns=[
+            "Kalenderjahr", "Szenario", "Marktwert Solar (ct/kWh)",
+            "Erzeugungsmenge neg. Stunden 6h (%)",
+            "Erzeugungsmenge neg. Stunden 1h (%)",
+        ],
     )
 
     opex_df = pd.DataFrame(
@@ -101,6 +124,12 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
                 "direktvermarktungskosten_eur_mwh_vorschlag",
                 ga.direktvermarktungskosten_eur_kwh * 1000,
             ),
+            ("direktvermarktung_modus", ga.direktvermarktung_modus.value),
+            ("negative_stunden_regel", ga.negative_stunden_regel.value),
+            (
+                "direktvermarktung_pct_marktwert",
+                ga.direktvermarktung_pct_marktwert * 100,
+            ),
             (
                 "negative_stunden_gewichtung_pct",
                 ga.negative_stunden_gewichtung_pct * 100,
@@ -111,6 +140,8 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("betriebsdauer_jahre", ga.betriebsdauer_jahre),
             ("kreditlaufzeit_jahre", ga.kreditlaufzeit_jahre),
             ("tilgungsart", ga.tilgungsart.value),
+            ("tilgungsfreies_anlaufjahr", "JA" if ga.tilgungsfreies_anlaufjahr else "NEIN"),
+            ("negative_stunden_modus", ga.negative_stunden_modus.value),
             ("tax_modus", ga.tax_modus.value),
             ("steuersatz_pct", ga.steuersatz_pct * 100),
             ("afa_nutzungsdauer_jahre", ga.afa_nutzungsdauer_jahre),
@@ -121,6 +152,7 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ),
             ("marktpreis_inflation_pct_pa", ga.marktpreis_inflation_pct_pa * 100),
             ("marktpreis_inflation_basisjahr", ga.marktpreis_inflation_basisjahr),
+            ("kosten_inflation_pct_pa", ga.kosten_inflation_pct_pa),
         ],
         columns=["Parameter", "Wert"],
     )
@@ -157,10 +189,24 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
             szenarien[name].marktwert_solar_ct_kwh_je_kalenderjahr[jahr] = float(
                 r["Marktwert Solar (ct/kWh)"]
             )
-        if pd.notna(r["Anteil neg. Stunden (%)"]):
-            szenarien[name].anteil_negativer_stunden_pct_je_kalenderjahr[jahr] = (
-                float(r["Anteil neg. Stunden (%)"]) / 100
+        # Aktuelles Format: je Regel eine eigene Spalte. Aeltere Exporte
+        # kennen nur "Anteil neg. Stunden (%)" - der Wert gilt dann fuer
+        # beide Regeln.
+        spalte_6h = "Erzeugungsmenge neg. Stunden 6h (%)"
+        spalte_1h = "Erzeugungsmenge neg. Stunden 1h (%)"
+        legacy_spalte = "Anteil neg. Stunden (%)"
+        if spalte_6h in kurven_df.columns and pd.notna(r.get(spalte_6h)):
+            szenarien[name].erzeugungsmenge_negativ_6h_pct_je_kalenderjahr[jahr] = (
+                float(r[spalte_6h]) / 100
             )
+        if spalte_1h in kurven_df.columns and pd.notna(r.get(spalte_1h)):
+            szenarien[name].erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[jahr] = (
+                float(r[spalte_1h]) / 100
+            )
+        if legacy_spalte in kurven_df.columns and pd.notna(r.get(legacy_spalte)):
+            wert = float(r[legacy_spalte]) / 100
+            szenarien[name].erzeugungsmenge_negativ_6h_pct_je_kalenderjahr[jahr] = wert
+            szenarien[name].erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[jahr] = wert
 
     opex_items = [
         OpexItem(
@@ -179,7 +225,7 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         if pd.notna(r["Position"])
     ]
 
-    einstellungen = dict(zip(einstellungen_df["Parameter"], einstellungen_df["Wert"]))
+    einstellungen = dict(zip(einstellungen_df["Parameter"], einstellungen_df["Wert"], strict=True))
 
     def get(key: str):
         wert = einstellungen.get(key, EINSTELLUNGEN_DEFAULTS[key])
@@ -196,6 +242,16 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
             get("direktvermarktungskosten_eur_mwh_vorschlag")
         )
         / 1000,
+        direktvermarktung_modus=DirektvermarktungsModus(
+            str(get("direktvermarktung_modus")).strip().lower()
+        ),
+        negative_stunden_regel=NegativeStundenRegel(
+            str(get("negative_stunden_regel")).strip().lower()
+        ),
+        direktvermarktung_pct_marktwert=float(
+            get("direktvermarktung_pct_marktwert")
+        )
+        / 100,
         negative_stunden_gewichtung_pct=float(get("negative_stunden_gewichtung_pct"))
         / 100,
         degradation_pct_pa=float(get("degradation_pct_pa")) / 100,
@@ -204,6 +260,11 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         betriebsdauer_jahre=int(get("betriebsdauer_jahre")),
         kreditlaufzeit_jahre=int(get("kreditlaufzeit_jahre")),
         tilgungsart=TilgungsArt(get("tilgungsart")),
+        tilgungsfreies_anlaufjahr=str(get("tilgungsfreies_anlaufjahr")).strip().upper()
+        in ("JA", "TRUE", "1", "WAHR"),
+        negative_stunden_modus=NegativeStundenModus(
+            str(get("negative_stunden_modus")).strip().lower()
+        ),
         tax_modus=TaxModus(get("tax_modus")),
         steuersatz_pct=float(get("steuersatz_pct")) / 100,
         afa_nutzungsdauer_jahre=int(afa_wert) if afa_wert not in (None, "") else None,
@@ -214,6 +275,7 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         / 100,
         marktpreis_inflation_pct_pa=float(get("marktpreis_inflation_pct_pa")) / 100,
         marktpreis_inflation_basisjahr=int(get("marktpreis_inflation_basisjahr")),
+        kosten_inflation_pct_pa=float(get("kosten_inflation_pct_pa")),
     )
 
 
@@ -222,12 +284,14 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
 # ---------------------------------------------------------------------------
 
 PROJEKT_SPALTEN = [
-    "id", "name", "inbetriebnahme_jahr", "inbetriebnahme_monat", "anlagentyp",
+    "id", "name", "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
+    "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
     "gemeindeabgabe_eur_mwh", "direktvermarktungskosten_eur_mwh",
     "marktpreisszenario", "projektflaeche_ha",
     "capex_epc_eur", "capex_netzanschluss_eur", "capex_trasse_eur",
+    "capex_widmung_eur", "capex_genehmigung_eur",
     "capex_sonstige_extern_eur", "capex_agm_eur", "capex_m_and_a_eur",
     "capex_poenale_puffer_eur",
 ]
@@ -238,6 +302,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
         {
             "id": p.id,
             "name": p.name,
+            "aktiv": p.aktiv,
             "inbetriebnahme_jahr": p.inbetriebnahme_jahr,
             "inbetriebnahme_monat": p.inbetriebnahme_monat,
             "anlagentyp": p.anlagentyp.value,
@@ -254,6 +319,8 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "capex_epc_eur": p.capex.epc_eur,
             "capex_netzanschluss_eur": p.capex.netzanschluss_eur,
             "capex_trasse_eur": p.capex.trasse_eur,
+            "capex_widmung_eur": p.capex.widmung_eur,
+            "capex_genehmigung_eur": p.capex.genehmigung_eur,
             "capex_sonstige_extern_eur": p.capex.sonstige_extern_eur,
             "capex_agm_eur": p.capex.agm_eur,
             "capex_m_and_a_eur": p.capex.m_and_a_eur,
@@ -273,7 +340,9 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
 def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
     df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Projekte", engine="openpyxl")
 
-    fehlende_spalten = set(PROJEKT_SPALTEN) - set(df.columns)
+    # "aktiv" ist optional, damit aeltere Export-Dateien (vor v4.5)
+    # weiterhin importierbar bleiben (Fallback: aktiv).
+    fehlende_spalten = set(PROJEKT_SPALTEN) - {"aktiv"} - set(df.columns)
     if fehlende_spalten:
         raise ValueError(f"Spalten fehlen in der Excel-Datei: {fehlende_spalten}")
 
@@ -285,6 +354,8 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
             PVProject(
                 id=str(r["id"]),
                 name=str(r["name"]),
+                aktiv=bool(r.get("aktiv", True))
+                if not pd.isna(r.get("aktiv", True)) else True,
                 inbetriebnahme_jahr=int(r["inbetriebnahme_jahr"]),
                 inbetriebnahme_monat=int(r["inbetriebnahme_monat"]),
                 anlagentyp=AnlagenTyp(r["anlagentyp"]),
@@ -312,6 +383,9 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                     epc_eur=float(r["capex_epc_eur"]),
                     netzanschluss_eur=float(r["capex_netzanschluss_eur"]),
                     trasse_eur=float(r["capex_trasse_eur"]),
+                    # Aeltere Exporte kennen die Spalten noch nicht -> 0.
+                    widmung_eur=float(r.get("capex_widmung_eur", 0) or 0),
+                    genehmigung_eur=float(r.get("capex_genehmigung_eur", 0) or 0),
                     sonstige_extern_eur=float(r["capex_sonstige_extern_eur"]),
                     agm_eur=float(r["capex_agm_eur"]),
                     m_and_a_eur=float(r["capex_m_and_a_eur"]),

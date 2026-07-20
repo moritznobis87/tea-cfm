@@ -1,0 +1,88 @@
+# Textes des graphiques : titres, libellés d'axes, noms de légende,
+# annotations. Les libellés d'axes réutilisables (p. ex. "Année
+# d'exploitation") portent une clé générique pour rester cohérents
+# dans toute l'application.
+
+# --- Libellés d'axes/grandeurs récurrents --------------------------------------
+achse_betriebsjahr: "Année d'exploitation"
+achse_jahr: "Année"
+achse_cashflow_jahr: "Flux de trésorerie (année)"
+achse_cashflow_jahr_eur: "Flux de trésorerie (année) en €"
+achse_eur: "€"
+achse_ct_kwh: "ct/kWh"
+achse_dscr: "DSCR (x)"
+achse_npv_eur: "VAN (€)"
+achse_diskontsatz_pct: "Taux d'actualisation (%)"
+achse_irr_pct: "TRI (%)"
+achse_wahrscheinlichkeitsdichte: "Densité de probabilité"
+achse_gebotswert: "Valeur de l'offre (ct/kWh)"
+achse_eigenes_gebot: "Offre propre (ct/kWh)"
+achse_zuschlagswahrscheinlichkeit: "Probabilité d'attribution"
+achse_anzahl_laeufe: "Nombre de simulations"
+achse_bezuschlagt_pct: "Attribué (%)"
+
+# --- Graphiques de flux de trésorerie / résultats ------------------------------------------------
+chart_equity_waterfall_titel: "Cascade des capitaux propres"
+chart_total_cashflow_titel: "Flux de trésorerie total"
+chart_operating_cf_titel: "Flux de trésorerie d'exploitation"
+chart_opex_stacked_titel: "Coûts d'exploitation"
+serie_betriebskosten: "Coûts d'exploitation"
+serie_verguetungssatz: "Tarif de rachat"
+serie_marktwert_nominal: "Valeur de marché (nominale)"
+serie_eigenkapital: "Capitaux propres"
+serie_fremdkapital: "Capitaux empruntés"
+serie_zinsen: "Intérêts"
+serie_tilgung: "Amortissement"
+serie_dscr: "DSCR"
+serie_dscr_grenze: "DSCR = 1,0x (seuil de couverture)"
+serie_markterloes: "Recette de marché"
+serie_marktpraemie: "Prime de marché"
+
+# --- VAN / sensibilité ------------------------------------------------------
+chart_npv_kurve_titel: "Valeur actuelle nette selon le taux d'actualisation"
+chart_tornado_titel: "Sensibilité du TRI des capitaux propres (±10 %)"
+chart_irr_heatmap_titel: "TRI des capitaux propres : carte de sensibilité"
+chart_eag_sensitivitaet_titel: "Sensibilité de la valeur d'attribution EAG"
+
+# --- Monte-Carlo / scénarios --------------------------------------------------
+chart_mc_histogramm_titel: "Distribution du TRI des capitaux propres (simulation Monte-Carlo)"
+chart_mc_fan_titel: "Flux de trésorerie cumulé : plage des simulations"
+chart_szenario_balken_titel: "TRI des capitaux propres par scénario de prix de marché"
+chart_szenario_balken_beschreibung: "TRI par scénario de prix de marché (barres) avec VAN au survol."
+chart_szenario_kumuliert_titel: "Flux de trésorerie cumulé par scénario"
+
+# --- Modèle d'appel d'offres ------------------------------------------------------
+chart_auktion_historie_titel: "Appels d'offres historiques"
+serie_preisobergrenze: "Prix plafond"
+serie_hoechster_zuschlag: "Valeur d'attribution la plus élevée"
+serie_mittlerer_zuschlag: "Valeur d'attribution moyenne (pondérée)"
+serie_niedrigster_zuschlag: "Valeur d'attribution la plus basse"
+serie_bezuschlagungsquote: "Attribué / mis en appel d'offres"
+chart_gebotsdichte_titel: "Distribution estimée des offres"
+serie_gebotsdichte: "Densité des offres"
+serie_alle_gebote: "Toutes les offres"
+serie_zuschlagswerte: "Valeurs d'attribution"
+annotation_preisobergrenze: "Prix plafond"
+annotation_erwartungswert: "Espérance"
+annotation_median: "Médiane"
+annotation_empfohlenes_gebot: "Offre recommandée"
+annotation_grenzzuschlag_p10_p90: "Valeur d'attribution marginale P10–P90"
+annotation_wettbewerbsphase: "Phase concurrentielle"
+chart_zuschlagskurve_titel: "Offre ↔ probabilité d'attribution"
+serie_arbeitspunkt: "Point de fonctionnement"
+
+serie_gemeindeabgabe: "Taxe communale"
+serie_direktvermarktung: "Vente directe"
+
+serie_umsatzerloese: "Recettes"
+serie_kreditaufnahme: "Déblocage du crédit"
+serie_operativer_cf: "FT opérationnel"
+serie_investition: "Investissement"
+serie_equity_cashflow: "Flux de trésorerie des capitaux propres"
+serie_zinsen_waterfall: "Intérêts"
+serie_foerderende: "Fin du soutien"
+serie_steuern: "Impôts"
+annotation_eag_zuschlagswert_fix: "Valeur d'attribution EAG (fixe, nominale)"
+achse_jahr_kurz: "Année"
+achse_kumulierter_cf: "Flux de trésorerie cumulé des capitaux propres (€)"
+achse_irr_kurz: "Rendement des capitaux propres"

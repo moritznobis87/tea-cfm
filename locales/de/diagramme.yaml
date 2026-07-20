@@ -1,0 +1,89 @@
+# Diagrammtexte: Titel, Achsenbeschriftungen, Legendennamen,
+# Annotationen. Wiederverwendbare Achsenlabels (z. B. "Betriebsjahr")
+# tragen einen generischen Schluessel, damit sie app-weit konsistent
+# bleiben.
+
+# --- Wiederkehrende Achsen-/Mengenlabels --------------------------------------
+achse_betriebsjahr: "Betriebsjahr"
+achse_jahr: "Jahr"
+achse_cashflow_jahr: "Cashflow (Jahr)"
+achse_cashflow_jahr_eur: "Cashflow (Jahr) in €"
+achse_eur: "€"
+achse_ct_kwh: "ct/kWh"
+achse_dscr: "DSCR (x)"
+achse_npv_eur: "NPV (€)"
+achse_diskontsatz_pct: "Diskontsatz (%)"
+achse_irr_pct: "IRR (%)"
+achse_wahrscheinlichkeitsdichte: "Wahrscheinlichkeitsdichte"
+achse_gebotswert: "Gebotswert (ct/kWh)"
+achse_eigenes_gebot: "Eigenes Gebot (ct/kWh)"
+achse_zuschlagswahrscheinlichkeit: "Zuschlagswahrscheinlichkeit"
+achse_anzahl_laeufe: "Anzahl Läufe"
+achse_bezuschlagt_pct: "Bezuschlagt (%)"
+
+# --- Cashflow / Ergebnis-Charts ------------------------------------------------
+chart_equity_waterfall_titel: "Eigenkapital-Wasserfall"
+chart_total_cashflow_titel: "Gesamt-Cashflow"
+chart_operating_cf_titel: "Operativer Cashflow"
+chart_opex_stacked_titel: "Betriebskosten"
+serie_betriebskosten: "Betriebskosten"
+serie_verguetungssatz: "Vergütungssatz"
+serie_marktwert_nominal: "Marktwert (nominal)"
+serie_eigenkapital: "Eigenkapital"
+serie_fremdkapital: "Fremdkapital"
+serie_zinsen: "Zinsen"
+serie_tilgung: "Tilgung"
+serie_dscr: "DSCR"
+serie_dscr_grenze: "DSCR = 1,0x (Deckungsgrenze)"
+serie_markterloes: "Markterlös"
+serie_marktpraemie: "Marktprämie"
+
+# --- NPV / Sensitivität ------------------------------------------------------
+chart_npv_kurve_titel: "Kapitalwert nach Diskontsatz"
+chart_tornado_titel: "Sensitivität der EK-Rendite (±10 %)"
+chart_irr_heatmap_titel: "EK-Rendite: Sensitivitäts-Heatmap"
+chart_eag_sensitivitaet_titel: "Sensitivität EAG-Zuschlagswert"
+
+# --- Monte Carlo / Szenarien --------------------------------------------------
+chart_mc_histogramm_titel: "Verteilung der EK-Rendite (Monte-Carlo-Simulation)"
+chart_mc_fan_titel: "Kumulierter Cashflow: Bandbreite der Simulationsläufe"
+chart_szenario_balken_titel: "EK-Rendite je Marktpreisszenario"
+chart_szenario_balken_beschreibung: "IRR je Marktpreisszenario (Balken) mit NPV im Hover."
+chart_szenario_kumuliert_titel: "Kumulierter Cashflow je Szenario"
+
+# --- Ausschreibungsmodell ------------------------------------------------------
+chart_auktion_historie_titel: "Historische Ausschreibungen"
+serie_preisobergrenze: "Preisobergrenze"
+serie_hoechster_zuschlag: "Höchster Zuschlag"
+serie_mittlerer_zuschlag: "Ø Zuschlag (gewichtet)"
+serie_niedrigster_zuschlag: "Niedrigster Zuschlag"
+serie_bezuschlagungsquote: "Bezuschlagt / Ausgeschrieben"
+chart_gebotsdichte_titel: "Geschätzte Gebotsverteilung"
+serie_gebotsdichte: "Gebotsdichte"
+serie_alle_gebote: "Alle Gebote"
+serie_zuschlagswerte: "Zuschlagswerte"
+annotation_preisobergrenze: "Preisobergrenze"
+annotation_erwartungswert: "Erwartungswert"
+annotation_median: "Median"
+annotation_empfohlenes_gebot: "Empfohlenes Gebot"
+annotation_grenzzuschlag_p10_p90: "Grenzzuschlag P10–P90"
+annotation_wettbewerbsphase: "Wettbewerbsphase"
+chart_zuschlagskurve_titel: "Gebot ↔ Zuschlagswahrscheinlichkeit"
+serie_arbeitspunkt: "Arbeitspunkt"
+
+serie_gemeindeabgabe: "Gemeindeabgabe"
+serie_direktvermarktung: "Direktvermarktung"
+
+# --- Weitere Diagrammtexte -----------------------------------------------------
+serie_umsatzerloese: "Umsatzerlöse"
+serie_kreditaufnahme: "Kreditaufnahme"
+serie_operativer_cf: "Operativer CF"
+serie_investition: "Investition"
+serie_equity_cashflow: "Equity-Cashflow"
+serie_zinsen_waterfall: "Zinsen"
+serie_foerderende: "Förderende"
+serie_steuern: "Steuern"
+annotation_eag_zuschlagswert_fix: "EAG-Zuschlagswert (nominal fix)"
+achse_jahr_kurz: "Jahr"
+achse_kumulierter_cf: "Kumulierter Equity-Cashflow (€)"
+achse_irr_kurz: "EK-Rendite"
