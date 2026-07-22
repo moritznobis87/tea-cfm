@@ -21,6 +21,7 @@ from engine import (
     OpexItem,
     TaxModus,
     TilgungsArt,
+    ZinsMethode,
 )
 from texte import txt
 
@@ -280,6 +281,15 @@ def render_assumptions() -> None:
             value=ga.tilgungsfreies_anlaufjahr,
             help=txt("oberflaeche.annahmen_tilgungsfreies_anlaufjahr_hilfe"),
         )
+        zm_oesterreich = txt("oberflaeche.annahmen_zinsmethode_oesterreich")
+        zm_deutsch = txt("oberflaeche.annahmen_zinsmethode_deutsch")
+        zinsmethode_label = st.radio(
+            txt("oberflaeche.annahmen_zinsmethode_label"),
+            [zm_oesterreich, zm_deutsch],
+            index=0 if ga.zinsmethode == ZinsMethode.OESTERREICH else 1,
+            horizontal=True,
+            help=txt("oberflaeche.annahmen_zinsmethode_hilfe"),
+        )
 
     # --- Steuern ---------------------------------------------------------------
     with st.expander(txt("oberflaeche.annahmen_steuern_titel"), expanded=False):
@@ -388,6 +398,10 @@ def render_assumptions() -> None:
         ga.steuersatz_pct = steuersatz / 100
         ga.tilgungsart = TilgungsArt(tilgungsart)
         ga.tilgungsfreies_anlaufjahr = tilgungsfreies_anlaufjahr
+        ga.zinsmethode = (
+            ZinsMethode.OESTERREICH if zinsmethode_label == zm_oesterreich
+            else ZinsMethode.DEUTSCH
+        )
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
         ga.direktvermarktungskosten_eur_kwh = direktvermarktungskosten / 1000
         ga.direktvermarktung_modus = (

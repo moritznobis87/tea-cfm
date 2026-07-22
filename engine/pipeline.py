@@ -31,7 +31,7 @@ from .models import (
 from .opex import calculate_opex
 from .revenue import calculate_revenue
 from .tax import calculate_tax
-from .timeline import build_timeline
+from .timeline import build_timeline, erstjahr_zins_pro_rata
 
 
 def resolve_assumptions(
@@ -88,6 +88,7 @@ def resolve_assumptions(
         kreditlaufzeit_jahre=global_assumptions.kreditlaufzeit_jahre,
         tilgungsart=global_assumptions.tilgungsart,
         tilgungsfreies_anlaufjahr=global_assumptions.tilgungsfreies_anlaufjahr,
+        zinsmethode=global_assumptions.zinsmethode,
         tax_modus=global_assumptions.tax_modus,
         steuersatz_pct=global_assumptions.steuersatz_pct,
         afa_nutzungsdauer_jahre=global_assumptions.afa_nutzungsdauer_jahre,
@@ -152,6 +153,7 @@ def run_valuation_from_assumptions(
         assumptions.kreditlaufzeit_jahre,
         assumptions.tilgungsart,
         assumptions.tilgungsfreies_anlaufjahr,
+        erstjahr_zins_pro_rata(inbetriebnahme_datum, assumptions.zinsmethode),
     )
     tax = calculate_tax(
         revenue,

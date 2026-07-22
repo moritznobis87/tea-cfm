@@ -33,6 +33,7 @@ from .models import (
     PVProject,
     TaxModus,
     TilgungsArt,
+    ZinsMethode,
 )
 
 EINSTELLUNGEN_DEFAULTS = {
@@ -52,6 +53,7 @@ EINSTELLUNGEN_DEFAULTS = {
     "kreditlaufzeit_jahre": 20,
     "tilgungsart": "annuitaet",
     "tilgungsfreies_anlaufjahr": "NEIN",
+    "zinsmethode": "oesterreich_act_365",
     "tax_modus": "afa_koerperschaftsteuer",
     "steuersatz_pct": 23.0,
     "afa_nutzungsdauer_jahre": None,
@@ -141,6 +143,7 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("kreditlaufzeit_jahre", ga.kreditlaufzeit_jahre),
             ("tilgungsart", ga.tilgungsart.value),
             ("tilgungsfreies_anlaufjahr", "JA" if ga.tilgungsfreies_anlaufjahr else "NEIN"),
+            ("zinsmethode", ga.zinsmethode.value),
             ("negative_stunden_modus", ga.negative_stunden_modus.value),
             ("tax_modus", ga.tax_modus.value),
             ("steuersatz_pct", ga.steuersatz_pct * 100),
@@ -262,6 +265,7 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         tilgungsart=TilgungsArt(get("tilgungsart")),
         tilgungsfreies_anlaufjahr=str(get("tilgungsfreies_anlaufjahr")).strip().upper()
         in ("JA", "TRUE", "1", "WAHR"),
+        zinsmethode=ZinsMethode(get("zinsmethode")),
         negative_stunden_modus=NegativeStundenModus(
             str(get("negative_stunden_modus")).strip().lower()
         ),

@@ -1,5 +1,54 @@
 # Changelog
 
+## v4.18 – Steuer-Diagramm, Verkaufspreis-KPI, deutsche/österreichische Zinsmethodik (2026-07)
+
+### Steuerzahlungen jetzt als eigenes Diagramm
+- Neues Balkendiagramm direkt unter der Betriebskosten-Grafik im
+  Projekt-Dashboard (`charts.tax_chart()`) – Steuer war bisher in
+  keinem Diagramm sichtbar, nur in der Detailtabelle.
+
+### Verkaufspreis ersetzt LCOE
+- Projekt-KPI-Zeile neu geordnet: EK-Rendite, NPV, **Verkaufspreis**,
+  CAPEX, DSCR (vorher: …, DSCR, CAPEX, LCOE).
+  `Verkaufspreis = NPV + Eigenkapital`.
+- Konsistent auch im PDF-Bericht (Management-Summary-Kacheln)
+  nachgezogen; alte LCOE-Sprachschlüssel durch die neuen ersetzt statt
+  sie tot liegen zu lassen.
+
+### Robustheit: Portfolio-Landkarte bei leerem Portfolio
+- Beim Testen dieser Version aufgefallen: `portfolio_bubble_chart()`
+  stürzte mit `KeyError: 'typ'` ab, wenn (z.B. über den Inaktiv-Filter)
+  null aktive Projekte übrig blieben - der DataFrame war dann leer und
+  hatte keine Spalten. Zeigt jetzt stattdessen eine leere Grafik.
+
+### Deutsche vs. österreichische Zinsberechnungsmethodik
+- Neue Auswahl in Globale Annahmen → Förderung, Finanzierung, direkt
+  neben der Tilgungsart: **Österreichisch** (act/365, taggenau – nach
+  österreichischer Rechtsprechung/OGH für Unternehmen üblich) oder
+  **Deutsch** (30/360, kaufmännische Zinsmethode). Wirkt sich nur aus,
+  wenn die Inbetriebnahme nicht am 1. Januar erfolgt.
+- **Dabei gefundener Bestandsfehler:** Das Modell berechnete für das
+  erste Betriebsjahr bislang *immer* volle 12 Monate Zinsen,
+  unabhängig vom Inbetriebnahme-Monat – bei einem Testprojekt mit
+  Inbetriebnahme im Juni waren das 40.521 € zu viel Zinsen im ersten
+  Jahr (fast das Doppelte des korrekten Werts). Betrifft rückwirkend
+  jedes bestehende Projekt mit Inbetriebnahme ungleich Januar, nicht
+  nur die neue Auswahlmöglichkeit.
+- Neue Funktion `engine.timeline.erstjahr_zins_pro_rata()`: berechnet
+  den anteiligen Zinsfaktor für beide Konventionen; die
+  österreichische Variante nutzt exakt dieselbe taggenaue Zeitachse
+  wie die bereits bestehende Produktions-Anteilsrechnung.
+  `engine.financing.calculate_financing()` wendet den Faktor gezielt
+  nur auf die Zinsen des ersten Jahres an, die Tilgung folgt
+  unverändert der Annuitäten-/Linear-Formel.
+- Vollständig durchverdrahtet: `GlobalAssumptions`/
+  `EffectiveAssumptions`, YAML-I/O (automatisch über Pydantic),
+  Excel-I/O (inkl. Rückwärtskompatibilität für ältere Exportdateien
+  ohne die neue Spalte), alle vier Sprachdateien.
+- 15 neue Tests (Formelkorrektheit beider Konventionen, Konsistenz mit
+  der Produktions-Zeitachse, End-to-End über die volle Pipeline,
+  YAML-/Excel-Rundlauf, Rückwärtskompatibilität); Suite: 200 (inkl. 1 Regressionstest für die Portfolio-Landkarten-Robustheit).
+
 ## v4.17 – Verdeckter Marken-Schalter: Trianel-Layout vs. Nobis Analytics (2026-07)
 
 - Neuer verdeckter Schalter zwischen der aktuellen Nobis-Analytics-

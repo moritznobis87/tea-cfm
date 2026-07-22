@@ -1,5 +1,6 @@
 id: template-konventionell
 name: Template Konventionell
+aktiv: true
 inbetriebnahme_jahr: 2027
 inbetriebnahme_monat: 1
 anlagentyp: konventionell
@@ -15,6 +16,8 @@ capex:
   epc_eur: 3526000.0
   netzanschluss_eur: 410000.0
   trasse_eur: 328000.0
+  widmung_eur: 0.0
+  genehmigung_eur: 0.0
   sonstige_extern_eur: 82000.0
   agm_eur: 82000.0
   m_and_a_eur: 41000.0

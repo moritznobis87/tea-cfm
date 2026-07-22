@@ -47,6 +47,7 @@ from .models import (
     PVProject,
     TaxModus,
     TilgungsArt,
+    ZinsMethode,
 )
 from .pipeline import (
     ValuationResult,
@@ -96,6 +97,7 @@ __all__ = [
     "TaxModus",
     "TilgungsArt",
     "ValuationResult",
+    "ZinsMethode",
     "resolve_assumptions",
     "run_valuation",
     "run_eag_sensitivity",

@@ -491,6 +491,7 @@ betriebsdauer_jahre: 30
 kreditlaufzeit_jahre: 20
 tilgungsart: annuitaet
 tilgungsfreies_anlaufjahr: false
+zinsmethode: oesterreich_act_365
 tax_modus: afa_koerperschaftsteuer
 steuersatz_pct: 0.23
 afa_nutzungsdauer_jahre: 20

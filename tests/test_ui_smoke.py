@@ -194,3 +194,87 @@ class TestKPIUndChartBugfixes:
 
         assert "ResizeObserver" in _FIT_SCRIPT
         assert "MutationObserver" in _FIT_SCRIPT
+
+    def test_steuer_chart_zeigt_steuer_eur(self, project, global_assumptions):
+        """Neue Steuerzahlungen-Grafik unter der Betriebskosten-Grafik:
+        eigenstaendiges Diagramm, das bislang nirgends existierte (nur
+        in der Detailtabelle sichtbar)."""
+        from app.components import charts
+        from engine import run_valuation
+
+        result = run_valuation(project, global_assumptions)
+        fig = charts.tax_chart(result.cashflow.data)
+        assert len(fig.data) == 1
+        trace = fig.data[0]
+        assert list(trace.y) == list(result.cashflow.data["steuer_eur"])
+        assert list(trace.x) == list(result.cashflow.data["jahr"])
+
+    def test_verkaufspreis_ersetzt_lcoe_in_kpi_reihenfolge(self):
+        """KPI-Zeile im Projekt-Dashboard: EK-Rendite, NPV, Verkaufspreis,
+        CAPEX, DSCR (LCOE entfernt) - siehe app/views/project_detail.py."""
+        import pathlib
+
+        quelle = pathlib.Path("app/views/project_detail.py").read_text(
+            encoding="utf-8"
+        )
+        block = quelle[quelle.index("render_kpi_row(\n        [\n"):]
+        block = block[:block.index("group=")]
+        reihenfolge = [
+            k for k in (
+                "projekt_kpi_irr", "projekt_kpi_npv_bei",
+                "projekt_kpi_verkaufspreis", "projekt_kpi_capex",
+                "projekt_kpi_dscr_min",
+            )
+            if k in block
+        ]
+        assert reihenfolge == [
+            "projekt_kpi_irr", "projekt_kpi_npv_bei",
+            "projekt_kpi_verkaufspreis", "projekt_kpi_capex",
+            "projekt_kpi_dscr_min",
+        ]
+        assert "projekt_kpi_lcoe" not in block
+        assert "calculate_lcoe" not in quelle
+
+    def test_verkaufspreis_ist_npv_plus_eigenkapital(self, project, global_assumptions):
+        from engine import run_valuation
+        from engine.kpis import npv_at
+
+        result = run_valuation(project, global_assumptions)
+        npv = npv_at(result.cashflow, 0.08)
+        erwartet = npv + result.kpis.eigenkapital_eur
+
+        # Dieselbe Formel wie in project_detail.py: NPV + Eigenkapital.
+        verkaufspreis = npv + result.kpis.eigenkapital_eur
+        assert verkaufspreis == pytest.approx(erwartet)
+        assert verkaufspreis > npv  # Eigenkapital ist immer positiv
+
+    def test_pdf_bericht_zeigt_verkaufspreis_nicht_lcoe(self, project, global_assumptions):
+        import io
+
+        from pypdf import PdfReader
+
+        from app import services
+
+        services.save_project(project)
+        try:
+            pdf = services.build_project_report(project.id, 0.08)
+            text = "\n".join(
+                s.extract_text() for s in PdfReader(io.BytesIO(pdf)).pages
+            )
+            assert "VERKAUFSPREIS" in text
+            assert "LCOE" not in text
+        finally:
+            services.delete_project(project.id)
+
+    def test_bubble_chart_leeres_portfolio_stuerzt_nicht_ab(self):
+        """Robustheitsluecke gefunden waehrend der Entwicklung dieser
+        Version: Bei null aktiven Projekten (z.B. alle ueber den
+        Inaktiv-Filter ausgeblendet) war der DataFrame leer und hatte
+        keine 'typ'-Spalte - portfolio_bubble_chart() stuerzte mit
+        KeyError ab statt eine leere Grafik zu zeigen."""
+        import pandas as pd
+
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(pd.DataFrame(), selected_id=None)
+        assert len(fig.data) == 0

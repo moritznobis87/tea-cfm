@@ -825,14 +825,14 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     # ------------------------------------------------------- Management Summary
     story.append(_Kapitel("1", txt("bericht.kapitel_1_titel")))
     story.append(Spacer(1, 0.2 * cm))
+    verkaufspreis_eur = inputs.npv_eur + kpis.eigenkapital_eur
     story.append(_kennzahlen_kacheln([
         ("EK-RENDITE (IRR)", fmt_pct(kpis.equity_irr)),
         (f"NPV BEI {_de(inputs.diskontsatz_pct * 100, 1)} %",
          fmt_eur(inputs.npv_eur)),
-        ("MIN. DSCR", fmt_dscr(kpis.dscr_min)),
+        ("VERKAUFSPREIS", fmt_eur(verkaufspreis_eur)),
         ("CAPEX", fmt_eur(kpis.capex_total_eur)),
-        ("LCOE", fmt_ct_kwh(inputs.lcoe_ct) if inputs.lcoe_ct is not None
-         else "n/a"),
+        ("MIN. DSCR", fmt_dscr(kpis.dscr_min)),
     ]))
     story.append(Spacer(1, 0.35 * cm))
 

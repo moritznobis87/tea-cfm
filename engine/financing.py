@@ -12,6 +12,16 @@ Konventionen:
   Schuldendienst verlaengert sich also insgesamt um ein Jahr. Weil das
   erste Jahr ungetilgt bleibt, faellt auch im zweiten Jahr der Zins noch
   auf die volle Kreditsumme an (Jahresanfangsstand).
+- Unterjaehriges erstes Betriebsjahr (Inbetriebnahme nicht am 1.
+  Januar): `erstjahr_zins_faktor` (siehe engine.timeline.
+  erstjahr_zins_pro_rata, ZinsMethode) reduziert NUR die Zinslast des
+  ersten Jahres anteilig - die Tilgung folgt unveraendert derselben
+  Annuitaeten-/Linear-Formel wie fuer ein volles Jahr. Bei Annuitaet
+  fuehrt das dazu, dass im ersten Jahr etwas mehr getilgt wird als in
+  einem "normalen" Jahr (da weniger Zins von der fixen Rate abgeht);
+  das Darlehen ist dadurch ggf. minimal vor Ablauf der nominellen
+  Laufzeit vollstaendig getilgt - ein realistischer, in der Praxis
+  gaengiger Effekt bei einem unterjaehrigen ersten Zinszeitraum.
 """
 
 from __future__ import annotations
@@ -39,6 +49,7 @@ def calculate_financing(
     kreditlaufzeit_jahre: int,
     tilgungsart: TilgungsArt,
     tilgungsfreies_anlaufjahr: bool = False,
+    erstjahr_zins_faktor: float = 1.0,
 ) -> pd.DataFrame:
     fremdkapital_eur = investitionsvolumen_eur * (1 - eigenkapitalquote_pct)
 
@@ -62,7 +73,8 @@ def calculate_financing(
     for _, period in timeline.iterrows():
         jahr = int(period["jahr"])
         if jahr <= letztes_schuldendienstjahr:
-            zinsen = balance * fremdkapitalzins_pct
+            zins_faktor = erstjahr_zins_faktor if jahr == 1 else 1.0
+            zinsen = balance * fremdkapitalzins_pct * zins_faktor
             if jahr < erstes_tilgungsjahr:
                 # Tilgungsfreies Anlaufjahr: nur Zinsen.
                 tilgung = 0.0

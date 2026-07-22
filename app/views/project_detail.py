@@ -26,7 +26,7 @@ from engine import (
     NegativeStundenRegel,
     PVProject,
 )
-from engine.analytics import HEATMAP_ACHSEN, calculate_lcoe
+from engine.analytics import HEATMAP_ACHSEN
 from engine.kpis import npv_at
 from texte import txt
 
@@ -151,16 +151,15 @@ def render_project_dashboard(
     )
     npv_wert = npv_at(result.cashflow, npv_satz_pct / 100)
 
-    lcoe = calculate_lcoe(df, npv_satz_pct / 100)
+    verkaufspreis_eur = npv_wert + kpis.eigenkapital_eur
     render_kpi_row(
         [
             (txt("oberflaeche.projekt_kpi_irr"), fmt_pct(kpis.equity_irr)),
             (txt("oberflaeche.projekt_kpi_npv_bei",
                 satz=fmt_number(npv_satz_pct, 2)), fmt_eur(npv_wert)),
-            (txt("oberflaeche.projekt_kpi_dscr_min"), fmt_dscr(kpis.dscr_min)),
+            (txt("oberflaeche.projekt_kpi_verkaufspreis"), fmt_eur(verkaufspreis_eur)),
             (txt("oberflaeche.projekt_kpi_capex"), fmt_eur(kpis.capex_total_eur)),
-            (txt("oberflaeche.projekt_kpi_lcoe"),
-             fmt_ct_kwh(lcoe) if lcoe is not None else "n/a"),
+            (txt("oberflaeche.projekt_kpi_dscr_min"), fmt_dscr(kpis.dscr_min)),
         ],
         group="projekt",
     )
@@ -216,6 +215,10 @@ def _render_cashflow_tab(result, df) -> None:
     st.plotly_chart(
         charts.opex_stacked_chart(df, result.cashflow.opex_posten), width="stretch"
     )
+
+    section_title(txt("oberflaeche.dashboard_steuerzahlungen"))
+    st.caption(txt("oberflaeche.projekt_steuerzahlungen_beschreibung"))
+    st.plotly_chart(charts.tax_chart(df), width="stretch")
 
     section_title(txt("oberflaeche.dashboard_operativer_cashflow"))
     st.caption(txt("oberflaeche.projekt_operativer_cf_beschreibung"))

@@ -15,6 +15,8 @@ from datetime import date
 
 import pandas as pd
 
+from .models import ZinsMethode
+
 TIMELINE_COLUMNS = [
     "jahr",
     "datum_start",
@@ -22,6 +24,28 @@ TIMELINE_COLUMNS = [
     "pro_rata_faktor",
     "ist_letztes_jahr",
 ]
+
+
+def erstjahr_zins_pro_rata(inbetriebnahme_datum: date, methode: ZinsMethode) -> float:
+    """Anteiliger Zinsfaktor des ersten (moeglicherweise unterjaehrigen)
+    Betriebsjahres - 1.0 bei Inbetriebnahme am 1. Januar, sonst < 1.0.
+
+    OESTERREICH (act/365): identische taggenaue Logik wie der
+    Produktions-pro_rata_faktor in build_timeline() (siehe dort) - fuer
+    volle Kalenderjahre ohnehin deckungsgleich, fuer das Anlaufjahr
+    exakt dieselbe Zeitachse.
+
+    DEUTSCH (30/360): jeder Restmonat des Anlaufjahres (inklusive
+    Inbetriebnahmemonat) zaehlt pauschal mit 30 Tagen, das Jahr mit
+    360 Tagen - unabhaengig vom tatsaechlichen Kalendertag der
+    Inbetriebnahme (kaufmaennische Konvention).
+    """
+    if methode == ZinsMethode.DEUTSCH:
+        restmonate = 13 - inbetriebnahme_datum.month
+        return restmonate * 30 / 360
+    jahresende = date(inbetriebnahme_datum.year, 12, 31)
+    tage = (jahresende - inbetriebnahme_datum).days + 1
+    return min(tage / 365.0, 1.0)
 
 
 def build_timeline(inbetriebnahme_datum: date, laufzeit_jahre: int) -> pd.DataFrame:

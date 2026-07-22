@@ -37,6 +37,21 @@ def revenue_chart(df: pd.DataFrame) -> go.Figure:
     )
     return fig
 
+def tax_chart(df: pd.DataFrame) -> go.Figure:
+    """Steuerzahlungen je Betriebsjahr - eigenständiges Diagramm direkt
+    unter der Betriebskosten-Grafik, da Steuer bislang in keinem
+    Diagramm sichtbar war (nur in der Detailtabelle)."""
+    fig = go.Figure()
+    fig.add_bar(
+        x=df["jahr"], y=df["steuer_eur"], name=txt("diagramme.serie_steuern"),
+        marker_color=Colors.NEGATIVE, hovertemplate=_EUR_HOVER + "<extra></extra>",
+    )
+    fig.update_layout(
+        yaxis_title="€", xaxis_title=txt("diagramme.achse_betriebsjahr"),
+        height=360, showlegend=False,
+    )
+    return fig
+
 
 def opex_stacked_chart(df: pd.DataFrame, opex_posten: list[str]) -> go.Figure:
     """Betriebskosten als gestapelte Balken - eine Position je
@@ -559,8 +574,15 @@ def scenario_cum_chart(kum_df: pd.DataFrame) -> go.Figure:
 def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figure:
     """Rendite-Risiko-Landkarte des Portfolios: spezifisches Invest
     (€/kWp) gegen EK-Rendite, Blasengröße = Anlagenleistung, Farbe =
-    Anlagentyp. Das ausgewählte Projekt ist rot umrandet."""
+    Anlagentyp. Das ausgewählte Projekt ist rot umrandet.
+
+    Robust gegenueber einem leeren DataFrame (z.B. wenn alle Projekte
+    ueber den Inaktiv-Filter ausgeblendet sind) - eine leere Figure
+    ohne Fehler statt eines KeyError beim Spaltenzugriff."""
     fig = go.Figure()
+    if df.empty:
+        fig.update_layout(height=420)
+        return fig
     for typ, farbe in [("Agri-PV", Colors.POSITIVE), ("Konventionell", Colors.NEUTRAL)]:
         teil = df[df["typ"] == typ]
         if teil.empty:

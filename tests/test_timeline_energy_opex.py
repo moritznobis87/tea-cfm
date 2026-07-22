@@ -32,6 +32,195 @@ class TestTimeline:
             build_timeline(date(2027, 1, 1), 0)
 
 
+class TestZinsmethode:
+    """Zinsberechnungsmethode fuer das (moeglicherweise unterjaehrige)
+    erste Betriebsjahr: deutsche (30/360) vs. oesterreichische
+    (act/365) Konvention - siehe engine.timeline.erstjahr_zins_pro_rata
+    und engine.financing.calculate_financing."""
+
+    def test_januar_start_beide_methoden_voller_faktor(self):
+        from engine.models import ZinsMethode
+        from engine.timeline import erstjahr_zins_pro_rata
+
+        for methode in (ZinsMethode.OESTERREICH, ZinsMethode.DEUTSCH):
+            assert erstjahr_zins_pro_rata(date(2028, 1, 1), methode) == pytest.approx(1.0)
+
+    def test_oesterreich_deckt_sich_mit_produktions_pro_rata(self):
+        """Dieselbe taggenaue Logik wie build_timeline()'s
+        pro_rata_faktor fuer das erste Jahr - keine zweite,
+        abweichende Zeitachse fuer die Finanzierung."""
+        from engine.models import ZinsMethode
+        from engine.timeline import build_timeline, erstjahr_zins_pro_rata
+
+        for monat in (3, 6, 9, 12):
+            start = date(2028, monat, 1)
+            timeline = build_timeline(start, 2)
+            faktor_timeline = timeline["pro_rata_faktor"].iloc[0]
+            faktor_zins = erstjahr_zins_pro_rata(start, ZinsMethode.OESTERREICH)
+            assert faktor_zins == pytest.approx(faktor_timeline)
+
+    def test_deutsch_30_360_rechenformel(self):
+        from engine.models import ZinsMethode
+        from engine.timeline import erstjahr_zins_pro_rata
+
+        # Juni: Restmonate inkl. Juni = 7 -> 7*30/360
+        assert erstjahr_zins_pro_rata(
+            date(2028, 6, 15), ZinsMethode.DEUTSCH
+        ) == pytest.approx(7 * 30 / 360)
+        # Dezember: nur 1 Restmonat -> 30/360
+        assert erstjahr_zins_pro_rata(
+            date(2028, 12, 1), ZinsMethode.DEUTSCH
+        ) == pytest.approx(30 / 360)
+        # 30/360 ignoriert den Tag im Monat (kaufmaennische Konvention).
+        assert erstjahr_zins_pro_rata(
+            date(2028, 6, 1), ZinsMethode.DEUTSCH
+        ) == erstjahr_zins_pro_rata(date(2028, 6, 30), ZinsMethode.DEUTSCH)
+
+    def test_deutsch_und_oesterreich_nah_beieinander_aber_nicht_gleich(self):
+        from engine.models import ZinsMethode
+        from engine.timeline import erstjahr_zins_pro_rata
+
+        start = date(2028, 6, 1)
+        at = erstjahr_zins_pro_rata(start, ZinsMethode.OESTERREICH)
+        de = erstjahr_zins_pro_rata(start, ZinsMethode.DEUTSCH)
+        assert at != de
+        assert abs(at - de) < 0.01
+
+    def test_financing_wendet_faktor_nur_auf_erstes_jahr_an(self):
+        from engine.financing import calculate_financing
+        from engine.models import TilgungsArt
+        from engine.timeline import build_timeline
+
+        timeline = build_timeline(date(2028, 7, 1), 3)
+        voll = calculate_financing(
+            timeline, 1_000_000, 0.2, 0.05, 3, TilgungsArt.ANNUITAET,
+            erstjahr_zins_faktor=1.0,
+        )
+        halb = calculate_financing(
+            timeline, 1_000_000, 0.2, 0.05, 3, TilgungsArt.ANNUITAET,
+            erstjahr_zins_faktor=0.5,
+        )
+        # Jahr 1: Zinsen exakt halbiert.
+        assert halb["zinsen_eur"].iloc[0] == pytest.approx(
+            voll["zinsen_eur"].iloc[0] * 0.5
+        )
+        # Folgejahre (2, 3): NICHT vom Faktor betroffen (nur jahr==1
+        # wird reduziert) - beide Reihen duerfen ab Jahr 2 aber wegen
+        # der unterschiedlichen Tilgungshoehe in Jahr 1 divergieren,
+        # der Faktor selbst wird aber nicht mehr angewendet:
+        assert halb["darlehensstand_bop_eur"].iloc[0] == pytest.approx(
+            voll["darlehensstand_bop_eur"].iloc[0]
+        )
+
+    def test_pipeline_reduziert_zinsen_bei_unterjaehrigem_start(
+        self, project, global_assumptions
+    ):
+        """End-to-End: ein Projekt mit Inbetriebnahme im Juni zahlt im
+        ersten Betriebsjahr deutlich weniger Zinsen als eines mit
+        Inbetriebnahme im Januar (identische sonstige Annahmen) - vor
+        dieser Aenderung wurde immer ein volles Jahr Zinsen berechnet,
+        unabhaengig vom Inbetriebnahmemonat."""
+        from engine.pipeline import run_valuation
+
+        project.inbetriebnahme_monat = 1
+        r_januar = run_valuation(project, global_assumptions)
+        zinsen_januar = r_januar.cashflow.data.query("jahr == 1")["zinsen_eur"].iloc[0]
+
+        project.inbetriebnahme_monat = 6
+        r_juni = run_valuation(project, global_assumptions)
+        zinsen_juni = r_juni.cashflow.data.query("jahr == 1")["zinsen_eur"].iloc[0]
+
+        assert zinsen_juni < zinsen_januar
+        # Grobe Erwartung: knapp die Haelfte (Juni -> ca. 7/12 Jahr).
+        assert 0.5 < zinsen_juni / zinsen_januar < 0.65
+
+    def test_deutsch_vs_oesterreich_wirkt_sich_auf_irr_aus(
+        self, project, global_assumptions
+    ):
+        from engine.models import ZinsMethode
+        from engine.pipeline import run_valuation
+
+        project.inbetriebnahme_monat = 6
+        global_assumptions.zinsmethode = ZinsMethode.OESTERREICH
+        r_at = run_valuation(project, global_assumptions)
+        global_assumptions.zinsmethode = ZinsMethode.DEUTSCH
+        r_de = run_valuation(project, global_assumptions)
+
+        assert r_at.kpis.equity_irr != r_de.kpis.equity_irr
+        # Die Methoden liegen dicht beieinander - kein grosser Sprung.
+        assert abs(r_at.kpis.equity_irr - r_de.kpis.equity_irr) < 0.01
+
+    def test_januar_start_beide_methoden_identisches_ergebnis(
+        self, project, global_assumptions
+    ):
+        """Fuer volle Kalenderjahre (Inbetriebnahme im Januar) darf die
+        Methodenwahl keinen Unterschied machen."""
+        from engine.models import ZinsMethode
+        from engine.pipeline import run_valuation
+
+        project.inbetriebnahme_monat = 1
+        global_assumptions.zinsmethode = ZinsMethode.OESTERREICH
+        r_at = run_valuation(project, global_assumptions)
+        global_assumptions.zinsmethode = ZinsMethode.DEUTSCH
+        r_de = run_valuation(project, global_assumptions)
+
+        assert r_at.kpis.equity_irr == pytest.approx(r_de.kpis.equity_irr)
+
+    def test_yaml_roundtrip(self, tmp_path):
+        from engine.io_yaml import (
+            load_global_assumptions_yaml,
+            save_global_assumptions_yaml,
+        )
+        from engine.models import ZinsMethode
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        ga.zinsmethode = ZinsMethode.DEUTSCH
+        pfad = tmp_path / "ga.yaml"
+        save_global_assumptions_yaml(ga, str(pfad))
+        ga2 = load_global_assumptions_yaml(str(pfad))
+        assert ga2.zinsmethode == ZinsMethode.DEUTSCH
+
+    def test_excel_roundtrip(self):
+        from engine.io_excel import (
+            excel_to_global_assumptions,
+            global_assumptions_to_excel,
+        )
+        from engine.io_yaml import load_global_assumptions_yaml
+        from engine.models import ZinsMethode
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        ga.zinsmethode = ZinsMethode.DEUTSCH
+        ga2 = excel_to_global_assumptions(global_assumptions_to_excel(ga))
+        assert ga2.zinsmethode == ZinsMethode.DEUTSCH
+
+    def test_excel_ohne_zinsmethode_spalte_faellt_auf_oesterreich_zurueck(self):
+        """Rueckwaertskompatibilitaet: aeltere exportierte Excel-Dateien
+        ohne die neue Zeile duerfen beim Import nicht scheitern."""
+        import io
+
+        from openpyxl import load_workbook
+
+        from engine.io_excel import (
+            excel_to_global_assumptions,
+            global_assumptions_to_excel,
+        )
+        from engine.io_yaml import load_global_assumptions_yaml
+        from engine.models import ZinsMethode
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        xl = global_assumptions_to_excel(ga)
+        wb = load_workbook(io.BytesIO(xl))
+        ws = wb["Einstellungen"]
+        for row in ws.iter_rows():
+            if row[0].value == "zinsmethode":
+                ws.delete_rows(row[0].row)
+                break
+        puffer = io.BytesIO()
+        wb.save(puffer)
+        ga2 = excel_to_global_assumptions(puffer.getvalue())
+        assert ga2.zinsmethode == ZinsMethode.OESTERREICH
+
+
 class TestEnergy:
     def test_produktion_ohne_degradation(self, project, global_assumptions):
         assumptions = resolve_assumptions(project, global_assumptions)

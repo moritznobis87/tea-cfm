@@ -33,6 +33,29 @@ class TilgungsArt(str, Enum):
     LINEAR = "linear"
 
 
+class ZinsMethode(str, Enum):
+    """Zinsberechnungsmethode fuer das (moeglicherweise unterjaehrige)
+    erste Betriebsjahr - fuer volle Kalenderjahre liefern beide
+    Methoden dieselbe Zinslast (Faktor 1,0), der Unterschied wirkt sich
+    nur aus, wenn die Inbetriebnahme nicht am 1. Januar erfolgt.
+
+    OESTERREICH: taggenau, act/365 (Anzahl Kalendertage seit
+    Inbetriebnahme bis Jahresende / 365) - deckt sich mit der ohnehin
+    bereits fuer die Produktion verwendeten Zeitachse (siehe
+    engine.timeline.build_timeline). Nach staendiger oesterreichischer
+    Rechtsprechung (OGH) fuer Unternehmen ohne abweichende Vereinbarung
+    ueblich.
+
+    DEUTSCH: kaufmaennische Methode 30/360 - jeder Monat zaehlt
+    pauschal mit 30 Tagen, das Jahr mit 360 Tagen; Bruch = Restmonate
+    im Anlaufjahr (inkl. Inbetriebnahmemonat) / 12. Historischer
+    deutscher Bankenstandard.
+    """
+
+    OESTERREICH = "oesterreich_act_365"
+    DEUTSCH = "deutsch_30_360"
+
+
 class DirektvermarktungsModus(str, Enum):
     """Bemessung der Direktvermarktungskosten (Bilanzkreis, Prognose,
     Marktzugang).
@@ -306,6 +329,10 @@ class GlobalAssumptions(BaseModel):
     #: Jahr 1 nur Zinsen, Tilgung ab Jahr 2 (verlaengert den
     #: Schuldendienst um ein Jahr, Anzahl der Tilgungsraten bleibt gleich).
     tilgungsfreies_anlaufjahr: bool = False
+    #: Zinsberechnung fuer das (moeglicherweise unterjaehrige) erste
+    #: Betriebsjahr - siehe ZinsMethode. Wirkt sich nur aus, wenn die
+    #: Inbetriebnahme nicht am 1. Januar erfolgt.
+    zinsmethode: ZinsMethode = ZinsMethode.OESTERREICH
 
     # Steuer
     tax_modus: TaxModus = TaxModus.AFA_KOERPERSCHAFTSTEUER
@@ -381,6 +408,7 @@ class EffectiveAssumptions(BaseModel):
     kreditlaufzeit_jahre: int
     tilgungsart: TilgungsArt
     tilgungsfreies_anlaufjahr: bool
+    zinsmethode: ZinsMethode
 
     tax_modus: TaxModus
     steuersatz_pct: float
