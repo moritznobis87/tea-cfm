@@ -1,5 +1,24 @@
 # Changelog
 
+## v4.21 – Excel-Projektimport: echte Rückwärtskompatibilität (2026-07)
+
+- **Bugfix (vom Nutzer gemeldet):** Projekt-Excel-Dumps, die vor der
+  Umsatzbeteiligungs-Pacht (v4.19) exportiert wurden, ließen sich
+  nicht mehr importieren (`ValueError: Spalten fehlen`). Ursache: die
+  drei neuen Spalten (`pacht_modus`, `pacht_umsatzbeteiligung_pct`,
+  `pacht_mindestpacht_eur_ha_jahr`) hatten zwar bereits eine passende
+  Fallback-Logik pro Feld, wurden aber von einer davor geschalteten,
+  strikten Spaltenprüfung blockiert, bevor diese Logik je zum Einsatz
+  kam – ein Fehler, der bei der Einführung dieser drei Spalten
+  entstanden ist.
+- Die drei Spalten sind jetzt korrekt als optional markiert (wie
+  bereits `aktiv` seit v4.5) – ältere Exportdateien laden mit
+  sinnvollen Vorgabewerten (Pachtmodus „fix“, Umsatzbeteiligung 5,5 %,
+  Mindestpacht 0 €/ha).
+- 1 neuer Regressionstest, der genau dieses Szenario nachbildet
+  (Export, drei Spalten künstlich entfernen, erneut importieren);
+  Suite: 217, zweifach hintereinander stabil gelaufen.
+
 ## v4.20 – Deutsche Gewerbesteuer als dritte Steuerlogik (2026-07)
 
 - Klarstellung zur letzten Version: v4.18 hatte die **Zinsberechnungs­methodik**

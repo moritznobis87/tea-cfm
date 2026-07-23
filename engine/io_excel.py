@@ -363,9 +363,17 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
 def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
     df = pd.read_excel(io.BytesIO(file_bytes), sheet_name="Projekte", engine="openpyxl")
 
-    # "aktiv" ist optional, damit aeltere Export-Dateien (vor v4.5)
-    # weiterhin importierbar bleiben (Fallback: aktiv).
-    fehlende_spalten = set(PROJEKT_SPALTEN) - {"aktiv"} - set(df.columns)
+    # "aktiv" (vor v4.5) und die drei Umsatzbeteiligungs-Pacht-Felder
+    # (vor v4.19) sind optional, damit aeltere Export-Dateien weiterhin
+    # importierbar bleiben - siehe die .get()-Fallbacks weiter unten,
+    # die genau fuer diesen Zweck geschrieben wurden. Diese Pruefung
+    # darf sie deshalb nicht als "fehlend" blockieren, sonst greift die
+    # Fallback-Logik nie.
+    optionale_spalten = {
+        "aktiv", "pacht_modus", "pacht_umsatzbeteiligung_pct",
+        "pacht_mindestpacht_eur_ha_jahr",
+    }
+    fehlende_spalten = set(PROJEKT_SPALTEN) - optionale_spalten - set(df.columns)
     if fehlende_spalten:
         raise ValueError(f"Spalten fehlen in der Excel-Datei: {fehlende_spalten}")
 

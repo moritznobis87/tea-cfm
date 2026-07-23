@@ -455,6 +455,42 @@ class TestPachtModus:
         assert opex["Pacht"].iloc[0] == pytest.approx(7.0 * 1000.0)
         assert opex["opex_gesamt_eur"].iloc[0] == pytest.approx(7.0 * 1000.0)
 
+    def test_projekt_excel_ohne_pacht_umsatzbeteiligungs_spalten_importierbar(self):
+        """Regressionstest (vom Nutzer gemeldet): ein vor v4.19
+        exportierter Projekt-Dump kennt die drei neuen Umsatzbeteiligungs-
+        Pacht-Spalten noch nicht. Eine fruehere Fassung dieser Aenderung
+        hatte zwar die noetige Fallback-Logik pro Feld eingebaut, aber
+        eine VORGESCHALTETE strikte Spaltenpruefung liess den Import
+        trotzdem mit ValueError scheitern, bevor die Fallback-Logik je
+        zum Zug kam."""
+        import io
+
+        from openpyxl import load_workbook
+
+        from engine.io_excel import excel_to_projects, projects_to_excel
+        from engine.io_yaml import load_project_yaml
+        from engine.models import PachtModus
+
+        projekt = load_project_yaml("data/projects/template-agri.yaml")
+        xl = projects_to_excel([projekt])
+        wb = load_workbook(io.BytesIO(xl))
+        ws = wb["Projekte"]
+        header = [c.value for c in ws[1]]
+        for spalte in (
+            "pacht_modus", "pacht_umsatzbeteiligung_pct",
+            "pacht_mindestpacht_eur_ha_jahr",
+        ):
+            ws.delete_cols(header.index(spalte) + 1)
+            header.remove(spalte)
+        puffer = io.BytesIO()
+        wb.save(puffer)
+
+        geladen = excel_to_projects(puffer.getvalue())
+        assert len(geladen) == 1
+        assert geladen[0].pacht_modus == PachtModus.FIX
+        assert geladen[0].pacht_umsatzbeteiligung_pct == 0.055
+        assert geladen[0].pacht_mindestpacht_eur_ha_jahr == 0.0
+
 
 class TestDirektvermarktungsModus:
     def test_relativ_marktwert_berechnet_anteil(self, project, global_assumptions):
