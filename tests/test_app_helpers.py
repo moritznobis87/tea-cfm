@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.formatting import (  # noqa: E402
@@ -49,3 +51,45 @@ class TestProjectId:
 
     def test_leerer_name_faellt_auf_default(self):
         assert make_project_id("!!!", set()) == "projekt"
+
+
+class TestEquityWaterfallHover:
+    """Regressionstest fuer das Hover-Verhalten des Wasserfalldiagramms:
+    Bei Plotly-Waterfall-Traces liefert %{y} die kumulierte Endposition
+    des Balkens auf der Y-Achse - angezeigt werden muss aber die Hoehe
+    des Balkens selbst (%{delta}, vorzeichenbehaftet, in Euro)."""
+
+    def _figure(self, project, global_assumptions):
+        from app.components.charts import equity_waterfall_chart
+        from engine import run_valuation
+
+        result = run_valuation(project, global_assumptions)
+        return equity_waterfall_chart(result.cashflow.data)
+
+    def test_hover_zeigt_balkenhoehe_statt_achsenwert(
+        self, project, global_assumptions
+    ):
+        fig = self._figure(project, global_assumptions)
+        trace = fig.data[0]
+        assert trace.type == "waterfall"
+        assert "%{delta" in trace.hovertemplate
+        assert "%{y" not in trace.hovertemplate
+        assert "€" in trace.hovertemplate
+
+    def test_balkenhoehen_bleiben_fachlich_korrekt(
+        self, project, global_assumptions
+    ):
+        """Die y-Eingabewerte des Traces (= die Deltas, aus denen Plotly
+        die Balken aufbaut) sind unveraendert: Erloese positiv, Kosten-
+        positionen negativ, Totals als 0 markiert."""
+        from engine import run_valuation
+
+        result = run_valuation(project, global_assumptions)
+        df = result.cashflow.data
+        fig = self._figure(project, global_assumptions)
+        trace = fig.data[0]
+        y = list(trace.y)
+        assert y[0] == pytest.approx(float(df["erloes_eur"].sum()))
+        assert y[1] == pytest.approx(-float(df["opex_gesamt_eur"].sum()))
+        assert y[4] == 0 and y[8] == 0  # Totals berechnet Plotly selbst
+        assert list(trace.measure).count("total") == 2

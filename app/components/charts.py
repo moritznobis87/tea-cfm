@@ -276,7 +276,13 @@ def equity_waterfall_chart(df: pd.DataFrame) -> go.Figure:
             increasing=dict(marker_color=Colors.POSITIVE),
             decreasing=dict(marker_color=Colors.NEGATIVE),
             totals=dict(marker_color=Colors.INK),
-            hovertemplate=_EUR_HOVER + "<extra>%{x}</extra>",
+            # Bewusst %{delta} statt %{y}: Bei Waterfall-Traces liefert
+            # %{y} die kumulierte Endposition des Balkens auf der
+            # Y-Achse - fuer den Betrachter unbrauchbar. %{delta} ist
+            # die (vorzeichenbehaftete) Hoehe des Balkens selbst; bei
+            # Total-Balken (initial = 0) entspricht delta dem Endwert,
+            # die Vorlage passt also fuer beide Balkentypen.
+            hovertemplate="%{delta:,.0f} €<extra>%{x}</extra>",
         )
     )
     fig.update_layout(height=440, showlegend=False, yaxis_title="€ (Summe Laufzeit)")

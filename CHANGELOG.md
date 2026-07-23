@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.23 – Wasserfalldiagramm: Hover zeigt Balkenhöhe statt Achsenwert (2026-07)
+
+- **Bugfix (vom Nutzer gemeldet):** Beim Überfahren der Balken im
+  Equity-Wasserfall (Projektdetail) wurde der kumulierte
+  Y-Achsenwert des Balkenendes angezeigt statt der Höhe des Balkens –
+  bei Plotly-Waterfall-Traces liefert die Hover-Variable `%{y}` die
+  kumulierte Endposition, nicht das Delta. Umgestellt auf `%{delta}`
+  (vorzeichenbehaftete Balkenhöhe in €); bei Total-Balken entspricht
+  delta dem Endwert, die Vorlage passt damit für beide Balkentypen.
+- 2 neue Regressionstests (Hovertemplate nutzt delta statt y;
+  Balkenhöhen fachlich unverändert); Suite: 231.
+
 ## v4.22 – Marktsystem-Schalter Österreich (EAG) / Deutschland (EEG) (2026-07)
 
 - **Neuer Länderschalter** direkt unter der Überschrift der Seite
