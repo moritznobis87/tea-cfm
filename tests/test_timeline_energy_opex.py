@@ -286,6 +286,176 @@ class TestOpex:
         assert opex["opex_gesamt_eur"].iloc[0] == pytest.approx(3000.0)
 
 
+class TestPachtModus:
+    """Umsatzbeteiligungs-Pacht mit Mindestpacht (PachtModus): der
+    Verpaechter erhaelt MAX(Umsatz x Prozentsatz, Mindestpacht/ha x
+    Flaeche, mit Kosteninflation indexiert)."""
+
+    def test_fix_modus_unveraendert_wie_bisher(self):
+        """PachtModus.FIX reproduziert exakt das alte Verhalten (Pacht
+        als eigene, mit Kosteninflation indexierte Position, ab Jahr 1
+        ohne Verzoegerung - wie zuvor ueber die generische
+        opex_items-Schleife)."""
+        import numpy as np
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 3)
+        energy = pd.DataFrame({"jahr": [1, 2, 3], "produktion_kwh": [0.0] * 3})
+        opex = calculate_opex(
+            timeline, [], 1000.0, energy,
+            kosten_inflation_pct_pa=0.02,
+            pacht_modus=PachtModus.FIX, pacht_eur_kwp_jahr=5.0,
+        )
+        basis = 5.0 * 1000.0
+        assert opex["Pacht"].to_numpy() == pytest.approx(
+            basis * np.array([1.0, 1.02, 1.02**2])
+        )
+
+    def test_umsatzbeteiligung_greift_bei_hohem_umsatz(self):
+        """Wenn die Umsatzbeteiligung ueber der Mindestpacht liegt,
+        wird die Umsatzbeteiligung gezahlt."""
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 1)
+        energy = pd.DataFrame({"jahr": [1], "produktion_kwh": [0.0]})
+        opex = calculate_opex(
+            timeline, [], 1000.0, energy,
+            pacht_modus=PachtModus.UMSATZBETEILIGUNG,
+            pacht_umsatzbeteiligung_pct=0.055,
+            pacht_mindestpacht_eur_ha_jahr=1000.0,
+            projektflaeche_ha=5.0,
+            erloes_eur=pd.Series([500_000.0]).to_numpy(),
+        )
+        # Umsatzbeteiligung: 500.000 * 5,5% = 27.500 > Mindestpacht 5.000
+        assert opex["Pacht"].iloc[0] == pytest.approx(27_500.0)
+
+    def test_mindestpacht_greift_bei_niedrigem_umsatz(self):
+        """Wenn die Umsatzbeteiligung unter der Mindestpacht liegt,
+        greift die Mindestpacht (Kernanforderung der Funktion)."""
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 1)
+        energy = pd.DataFrame({"jahr": [1], "produktion_kwh": [0.0]})
+        opex = calculate_opex(
+            timeline, [], 1000.0, energy,
+            pacht_modus=PachtModus.UMSATZBETEILIGUNG,
+            pacht_umsatzbeteiligung_pct=0.055,
+            pacht_mindestpacht_eur_ha_jahr=1000.0,
+            projektflaeche_ha=5.0,
+            erloes_eur=pd.Series([10_000.0]).to_numpy(),
+        )
+        # Umsatzbeteiligung: 10.000 * 5,5% = 550 < Mindestpacht 5.000
+        assert opex["Pacht"].iloc[0] == pytest.approx(5_000.0)
+
+    def test_mindestpacht_wird_mit_kosteninflation_indexiert(self):
+        """Die Mindestpacht steigt Jahr fuer Jahr mit der allgemeinen
+        Kosteninflation - genau der vom Nutzer beschriebene Effekt,
+        durch den sie in spaeteren Jahren die (nicht automatisch
+        mitwachsende) Umsatzbeteiligung uebersteigen kann."""
+        import numpy as np
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 5)
+        energy = pd.DataFrame({"jahr": range(1, 6), "produktion_kwh": [0.0] * 5})
+        # Umsatz bleibt konstant niedrig -> Mindestpacht dominiert durchgehend,
+        # ihr Anstieg ueber die Jahre ist direkt beobachtbar.
+        opex = calculate_opex(
+            timeline, [], 1000.0, energy,
+            kosten_inflation_pct_pa=0.02,
+            pacht_modus=PachtModus.UMSATZBETEILIGUNG,
+            pacht_umsatzbeteiligung_pct=0.055,
+            pacht_mindestpacht_eur_ha_jahr=1000.0,
+            projektflaeche_ha=5.0,
+            erloes_eur=np.full(5, 1000.0),
+        )
+        erwartet = 5000.0 * (1.02 ** np.arange(5))
+        assert opex["Pacht"].to_numpy() == pytest.approx(erwartet)
+        assert opex["Pacht"].is_monotonic_increasing
+
+    def test_uebergang_von_umsatzbeteiligung_zu_mindestpacht_e2e(
+        self, project, global_assumptions
+    ):
+        """End-to-End ueber die volle Pipeline: Pacht = MAX(Umsatz-
+        beteiligung, indexierte Mindestpacht) in JEDEM Jahr - und beide
+        Seiten gewinnen mindestens einmal ueber die Laufzeit (sonst
+        waere die Mindestpacht in diesem Testszenario wirkungslos)."""
+        from engine import run_valuation
+        from engine.models import PachtModus
+
+        project.pacht_modus = PachtModus.UMSATZBETEILIGUNG
+        project.pacht_umsatzbeteiligung_pct = 0.055
+        project.pacht_mindestpacht_eur_ha_jahr = 500.0
+        project.projektflaeche_ha = 5.0
+
+        r = run_valuation(project, global_assumptions)
+        df = r.cashflow.data.query("jahr >= 1")
+
+        jahre_seit_start = (df["jahr"] - 1).clip(lower=0)
+        inflation = (1 + global_assumptions.kosten_inflation_pct_pa) ** jahre_seit_start
+        umsatzbeteiligung = df["erloes_eur"] * 0.055
+        mindestpacht = 500.0 * 5.0 * inflation
+        erwartet = umsatzbeteiligung.combine(mindestpacht, max)
+
+        assert df["Pacht"].to_numpy() == pytest.approx(erwartet.to_numpy())
+        # Beide Regime kommen im Testzeitraum tatsaechlich vor - sonst
+        # waere der MAX()-Vergleich hier nicht aussagekraeftig geprueft.
+        assert (umsatzbeteiligung > mindestpacht).any(), (
+            "Umsatzbeteiligung gewinnt in keinem Jahr - Testannahmen pruefen"
+        )
+        assert (mindestpacht > umsatzbeteiligung).any(), (
+            "Mindestpacht gewinnt in keinem Jahr - Testannahmen pruefen"
+        )
+
+    def test_ohne_flaeche_wirkt_mindestpacht_wie_null(self):
+        """Fehlt projektflaeche_ha (None), darf die Mindestpacht nicht
+        crashen, sondern wirkt wie 0 - die Umsatzbeteiligung greift
+        dann faktisch immer."""
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 1)
+        energy = pd.DataFrame({"jahr": [1], "produktion_kwh": [0.0]})
+        opex = calculate_opex(
+            timeline, [], 1000.0, energy,
+            pacht_modus=PachtModus.UMSATZBETEILIGUNG,
+            pacht_umsatzbeteiligung_pct=0.055,
+            pacht_mindestpacht_eur_ha_jahr=5000.0,
+            projektflaeche_ha=None,
+            erloes_eur=pd.Series([100.0]).to_numpy(),
+        )
+        assert opex["Pacht"].iloc[0] == pytest.approx(100.0 * 0.055)
+
+    def test_gleichnamige_standard_position_wird_addiert_nicht_dupliziert(self):
+        """Regressionstest: falls eine globale Standard-OPEX-Position
+        zufaellig auch 'Pacht' heisst, darf keine doppelte Spalte
+        entstehen (fruehere Fassung dieser Aenderung brach hier mit
+        einem Pandas-ValueError)."""
+        import pandas as pd
+
+        from engine.models import PachtModus
+
+        timeline = build_timeline(date(2027, 1, 1), 1)
+        energy = pd.DataFrame({"jahr": [1], "produktion_kwh": [0.0]})
+        kollidierendes_item = OpexItem(name="Pacht", basiswert_eur_kwp=2.0)
+        opex = calculate_opex(
+            timeline, [kollidierendes_item], 1000.0, energy,
+            pacht_modus=PachtModus.FIX, pacht_eur_kwp_jahr=5.0,
+        )
+        assert list(opex.columns).count("Pacht") == 1
+        # 2.0 (Standardposition) + 5.0 (Pachtmodus FIX) = 7.0 EUR/kWp
+        assert opex["Pacht"].iloc[0] == pytest.approx(7.0 * 1000.0)
+        assert opex["opex_gesamt_eur"].iloc[0] == pytest.approx(7.0 * 1000.0)
+
+
 class TestDirektvermarktungsModus:
     def test_relativ_marktwert_berechnet_anteil(self, project, global_assumptions):
         """Im Relativ-Modus: DV-Kosten = Produktion x Marktwert(nominal) x

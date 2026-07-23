@@ -105,3 +105,163 @@ class TestTax:
         )
         assert pauschal["steuer_eur"].iloc[0] == pytest.approx(25.0)
         assert afa["steuer_eur"].iloc[0] == pytest.approx(50.0 * 0.25)
+
+    def test_gewerbesteuer_effektiver_satz_aus_hebesatz(self):
+        """Steuermesszahl (3,5%) x Hebesatz - z.B. Hebesatz 400% -> 14%."""
+        tax = _tax_fuer(
+            [100.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            gewerbesteuer_hebesatz_pct=400.0,
+            gewerbesteuer_freibetrag_eur=0.0,
+        )
+        assert tax["steuer_eur"].iloc[0] == pytest.approx(100.0 * 0.035 * 4.0)
+
+    def test_gewerbesteuer_anderer_hebesatz(self):
+        """Ein anderer Hebesatz (z.B. 450%, verbreitet in manchen
+        Gemeinden) muss sich linear auswirken."""
+        tax = _tax_fuer(
+            [1000.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            gewerbesteuer_hebesatz_pct=450.0,
+            gewerbesteuer_freibetrag_eur=0.0,
+        )
+        assert tax["steuer_eur"].iloc[0] == pytest.approx(1000.0 * 0.035 * 4.5)
+
+    def test_gewerbesteuer_freibetrag_wirkt(self):
+        """Gesetzlicher Freibetrag (Standard 24.500 EUR) reduziert die
+        Bemessungsgrundlage vor Anwendung des Satzes."""
+        ohne_freibetrag = _tax_fuer(
+            [30_000.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            gewerbesteuer_hebesatz_pct=400.0,
+            gewerbesteuer_freibetrag_eur=0.0,
+        )
+        mit_freibetrag = _tax_fuer(
+            [30_000.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            gewerbesteuer_hebesatz_pct=400.0,
+            gewerbesteuer_freibetrag_eur=24_500.0,
+        )
+        assert ohne_freibetrag["steuer_eur"].iloc[0] == pytest.approx(
+            30_000.0 * 0.035 * 4.0
+        )
+        # Bemessungsgrundlage nach Freibetrag: 30.000 - 24.500 = 5.500
+        assert mit_freibetrag["steuer_eur"].iloc[0] == pytest.approx(
+            5_500.0 * 0.035 * 4.0
+        )
+        assert mit_freibetrag["steuer_eur"].iloc[0] < ohne_freibetrag["steuer_eur"].iloc[0]
+
+    def test_gewerbesteuer_afa_wird_beruecksichtigt(self):
+        """Wie im oesterreichischen AFA-Modus mindert die Abschreibung
+        die Bemessungsgrundlage."""
+        tax = _tax_fuer(
+            [100.0, 100.0, 100.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            capex_total_eur=100.0,
+            afa_nutzungsdauer_jahre=2,
+            gewerbesteuer_freibetrag_eur=0.0,
+        )
+        assert tax["afa_eur"].tolist() == pytest.approx([50.0, 50.0, 0.0])
+
+    def test_gewerbesteuer_ohne_verlustvortrag(self):
+        """Kernanforderung: die deutsche Gewerbesteuer kennt in diesem
+        vereinfachten Modell KEINEN Verlustvortrag - ein Verlustjahr
+        gefolgt von einem Gewinnjahr zahlt im Gewinnjahr die VOLLE
+        Steuer auf das Gewinnjahr, unabhaengig vom Vorjahresverlust
+        (Gegenbeispiel: der oesterreichische Modus wuerde hier einen
+        Teil verrechnen, siehe test_verlustvortrag_verrechnungsgrenze
+        weiter oben)."""
+        tax = _tax_fuer(
+            [-100.0, 100.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            gewerbesteuer_hebesatz_pct=400.0,
+            gewerbesteuer_freibetrag_eur=0.0,
+        )
+        assert tax["verlustvortrag_genutzt_eur"].iloc[1] == pytest.approx(0.0)
+        assert tax["steuer_eur"].iloc[1] == pytest.approx(100.0 * 0.035 * 4.0)
+        # Der Verlust "verpufft" nicht rechnerisch (bleibt als Bestand
+        # sichtbar), wirkt sich aber wegen der Verrechnungsgrenze 0
+        # nirgends steuermindernd aus.
+        assert tax["verlustvortrag_bestand_eur"].iloc[0] == pytest.approx(100.0)
+
+    def test_gewerbesteuer_e2e_unterscheidet_sich_von_oesterreich(
+        self, project, global_assumptions
+    ):
+        from engine import run_valuation
+
+        ga_at = global_assumptions.model_copy(deep=True)
+        ga_at.tax_modus = TaxModus.AFA_KOERPERSCHAFTSTEUER
+        r_at = run_valuation(project, ga_at)
+
+        ga_de = global_assumptions.model_copy(deep=True)
+        ga_de.tax_modus = TaxModus.GEWERBESTEUER_DE
+        ga_de.gewerbesteuer_hebesatz_pct = 400.0
+        ga_de.gewerbesteuer_freibetrag_eur = 24_500.0
+        r_de = run_valuation(project, ga_de)
+
+        assert r_at.kpis.equity_irr != r_de.kpis.equity_irr
+
+    def test_yaml_roundtrip_gewerbesteuer_felder(self, tmp_path):
+        from engine.io_yaml import (
+            load_global_assumptions_yaml,
+            save_global_assumptions_yaml,
+        )
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        ga.tax_modus = TaxModus.GEWERBESTEUER_DE
+        ga.gewerbesteuer_hebesatz_pct = 425.0
+        ga.gewerbesteuer_freibetrag_eur = 24_500.0
+        pfad = tmp_path / "ga.yaml"
+        save_global_assumptions_yaml(ga, str(pfad))
+        ga2 = load_global_assumptions_yaml(str(pfad))
+        assert ga2.tax_modus == TaxModus.GEWERBESTEUER_DE
+        assert ga2.gewerbesteuer_hebesatz_pct == 425.0
+
+    def test_excel_roundtrip_gewerbesteuer_felder(self):
+        from engine.io_excel import (
+            excel_to_global_assumptions,
+            global_assumptions_to_excel,
+        )
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        ga.tax_modus = TaxModus.GEWERBESTEUER_DE
+        ga.gewerbesteuer_hebesatz_pct = 425.0
+        ga.gewerbesteuer_freibetrag_eur = 24_500.0
+        ga2 = excel_to_global_assumptions(global_assumptions_to_excel(ga))
+        assert ga2.tax_modus == TaxModus.GEWERBESTEUER_DE
+        assert ga2.gewerbesteuer_hebesatz_pct == 425.0
+        assert ga2.gewerbesteuer_freibetrag_eur == 24_500.0
+
+    def test_excel_ohne_gewerbesteuer_spalten_faellt_auf_defaults_zurueck(self):
+        """Rueckwaertskompatibilitaet: aeltere exportierte Excel-Dateien
+        ohne die neuen Zeilen duerfen beim Import nicht scheitern."""
+        import io
+
+        from openpyxl import load_workbook
+
+        from engine.io_excel import (
+            excel_to_global_assumptions,
+            global_assumptions_to_excel,
+        )
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml("data/global_assumptions.yaml")
+        xl = global_assumptions_to_excel(ga)
+        wb = load_workbook(io.BytesIO(xl))
+        ws = wb["Einstellungen"]
+        for zeile in list(ws.iter_rows()):
+            if zeile[0].value in (
+                "gewerbesteuer_hebesatz_pct", "gewerbesteuer_freibetrag_eur",
+            ):
+                ws.delete_rows(zeile[0].row)
+        puffer = io.BytesIO()
+        wb.save(puffer)
+        ga2 = excel_to_global_assumptions(puffer.getvalue())
+        assert ga2.gewerbesteuer_hebesatz_pct == 400.0
+        assert ga2.gewerbesteuer_freibetrag_eur == 24_500.0

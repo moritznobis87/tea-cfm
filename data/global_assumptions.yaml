@@ -479,6 +479,7 @@ opex_standard:
   index_pct_pa: 0.02
   indexierung_ab_jahr: 1
 gemeindeabgabe_eur_kwh: 0.002
+pacht_umsatzbeteiligung_pct_vorschlag: 0.055
 direktvermarktungskosten_eur_kwh: 0.001
 direktvermarktung_modus: absolut
 direktvermarktung_pct_marktwert: 0.1
@@ -496,4 +497,6 @@ tax_modus: afa_koerperschaftsteuer
 steuersatz_pct: 0.23
 afa_nutzungsdauer_jahre: 20
 freibetrag_eur: 0.0
+gewerbesteuer_hebesatz_pct: 400.0
+gewerbesteuer_freibetrag_eur: 24500.0
 verlustvortrag_verrechnungsgrenze_pct: 0.75

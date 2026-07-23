@@ -60,7 +60,9 @@ from engine import (
     GlobalAssumptions,
     NegativeStundenModus,
     NegativeStundenRegel,
+    PachtModus,
     PVProject,
+    TaxModus,
 )
 from engine.analytics import MC_STANDARD_SIGMAS, MonteCarloResult, SzenarioVergleich
 from texte import txt
@@ -127,6 +129,27 @@ plt.rcParams.update(
 
 def _de(zahl: float, nachkomma: int = 0) -> str:
     return fmt_number(zahl, nachkomma)
+
+
+def _steuermodus_anzeige(ea) -> str:
+    """Kurzbeschreibung des Steuermodus fuer Annex A - zeigt bei der
+    deutschen Gewerbesteuer den tatsaechlich wirksamen Satz (aus
+    Hebesatz berechnet) statt des dort irrelevanten generischen
+    steuersatz_pct-Feldes."""
+    if ea.tax_modus == TaxModus.GEWERBESTEUER_DE:
+        effektiv = 0.035 * (ea.gewerbesteuer_hebesatz_pct / 100)
+        return (
+            f"{txt('bericht.steuermodus_gewerbesteuer_de')} / "
+            f"{fmt_pct(effektiv, 2)} "
+            f"({txt('bericht.gewerbesteuer_hebesatz_kurz')} "
+            f"{_de(ea.gewerbesteuer_hebesatz_pct, 0)} %)"
+        )
+    label = (
+        txt("bericht.steuermodus_pauschal")
+        if ea.tax_modus == TaxModus.PAUSCHAL_AUF_EBT
+        else txt("bericht.steuermodus_afa_at")
+    )
+    return f"{label} / {fmt_pct(ea.steuersatz_pct, 0)}"
 
 
 def _eur_achse(werte_max: float):
@@ -1185,7 +1208,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
         [txt(t_a + "annex_a_betrachtungsdauer"),
          txt(t_a + "annex_a_betrachtungsdauer_wert", jahre=ea.betriebsdauer_jahre),
          txt(t_a + "annex_a_steuermodus_steuersatz"),
-         f"{ea.tax_modus.value} / {fmt_pct(ea.steuersatz_pct, 0)}"],
+         _steuermodus_anzeige(ea)],
         [txt(t_a + "annex_a_eag_zuschlag_effektiv"),
          fmt_ct_kwh(ea.eag_zuschlagswert_effektiv_ct_kwh),
          txt(t_a + "annex_a_afa_nutzungsdauer"),
@@ -1212,7 +1235,12 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
          txt(t_a + "annex_a_negativstunden_modus"),
          txt(t_a + "annex_a_abregelung_kurz") if ea.negative_stunden_modus
          == NegativeStundenModus.ABREGELUNG else txt(t_a + "annex_a_rueckfall_marktwert")],
-        [txt(t_a + "annex_a_pacht"), f"{_de(p.pacht_eur_kwp_jahr, 2)} €/kWp/Jahr",
+        [txt(t_a + "annex_a_pacht"),
+         f"{_de(p.pacht_eur_kwp_jahr, 2)} €/kWp/Jahr"
+         if p.pacht_modus == PachtModus.FIX
+         else txt(t_a + "annex_a_pacht_umsatzbeteiligung_wert",
+                  pct=fmt_pct(p.pacht_umsatzbeteiligung_pct, 1),
+                  mindest=_de(p.pacht_mindestpacht_eur_ha_jahr, 0)),
          txt(t_a + "annex_a_kosteninflation"),
          txt(t_a + "annex_a_kosteninflation_wert",
             pct=fmt_pct(ea.kosten_inflation_pct_pa))],

@@ -56,6 +56,25 @@ class ZinsMethode(str, Enum):
     DEUTSCH = "deutsch_30_360"
 
 
+class PachtModus(str, Enum):
+    """Bemessung der Pacht.
+
+    FIX: fester Betrag je installierter kWp/Jahr (Projektfeld
+    pacht_eur_kwp_jahr) - unveraendert das bisherige Verhalten.
+
+    UMSATZBETEILIGUNG: der Verpaechter erhaelt einen Anteil am
+    Jahresumsatz (pacht_umsatzbeteiligung_pct, ueblich 5,5 %),
+    mindestens aber eine fixe Mindestpacht je Hektar
+    (pacht_mindestpacht_eur_ha_jahr x projektflaeche_ha, mit der
+    allgemeinen Kosteninflation indexiert). Gerade in spaeteren
+    Betriebsjahren kann die stetig steigende Mindestpacht die
+    Umsatzbeteiligung uebersteigen (EAG-Foerderende, Degradation).
+    """
+
+    FIX = "fix"
+    UMSATZBETEILIGUNG = "umsatzbeteiligung"
+
+
 class DirektvermarktungsModus(str, Enum):
     """Bemessung der Direktvermarktungskosten (Bilanzkreis, Prognose,
     Marktzugang).
@@ -105,7 +124,13 @@ class NegativeStundenModus(str, Enum):
 
 class TaxModus(str, Enum):
     PAUSCHAL_AUF_EBT = "pauschal_auf_ebt"
+    #: Oesterreichische Koerperschaftsteuer: AfA, Freibetrag,
+    #: Verlustvortrag mit 75%-Verrechnungsgrenze (§8 Abs. 4 Z 2 KStG).
     AFA_KOERPERSCHAFTSTEUER = "afa_koerperschaftsteuer"
+    #: Deutsche Gewerbesteuer: AfA, gesetzlicher Freibetrag (24.500 EUR
+    #: bei Personengesellschaften), Satz = 3,5% x Hebesatz, OHNE
+    #: Verlustvortrag - siehe engine.tax fuer Details/Einschraenkungen.
+    GEWERBESTEUER_DE = "gewerbesteuer_de"
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +188,16 @@ class PVProject(BaseModel):
 
     # Wirtschaftliche Parameter
     pacht_eur_kwp_jahr: float = Field(ge=0)
+    #: Bemessung der Pacht - siehe PachtModus. FIX (Standard) nutzt
+    #: unveraendert pacht_eur_kwp_jahr; UMSATZBETEILIGUNG nutzt die
+    #: beiden Felder darunter statt pacht_eur_kwp_jahr.
+    pacht_modus: PachtModus = PachtModus.FIX
+    #: Anteil am Jahresumsatz bei UMSATZBETEILIGUNG (ueblich 5,5 %).
+    pacht_umsatzbeteiligung_pct: float = Field(ge=0, le=1, default=0.055)
+    #: Fixe Mindestpacht je Hektar/Jahr bei UMSATZBETEILIGUNG - wird mit
+    #: der allgemeinen Kosteninflation indexiert. Benoetigt eine gesetzte
+    #: projektflaeche_ha, sonst wirkt die Mindestpacht wie 0.
+    pacht_mindestpacht_eur_ha_jahr: float = Field(ge=0, default=0.0)
     fremdkapitalzins_pct: float = Field(ge=0)
     eigenkapitalquote_pct: float = Field(ge=0, le=1)
     eag_zuschlagswert_ct_kwh: float = Field(gt=0)
@@ -178,8 +213,11 @@ class PVProject(BaseModel):
     # "Aurora 10/25" ist das Standardszenario.
     marktpreisszenario: str = "Aurora 10/25"
 
-    # Nur relevant, wenn Pacht zuletzt in €/ha/Jahr eingegeben wurde - dient
-    # der Rueckumrechnung beim erneuten Oeffnen des €/ha-Eingabemodus.
+    # Bei Pachtmodus FIX nur relevant, wenn die Pacht zuletzt in
+    # €/ha/Jahr eingegeben wurde (Rueckumrechnung beim erneuten Oeffnen
+    # des €/ha-Eingabemodus). Bei Pachtmodus UMSATZBETEILIGUNG direkt
+    # Berechnungsgrundlage der Mindestpacht (siehe
+    # pacht_mindestpacht_eur_ha_jahr) - sollte dort gesetzt sein.
     projektflaeche_ha: float | None = None
 
     @property
@@ -297,6 +335,12 @@ class GlobalAssumptions(BaseModel):
     # projektspezifisch (siehe PVProject.gemeindeabgabe_eur_mwh), da sie je
     # nach Standortgemeinde variieren kann.
     gemeindeabgabe_eur_kwh: float = Field(ge=0, default=0.002)
+    # Vorschlagswert fuer den Umsatzbeteiligungs-Prozentsatz (analog
+    # Gemeindeabgabe/Direktvermarktung): dient nur als Vorbelegung im
+    # "Neues Projekt"-Formular bei Pachtmodus UMSATZBETEILIGUNG,
+    # tatsaechlich angewendet wird PVProject.pacht_umsatzbeteiligung_pct.
+    # Marktueblich sind ca. 5,5 %.
+    pacht_umsatzbeteiligung_pct_vorschlag: float = Field(ge=0, le=1, default=0.055)
     # Direktvermarktungskosten-Vorschlagswert (analog Gemeindeabgabe): dient
     # nur als Vorbelegung im "Neues Projekt"-Formular, tatsaechlich
     # angewendet wird PVProject.direktvermarktungskosten_eur_mwh.
@@ -339,6 +383,16 @@ class GlobalAssumptions(BaseModel):
     steuersatz_pct: float = Field(ge=0, le=1, default=0.25)
     afa_nutzungsdauer_jahre: int | None = None
     freibetrag_eur: float = 0.0
+    #: Hebesatz fuer TaxModus.GEWERBESTEUER_DE (gemeindeabhaengig,
+    #: haeufig 400-450%; z.B. 400.0 fuer 400%, NICHT als Bruch 0-1 wie
+    #: die uebrigen *_pct-Felder - der natuerliche Wertebereich (200-900)
+    #: passt nicht in eine 0-1-Konvention). Effektiver Satz = 3,5% x
+    #: (Hebesatz/100).
+    gewerbesteuer_hebesatz_pct: float = Field(ge=0, default=400.0)
+    #: Gesetzlicher Gewerbesteuer-Freibetrag bei Personengesellschaften
+    #: (u.a. GmbH & Co. KG) - Stand 2026: 24.500 EUR/Jahr.
+    gewerbesteuer_freibetrag_eur: float = Field(ge=0, default=24_500.0)
+
     # Verlustvortrag (§8 Abs. 4 Z 2 KStG): zeitlich unbegrenzt vortragbar,
     # aber pro Gewinnjahr nur bis verlustvortrag_verrechnungsgrenze_pct des
     # steuerlichen Ergebnisses verrechenbar (siehe tax.py). Kein "Ein/Aus"-
@@ -395,6 +449,11 @@ class EffectiveAssumptions(BaseModel):
     kosten_inflation_pct_pa: float
 
     opex_items: list[OpexItem]
+    pacht_modus: PachtModus
+    pacht_eur_kwp_jahr: float
+    pacht_umsatzbeteiligung_pct: float
+    pacht_mindestpacht_eur_ha_jahr: float
+    projektflaeche_ha: float | None
     gemeindeabgabe_eur_kwh: float
     direktvermarktungskosten_eur_kwh: float
     direktvermarktung_modus: DirektvermarktungsModus
@@ -414,6 +473,8 @@ class EffectiveAssumptions(BaseModel):
     steuersatz_pct: float
     afa_nutzungsdauer_jahre: int | None
     freibetrag_eur: float
+    gewerbesteuer_hebesatz_pct: float
+    gewerbesteuer_freibetrag_eur: float
     verlustvortrag_verrechnungsgrenze_pct: float
 
 

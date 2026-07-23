@@ -7,6 +7,9 @@ anlagentyp: agri_pv
 nennleistung_kwp: 3800.0
 vollbenutzungsstunden_kwh_kwp: 1400.0
 pacht_eur_kwp_jahr: 5.263158
+pacht_modus: fix
+pacht_umsatzbeteiligung_pct: 0.055
+pacht_mindestpacht_eur_ha_jahr: 0.0
 fremdkapitalzins_pct: 0.042
 eigenkapitalquote_pct: 0.2
 eag_zuschlagswert_ct_kwh: 6.5

@@ -30,6 +30,7 @@ from .models import (
     NegativeStundenModus,
     NegativeStundenRegel,
     OpexItem,
+    PachtModus,
     PVProject,
     TaxModus,
     TilgungsArt,
@@ -39,6 +40,7 @@ from .models import (
 EINSTELLUNGEN_DEFAULTS = {
     "gueltig_ab": "",
     "gemeindeabgabe_eur_mwh_vorschlag": 2.0,
+    "pacht_umsatzbeteiligung_pct_vorschlag": 5.5,
     "direktvermarktungskosten_eur_mwh_vorschlag": 1.0,
     "direktvermarktung_modus": "absolut",
     "negative_stunden_regel": "6h",
@@ -58,6 +60,8 @@ EINSTELLUNGEN_DEFAULTS = {
     "steuersatz_pct": 23.0,
     "afa_nutzungsdauer_jahre": None,
     "freibetrag_eur": 0.0,
+    "gewerbesteuer_hebesatz_pct": 400.0,
+    "gewerbesteuer_freibetrag_eur": 24_500.0,
     "verlustvortrag_verrechnungsgrenze_pct": 75.0,
     "marktpreis_inflation_pct_pa": 2.0,
     "marktpreis_inflation_basisjahr": 2025,
@@ -123,6 +127,10 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("gueltig_ab", ga.gueltig_ab),
             ("gemeindeabgabe_eur_mwh_vorschlag", ga.gemeindeabgabe_eur_kwh * 1000),
             (
+                "pacht_umsatzbeteiligung_pct_vorschlag",
+                ga.pacht_umsatzbeteiligung_pct_vorschlag * 100,
+            ),
+            (
                 "direktvermarktungskosten_eur_mwh_vorschlag",
                 ga.direktvermarktungskosten_eur_kwh * 1000,
             ),
@@ -149,6 +157,8 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("steuersatz_pct", ga.steuersatz_pct * 100),
             ("afa_nutzungsdauer_jahre", ga.afa_nutzungsdauer_jahre),
             ("freibetrag_eur", ga.freibetrag_eur),
+            ("gewerbesteuer_hebesatz_pct", ga.gewerbesteuer_hebesatz_pct),
+            ("gewerbesteuer_freibetrag_eur", ga.gewerbesteuer_freibetrag_eur),
             (
                 "verlustvortrag_verrechnungsgrenze_pct",
                 ga.verlustvortrag_verrechnungsgrenze_pct * 100,
@@ -241,6 +251,9 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         marktpreisszenarien=list(szenarien.values()),
         opex_standard=opex_items,
         gemeindeabgabe_eur_kwh=float(get("gemeindeabgabe_eur_mwh_vorschlag")) / 1000,
+        pacht_umsatzbeteiligung_pct_vorschlag=(
+            float(get("pacht_umsatzbeteiligung_pct_vorschlag")) / 100
+        ),
         direktvermarktungskosten_eur_kwh=float(
             get("direktvermarktungskosten_eur_mwh_vorschlag")
         )
@@ -273,6 +286,8 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         steuersatz_pct=float(get("steuersatz_pct")) / 100,
         afa_nutzungsdauer_jahre=int(afa_wert) if afa_wert not in (None, "") else None,
         freibetrag_eur=float(get("freibetrag_eur")),
+        gewerbesteuer_hebesatz_pct=float(get("gewerbesteuer_hebesatz_pct")),
+        gewerbesteuer_freibetrag_eur=float(get("gewerbesteuer_freibetrag_eur")),
         verlustvortrag_verrechnungsgrenze_pct=float(
             get("verlustvortrag_verrechnungsgrenze_pct")
         )
@@ -291,6 +306,7 @@ PROJEKT_SPALTEN = [
     "id", "name", "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
     "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
+    "pacht_modus", "pacht_umsatzbeteiligung_pct", "pacht_mindestpacht_eur_ha_jahr",
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
     "gemeindeabgabe_eur_mwh", "direktvermarktungskosten_eur_mwh",
     "marktpreisszenario", "projektflaeche_ha",
@@ -313,6 +329,9 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "nennleistung_kwp": p.nennleistung_kwp,
             "vollbenutzungsstunden_kwh_kwp": p.vollbenutzungsstunden_kwh_kwp,
             "pacht_eur_kwp_jahr": p.pacht_eur_kwp_jahr,
+            "pacht_modus": p.pacht_modus.value,
+            "pacht_umsatzbeteiligung_pct": p.pacht_umsatzbeteiligung_pct * 100,
+            "pacht_mindestpacht_eur_ha_jahr": p.pacht_mindestpacht_eur_ha_jahr,
             "fremdkapitalzins_pct": p.fremdkapitalzins_pct * 100,
             "eigenkapitalquote_pct": p.eigenkapitalquote_pct * 100,
             "eag_zuschlagswert_ct_kwh": p.eag_zuschlagswert_ct_kwh,
@@ -366,6 +385,21 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 nennleistung_kwp=float(r["nennleistung_kwp"]),
                 vollbenutzungsstunden_kwh_kwp=float(r["vollbenutzungsstunden_kwh_kwp"]),
                 pacht_eur_kwp_jahr=float(r["pacht_eur_kwp_jahr"]),
+                pacht_modus=PachtModus(r["pacht_modus"])
+                if "pacht_modus" in r and pd.notna(r["pacht_modus"])
+                else PachtModus.FIX,
+                pacht_umsatzbeteiligung_pct=(
+                    float(r["pacht_umsatzbeteiligung_pct"]) / 100
+                    if "pacht_umsatzbeteiligung_pct" in r
+                    and pd.notna(r["pacht_umsatzbeteiligung_pct"])
+                    else 0.055
+                ),
+                pacht_mindestpacht_eur_ha_jahr=(
+                    float(r["pacht_mindestpacht_eur_ha_jahr"])
+                    if "pacht_mindestpacht_eur_ha_jahr" in r
+                    and pd.notna(r["pacht_mindestpacht_eur_ha_jahr"])
+                    else 0.0
+                ),
                 fremdkapitalzins_pct=float(r["fremdkapitalzins_pct"]) / 100,
                 eigenkapitalquote_pct=float(r["eigenkapitalquote_pct"]) / 100,
                 eag_zuschlagswert_ct_kwh=float(r["eag_zuschlagswert_ct_kwh"]),

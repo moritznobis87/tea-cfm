@@ -215,6 +215,12 @@ def render_assumptions() -> None:
             min_value=0.0, value=ga.gemeindeabgabe_eur_kwh * 1000, step=0.5,
             help=txt("oberflaeche.annahmen_gemeindeabgabe_hilfe"),
         )
+        pacht_umsatzbeteiligung_vorschlag = st.number_input(
+            txt("oberflaeche.annahmen_pacht_umsatzbeteiligung_vorschlag_label"),
+            min_value=0.0, max_value=100.0,
+            value=ga.pacht_umsatzbeteiligung_pct_vorschlag * 100, step=0.5,
+            help=txt("oberflaeche.annahmen_pacht_umsatzbeteiligung_vorschlag_hilfe"),
+        )
         st.markdown(txt("oberflaeche.annahmen_direktvermarktung_titel"))
         dv_modus_absolut = txt("oberflaeche.annahmen_dv_modus_absolut")
         dv_modus_relativ = txt("oberflaeche.annahmen_dv_modus_relativ")
@@ -297,6 +303,7 @@ def render_assumptions() -> None:
         tax_modus_labels = {
             "pauschal_auf_ebt": txt("oberflaeche.annahmen_steuermodus_pauschal"),
             "afa_koerperschaftsteuer": txt("oberflaeche.annahmen_steuermodus_afa"),
+            "gewerbesteuer_de": txt("oberflaeche.annahmen_steuermodus_gewerbesteuer_de"),
         }
         tax_modus = st.radio(
             txt("oberflaeche.annahmen_steuermodus_label"),
@@ -306,34 +313,63 @@ def render_assumptions() -> None:
             horizontal=True,
         )
 
-        col4, col5 = st.columns(2)
-        steuersatz = col4.number_input(
-            txt("oberflaeche.annahmen_steuersatz_label"), min_value=0.0,
-            value=ga.steuersatz_pct * 100, step=0.5,
-            help=txt("oberflaeche.annahmen_steuersatz_hilfe"),
-        )
-        verlustvortrag_grenze = col5.number_input(
-            txt("oberflaeche.annahmen_verlustvortrag_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.verlustvortrag_verrechnungsgrenze_pct * 100, step=5.0,
-            help=txt("oberflaeche.annahmen_verlustvortrag_hilfe"),
-        )
-
-        if tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER.value:
-            col6, col7 = st.columns(2)
-            afa_nutzungsdauer = col6.number_input(
+        if tax_modus == TaxModus.GEWERBESTEUER_DE.value:
+            st.caption(txt("oberflaeche.annahmen_gewerbesteuer_hinweis"))
+            col4, col5, col6 = st.columns(3)
+            afa_nutzungsdauer = col4.number_input(
                 txt("oberflaeche.annahmen_afa_nutzungsdauer_label"), min_value=1,
                 value=ga.afa_nutzungsdauer_jahre or 20,
                 help=txt("oberflaeche.annahmen_afa_nutzungsdauer_hilfe"),
             )
-            freibetrag = col7.number_input(
-                txt("oberflaeche.annahmen_freibetrag_label"), min_value=0.0,
-                value=ga.freibetrag_eur, step=100.0,
+            gewerbesteuer_hebesatz = col5.number_input(
+                txt("oberflaeche.annahmen_gewerbesteuer_hebesatz_label"),
+                min_value=0.0, value=ga.gewerbesteuer_hebesatz_pct, step=10.0,
+                help=txt("oberflaeche.annahmen_gewerbesteuer_hebesatz_hilfe"),
             )
-        else:
-            afa_nutzungsdauer = ga.afa_nutzungsdauer_jahre
+            gewerbesteuer_freibetrag = col6.number_input(
+                txt("oberflaeche.annahmen_gewerbesteuer_freibetrag_label"),
+                min_value=0.0, value=ga.gewerbesteuer_freibetrag_eur, step=500.0,
+                help=txt("oberflaeche.annahmen_gewerbesteuer_freibetrag_hilfe"),
+            )
+            effektiver_gewerbesteuersatz = 0.035 * (gewerbesteuer_hebesatz / 100)
+            st.caption(txt(
+                "oberflaeche.annahmen_gewerbesteuer_effektiv_hinweis",
+                satz=f"{effektiver_gewerbesteuersatz * 100:.2f}",
+            ))
+            steuersatz = ga.steuersatz_pct * 100
+            verlustvortrag_grenze = ga.verlustvortrag_verrechnungsgrenze_pct * 100
             freibetrag = ga.freibetrag_eur
-            st.caption(txt("oberflaeche.annahmen_afa_pauschal_hinweis"))
+        else:
+            col4, col5 = st.columns(2)
+            steuersatz = col4.number_input(
+                txt("oberflaeche.annahmen_steuersatz_label"), min_value=0.0,
+                value=ga.steuersatz_pct * 100, step=0.5,
+                help=txt("oberflaeche.annahmen_steuersatz_hilfe"),
+            )
+            verlustvortrag_grenze = col5.number_input(
+                txt("oberflaeche.annahmen_verlustvortrag_label"),
+                min_value=0.0, max_value=100.0,
+                value=ga.verlustvortrag_verrechnungsgrenze_pct * 100, step=5.0,
+                help=txt("oberflaeche.annahmen_verlustvortrag_hilfe"),
+            )
+            gewerbesteuer_hebesatz = ga.gewerbesteuer_hebesatz_pct
+            gewerbesteuer_freibetrag = ga.gewerbesteuer_freibetrag_eur
+
+            if tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER.value:
+                col6, col7 = st.columns(2)
+                afa_nutzungsdauer = col6.number_input(
+                    txt("oberflaeche.annahmen_afa_nutzungsdauer_label"), min_value=1,
+                    value=ga.afa_nutzungsdauer_jahre or 20,
+                    help=txt("oberflaeche.annahmen_afa_nutzungsdauer_hilfe"),
+                )
+                freibetrag = col7.number_input(
+                    txt("oberflaeche.annahmen_freibetrag_label"), min_value=0.0,
+                    value=ga.freibetrag_eur, step=100.0,
+                )
+            else:
+                afa_nutzungsdauer = ga.afa_nutzungsdauer_jahre
+                freibetrag = ga.freibetrag_eur
+                st.caption(txt("oberflaeche.annahmen_afa_pauschal_hinweis"))
 
     # --- Speichern ---------------------------------------------------------------
     if st.button(txt("oberflaeche.btn_speichern"), type="primary"):
@@ -403,6 +439,7 @@ def render_assumptions() -> None:
             else ZinsMethode.DEUTSCH
         )
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
+        ga.pacht_umsatzbeteiligung_pct_vorschlag = pacht_umsatzbeteiligung_vorschlag / 100
         ga.direktvermarktungskosten_eur_kwh = direktvermarktungskosten / 1000
         ga.direktvermarktung_modus = (
             DirektvermarktungsModus.RELATIV_MARKTWERT
@@ -415,6 +452,8 @@ def render_assumptions() -> None:
             int(afa_nutzungsdauer) if afa_nutzungsdauer else None
         )
         ga.freibetrag_eur = float(freibetrag)
+        ga.gewerbesteuer_hebesatz_pct = float(gewerbesteuer_hebesatz)
+        ga.gewerbesteuer_freibetrag_eur = float(gewerbesteuer_freibetrag)
         ga.verlustvortrag_verrechnungsgrenze_pct = verlustvortrag_grenze / 100
 
         services.save_global_assumptions(ga)

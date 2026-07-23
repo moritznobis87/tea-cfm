@@ -25,7 +25,6 @@ from .models import (
     EffectiveAssumptions,
     GlobalAssumptions,
     MarktpreisSzenario,
-    OpexItem,
     PVProject,
 )
 from .opex import calculate_opex
@@ -37,12 +36,7 @@ from .timeline import build_timeline, erstjahr_zins_pro_rata
 def resolve_assumptions(
     project: PVProject, global_assumptions: GlobalAssumptions
 ) -> EffectiveAssumptions:
-    pacht_item = OpexItem(
-        name="Pacht", basiswert_eur_kwp=project.pacht_eur_kwp_jahr,
-        index_pct_pa=global_assumptions.kosten_inflation_pct_pa,
-        indexierung_ab_jahr=1,
-    )
-    opex_items = [*global_assumptions.opex_standard, pacht_item]
+    opex_items = list(global_assumptions.opex_standard)
 
     szenario = global_assumptions.get_szenario(project.marktpreisszenario)
     if szenario is None:
@@ -76,6 +70,11 @@ def resolve_assumptions(
         marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
         kosten_inflation_pct_pa=global_assumptions.kosten_inflation_pct_pa,
         opex_items=opex_items,
+        pacht_modus=project.pacht_modus,
+        pacht_eur_kwp_jahr=project.pacht_eur_kwp_jahr,
+        pacht_umsatzbeteiligung_pct=project.pacht_umsatzbeteiligung_pct,
+        pacht_mindestpacht_eur_ha_jahr=project.pacht_mindestpacht_eur_ha_jahr,
+        projektflaeche_ha=project.projektflaeche_ha,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         direktvermarktungskosten_eur_kwh=project.direktvermarktungskosten_eur_mwh / 1000,
         direktvermarktung_modus=global_assumptions.direktvermarktung_modus,
@@ -93,6 +92,8 @@ def resolve_assumptions(
         steuersatz_pct=global_assumptions.steuersatz_pct,
         afa_nutzungsdauer_jahre=global_assumptions.afa_nutzungsdauer_jahre,
         freibetrag_eur=global_assumptions.freibetrag_eur,
+        gewerbesteuer_hebesatz_pct=global_assumptions.gewerbesteuer_hebesatz_pct,
+        gewerbesteuer_freibetrag_eur=global_assumptions.gewerbesteuer_freibetrag_eur,
         verlustvortrag_verrechnungsgrenze_pct=global_assumptions.verlustvortrag_verrechnungsgrenze_pct,
     )
 
@@ -144,6 +145,12 @@ def run_valuation_from_assumptions(
         direktvermarktung_pct_marktwert=assumptions.direktvermarktung_pct_marktwert,
         marktwert_nominal_ct_kwh=revenue["marktwert_nominal_ct_kwh"].to_numpy(),
         kosten_inflation_pct_pa=assumptions.kosten_inflation_pct_pa,
+        pacht_modus=assumptions.pacht_modus,
+        pacht_eur_kwp_jahr=assumptions.pacht_eur_kwp_jahr,
+        pacht_umsatzbeteiligung_pct=assumptions.pacht_umsatzbeteiligung_pct,
+        pacht_mindestpacht_eur_ha_jahr=assumptions.pacht_mindestpacht_eur_ha_jahr,
+        projektflaeche_ha=assumptions.projektflaeche_ha,
+        erloes_eur=revenue["erloes_eur"].to_numpy(),
     )
     financing = calculate_financing(
         timeline,
@@ -165,6 +172,8 @@ def run_valuation_from_assumptions(
         assumptions.afa_nutzungsdauer_jahre,
         assumptions.freibetrag_eur,
         assumptions.verlustvortrag_verrechnungsgrenze_pct,
+        gewerbesteuer_hebesatz_pct=assumptions.gewerbesteuer_hebesatz_pct,
+        gewerbesteuer_freibetrag_eur=assumptions.gewerbesteuer_freibetrag_eur,
     )
 
     cashflow = calculate_cashflow(

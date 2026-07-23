@@ -26,7 +26,13 @@ import streamlit as st
 
 from app import services
 from app.config import monate
-from engine import AnlagenTyp, CapexBreakdown, DirektvermarktungsModus, PVProject
+from engine import (
+    AnlagenTyp,
+    CapexBreakdown,
+    DirektvermarktungsModus,
+    PachtModus,
+    PVProject,
+)
 from texte import txt
 
 #: EPC-Vorbelegung je Anlagentyp in €/kWp (Erfahrungswerte 2025/26).
@@ -129,15 +135,33 @@ def render_project_form(
         return eingabe * nennleistung_kwp if capex_einheit == "€/kWp" else eingabe
 
     st.markdown("**Pacht**")
-    pacht_einheit = st.radio(
-        "Einheit", options=["€/ha/Jahr", "€/kWp/Jahr"], horizontal=True,
-        key=f"{form_key}_pacht_einheit",
-    )
-    pacht_mode_key = f"{form_key}_pacht_mode_prev"
-    pacht_mode_changed = st.session_state.get(pacht_mode_key) != pacht_einheit
-    st.session_state[pacht_mode_key] = pacht_einheit
-
     global_assumptions = services.get_global_assumptions()
+    pachtmodus_fix = txt("oberflaeche.formular_pachtmodus_fix")
+    pachtmodus_umsatz = txt("oberflaeche.formular_pachtmodus_umsatzbeteiligung")
+    pachtmodus_label = st.radio(
+        txt("oberflaeche.formular_pachtmodus_label"),
+        [pachtmodus_fix, pachtmodus_umsatz],
+        index=1 if existing and existing.pacht_modus == PachtModus.UMSATZBETEILIGUNG
+        else 0,
+        horizontal=True, key=f"{form_key}_pachtmodus",
+        help=txt("oberflaeche.formular_pachtmodus_hilfe"),
+    )
+    pacht_modus = (
+        PachtModus.UMSATZBETEILIGUNG if pachtmodus_label == pachtmodus_umsatz
+        else PachtModus.FIX
+    )
+
+    pacht_einheit = None
+    if pacht_modus == PachtModus.FIX:
+        pacht_einheit = st.radio(
+            "Einheit", options=["€/ha/Jahr", "€/kWp/Jahr"], horizontal=True,
+            key=f"{form_key}_pacht_einheit",
+        )
+    pacht_mode_key = f"{form_key}_pacht_mode_prev"
+    pacht_mode_changed = st.session_state.get(pacht_mode_key) != (
+        pachtmodus_label, pacht_einheit
+    )
+    st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
 
     with st.form(form_key, clear_on_submit=False):
         name = st.text_input(
@@ -222,7 +246,50 @@ def render_project_form(
             help=txt("oberflaeche.formular_marktpreisszenario_hilfe"),
         )
 
-        if pacht_einheit == "€/ha/Jahr":
+        pacht_umsatzbeteiligung_pct = (
+            existing.pacht_umsatzbeteiligung_pct if existing
+            else global_assumptions.pacht_umsatzbeteiligung_pct_vorschlag
+        )
+        pacht_mindestpacht_eur_ha_jahr = (
+            existing.pacht_mindestpacht_eur_ha_jahr if existing else 0.0
+        )
+
+        if pacht_modus == PachtModus.UMSATZBETEILIGUNG:
+            flaeche_key = f"{form_key}_flaeche_umsatz"
+            if pacht_mode_changed or flaeche_key not in st.session_state:
+                st.session_state[flaeche_key] = (
+                    existing.projektflaeche_ha
+                    if existing and existing.projektflaeche_ha
+                    else 10.0
+                )
+            flaeche_ha = st.number_input(
+                txt("oberflaeche.formular_projektflaeche_label"),
+                min_value=0.01, step=0.5, key=flaeche_key,
+                help=txt("oberflaeche.formular_pacht_flaeche_umsatz_hilfe"),
+            )
+            col_pct, col_min = st.columns(2)
+            pct_key = f"{form_key}_pacht_umsatz_pct"
+            if pacht_mode_changed or pct_key not in st.session_state:
+                st.session_state[pct_key] = round(
+                    pacht_umsatzbeteiligung_pct * 100, 2
+                )
+            pacht_umsatzbeteiligung_pct = col_pct.number_input(
+                txt("oberflaeche.formular_pacht_umsatzbeteiligung_label"),
+                min_value=0.0, max_value=100.0, step=0.1, key=pct_key,
+                help=txt("oberflaeche.formular_pacht_umsatzbeteiligung_hilfe"),
+            ) / 100
+            min_key = f"{form_key}_pacht_mindest_ha"
+            if pacht_mode_changed or min_key not in st.session_state:
+                st.session_state[min_key] = pacht_mindestpacht_eur_ha_jahr
+            pacht_mindestpacht_eur_ha_jahr = col_min.number_input(
+                txt("oberflaeche.formular_pacht_mindestpacht_label"),
+                min_value=0.0, step=50.0, key=min_key,
+                help=txt("oberflaeche.formular_pacht_mindestpacht_hilfe"),
+            )
+            # Bleibt fuer eine eventuelle spaetere Rueckschaltung auf FIX
+            # als sinnvoller Vorschlag erhalten statt auf 0 zu fallen.
+            pacht_eur_kwp_jahr = existing.pacht_eur_kwp_jahr if existing else 4.0
+        elif pacht_einheit == "€/ha/Jahr":
             flaeche_key = f"{form_key}_flaeche"
             if pacht_mode_changed or flaeche_key not in st.session_state:
                 st.session_state[flaeche_key] = (
@@ -341,6 +408,9 @@ def render_project_form(
         nennleistung_kwp=nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=vollbenutzungsstunden,
         pacht_eur_kwp_jahr=pacht_eur_kwp_jahr,
+        pacht_modus=pacht_modus,
+        pacht_umsatzbeteiligung_pct=pacht_umsatzbeteiligung_pct,
+        pacht_mindestpacht_eur_ha_jahr=pacht_mindestpacht_eur_ha_jahr,
         projektflaeche_ha=flaeche_ha,
         fremdkapitalzins_pct=fk_zins / 100,
         eigenkapitalquote_pct=ek_anteil / 100,

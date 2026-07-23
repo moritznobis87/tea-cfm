@@ -6,9 +6,9 @@ kann (z.B. als gestapeltes Balkendiagramm mit einer Position pro Legenden-
 eintrag).
 
 Quellen: globale Standard-OPEX-Positionen (EUR/kWp/Jahr-basiert), die
-projektspezifische Pacht (wird in pipeline.py bereits zu einer
-gemeinsamen Liste zusammengefuehrt) sowie zwei produktionsbasierte
-Positionen (EUR/kWh, deshalb keine OpexItems, sondern separate Parameter):
+Pacht (eigene, produktionsUNabhaengige aber ggf. umsatzabhaengige
+Position, siehe PachtModus) sowie zwei produktionsbasierte Positionen
+(EUR/kWh, deshalb keine OpexItems, sondern separate Parameter):
 Gemeindeabgabe und Direktvermarktungskosten.
 """
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .models import DirektvermarktungsModus, OpexItem
+from .models import DirektvermarktungsModus, OpexItem, PachtModus
 
 BASISSPALTEN = [
     "jahr", "opex_gesamt_eur", "gemeindeabgabe_eur", "direktvermarktungskosten_eur",
@@ -35,6 +35,12 @@ def calculate_opex(
     direktvermarktung_pct_marktwert: float = 0.0,
     marktwert_nominal_ct_kwh: np.ndarray | None = None,
     kosten_inflation_pct_pa: float = 0.0,
+    pacht_modus: PachtModus = PachtModus.FIX,
+    pacht_eur_kwp_jahr: float = 0.0,
+    pacht_umsatzbeteiligung_pct: float = 0.0,
+    pacht_mindestpacht_eur_ha_jahr: float = 0.0,
+    projektflaeche_ha: float | None = None,
+    erloes_eur: np.ndarray | None = None,
 ) -> pd.DataFrame:
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
@@ -61,7 +67,8 @@ def calculate_opex(
 
     produktion_kwh = energy["produktion_kwh"].to_numpy()
     # Allgemeine Kosteninflation fuer die produktionsbasierten Positionen
-    # (EUR/kWh-Saetze, Preisstand Inbetriebnahme = Betriebsjahr 1).
+    # sowie Pacht (EUR/kWh- bzw. EUR/kWp- oder EUR/ha-Saetze, Preisstand
+    # Inbetriebnahme = Betriebsjahr 1).
     inflation_faktor = (
         (1 + kosten_inflation_pct_pa)
         ** (df["jahr"] - 1).clip(lower=0).to_numpy()
@@ -86,5 +93,33 @@ def calculate_opex(
             produktion_kwh * direktvermarktungskosten_eur_kwh * inflation_faktor
         )
     df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"] + df["direktvermarktungskosten_eur"]
+
+    # Pacht: eigene, benannte Position (wie ein OpexItem im gestapelten
+    # Diagramm), aber je nach PachtModus unterschiedlich berechnet - kann
+    # deshalb nicht ueber die generische opex_items-Schleife oben laufen.
+    if pacht_modus == PachtModus.UMSATZBETEILIGUNG and erloes_eur is not None:
+        umsatzbeteiligung = erloes_eur * pacht_umsatzbeteiligung_pct
+        mindestpacht = (
+            pacht_mindestpacht_eur_ha_jahr
+            * (projektflaeche_ha or 0.0)
+            * inflation_faktor
+        )
+        pacht_betrag = np.maximum(umsatzbeteiligung, mindestpacht)
+    else:
+        pacht_basis_eur = pacht_eur_kwp_jahr * nennleistung_kwp
+        pacht_betrag = pacht_basis_eur * inflation_faktor
+    # Additiv wie die generische Schleife oben: falls eine Standard-OPEX-
+    # Position zufaellig ebenfalls "Pacht" heisst, wird addiert statt
+    # einer doppelten Spalte (die spaetere Spaltenauswahl wuerde sonst
+    # zwei gleichnamige Spalten liefern).
+    if "Pacht" in df.columns:
+        df["Pacht"] = df["Pacht"] + pacht_betrag
+    else:
+        df["Pacht"] = pacht_betrag
+        posten_spalten.append("Pacht")
+    # Nur den HIER berechneten Anteil addieren, nicht die (im Kollisions-
+    # fall bereits um den generischen Loop-Beitrag ergaenzte) Spalte -
+    # sonst wuerde der generische Anteil doppelt gezaehlt.
+    df["opex_gesamt_eur"] += pacht_betrag
 
     return df[BASISSPALTEN + posten_spalten]

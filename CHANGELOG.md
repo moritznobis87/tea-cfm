@@ -1,5 +1,78 @@
 # Changelog
 
+## v4.20 – Deutsche Gewerbesteuer als dritte Steuerlogik (2026-07)
+
+- Klarstellung zur letzten Version: v4.18 hatte die **Zinsberechnungs­methodik**
+  (Tageszählweise 30/360 vs. act/365) umgesetzt, wörtlich wie damals
+  angefragt – das ist aber etwas anderes als die **Steuerlogik**, die
+  eigentlich gemeint war. Diese Version holt das nach.
+- Neuer dritter Steuermodus neben Pauschal und österreichischer
+  AfA-Körperschaftsteuer: **Deutsche Gewerbesteuer**, global umschaltbar
+  in Globale Annahmen → Steuern (wie Tilgungsart/Zinsmethode, gilt für
+  alle Projekte).
+  `Steuer = MAX(EBT − AfA − Freibetrag, 0) × 3,5 % × Hebesatz`
+  (Hebesatz einstellbar, Standard 400 %; Freibetrag einstellbar, Standard
+  24.500 €/Jahr – gesetzlicher Wert für Personengesellschaften wie
+  GmbH & Co. KG). Live-Anzeige des daraus berechneten effektiven Satzes
+  in der Oberfläche.
+- Bewusst **ohne Verlustvortrag** modelliert (jedes Jahr unabhängig
+  betrachtet) – echte deutsche Gewerbesteuer kennt zwar einen
+  Verlustvortrag (§10a GewStG), das als Referenz validierte Modell
+  (Abgleich mit einer realen Projekt-Excel in einer früheren Sitzung)
+  bildete ihn aber ebenfalls nicht ab; diese Vereinfachung ist im Code
+  klar dokumentiert.
+- UI zeigt je nach gewähltem Modus automatisch die passenden Felder
+  (deutsch: Hebesatz + Freibetrag; österreichisch/pauschal: Steuersatz
+  + Verlustvortrag-Verrechnungsgrenze) statt aller Felder gleichzeitig.
+- Vollständig durchverdrahtet: Datenmodell, Engine, Excel-Import/
+  -Export (inkl. Rückwärtskompatibilität für ältere Exportdateien),
+  PDF-Bericht (Annex A zeigt modusabhängig den korrekten effektiven
+  Satz statt des dort sonst irrelevanten generischen Feldes), alle
+  vier Sprachdateien.
+- 9 neue Tests (Formelkorrektheit, unterschiedliche Hebesätze,
+  Freibetrag-Wirkung, AfA-Berücksichtigung, kein Verlustvortrag im
+  Gegensatz zum österreichischen Modus, End-to-End-Unterscheidung
+  zwischen beiden Ländern, YAML-/Excel-Rundlauf, Rückwärts­kompatibilität);
+  Suite: 216, zweifach hintereinander stabil gelaufen.
+
+## v4.19 – Pacht: Umsatzbeteiligung mit Mindestpacht (2026-07)
+
+- Neuer Pachtmodus zusätzlich zur bisherigen fixen Pacht (€/kWp oder
+  €/ha): **Umsatzbeteiligung mit Mindestpacht**. Der Verpächter erhält
+  einen Anteil am Jahresumsatz (Vorschlagswert 5,5 %, projektspezifisch
+  einstellbar) – mindestens aber eine fixe Mindestpacht je Hektar, die
+  mit der allgemeinen Kosteninflation indexiert wird.
+  `Pacht = MAX(Umsatz × Prozentsatz, Mindestpacht/ha × Fläche × Inflation)`.
+- Genau der vom Nutzer beschriebene Effekt ist nachgebildet und per
+  Test abgesichert: In frühen Jahren (hoher, EAG-gestützter Umsatz)
+  dominiert die Umsatzbeteiligung; nach Ende der EAG-Förderung (Umsatz
+  bricht ein) übersteigt die stetig weiter mit der Inflation
+  wachsende Mindestpacht die Umsatzbeteiligung.
+- Neue Auswahl im Projektformular (Pachtmodus-Umschalter direkt über
+  dem bisherigen Pacht-Eingabefeld) sowie ein neuer
+  Umsatzbeteiligungs-Vorschlagswert in den Globalen Annahmen (analog
+  zum bereits bestehenden Muster bei Gemeindeabgabe/
+  Direktvermarktungskosten).
+- Architektur: Pacht wird nicht mehr als generische, projektbezogene
+  OPEX-Position behandelt (dafür bräuchte es den Jahresumsatz, den die
+  generische Position nicht kennt), sondern als eigene, produktions-
+  UND umsatzabhängige Berechnung analog zu Gemeindeabgabe/
+  Direktvermarktungskosten – bleibt aber weiterhin ein normaler,
+  benannter Balken im gestapelten Betriebskosten-Diagramm.
+- Vollständig durchverdrahtet: Datenmodell, Engine, Excel-Import/
+  -Export (inkl. Rückwärtskompatibilität für ältere Exportdateien),
+  PDF-Bericht (Annex A zeigt den gewählten Modus korrekt), alle vier
+  Sprachdateien.
+- Dabei einen Namenskollisions-Bug im Vorbeigehen gefunden und
+  behoben: Sollte eine globale Standard-Betriebskostenposition
+  zufällig ebenfalls „Pacht“ heißen, führte die erste Fassung dieser
+  Änderung zu einer doppelten Spalte und einem Pandas-Fehler beim
+  Rendern der Detailtabelle.
+- 7 neue Tests (beide Regime einzeln, Übergang zwischen den Regimen
+  über die volle Pipeline, Fläche fehlt, Namenskollision,
+  unveränderte Rückwärtskompatibilität des bisherigen Fix-Modus);
+  Suite: 207, zweifach hintereinander stabil gelaufen.
+
 ## v4.18 – Steuer-Diagramm, Verkaufspreis-KPI, deutsche/österreichische Zinsmethodik (2026-07)
 
 ### Steuerzahlungen jetzt als eigenes Diagramm
