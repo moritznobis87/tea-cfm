@@ -1,9 +1,12 @@
 """
-Seite "Ausschreibung": Analyse der historischen EAG-Marktpraemien-
-ausschreibungen (PV, Oesterreich), Prognose der Gebotsverteilung der
-naechsten Runde (Price-Taker-Modell, engine/auktion.py) und Ableitung
-eines empfohlenen Gebotswerts fuer eine gewuenschte Zuschlags-
-wahrscheinlichkeit - mit Uebergabe an das Cashflow-Modell.
+Seite "Marktpraemie": im oesterreichischen Marktsystem (EAG) Analyse
+der historischen Marktpraemienausschreibungen (PV, OeMAG), Prognose der
+Gebotsverteilung der naechsten Runde (Price-Taker-Modell,
+engine/auktion.py) und Ableitung eines empfohlenen Gebotswerts fuer
+eine gewuenschte Zuschlagswahrscheinlichkeit; im deutschen Marktsystem
+(EEG) manuelle Vorgabe des erwarteten Marktpraemienzuschlags, das
+empirische Modell ist dann nur ausgegraut als Referenz sichtbar.
+Beide Wege muenden in die Uebergabe an das Cashflow-Modell.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from app.components.kpi import render_kpi_row
 from app.config import STATE_SELECTED_PROJECT
 from app.formatting import fmt_ct_kwh, fmt_number, fmt_pct
 from app.theme import section_title
+from engine import GlobalAssumptions, MarktSystem
 from texte import txt
 
 #: Session-Schluessel, ueber den das Projektformular den empfohlenen
@@ -24,12 +28,60 @@ STATE_EMPFOHLENES_GEBOT = "empfohlenes_gebot_ct"
 
 
 def render_auktion() -> None:
-    runden, df = services.get_ausschreibungen()
-    modell = services.get_auktions_modell()
-    letzte = modell.letzte_runde
+    ga = services.get_global_assumptions()
+    if ga.markt_system == MarktSystem.DEUTSCHLAND:
+        _render_deutschland(ga)
+        return
 
     st.markdown(txt("oberflaeche.auktion_intro_titel"))
     st.caption(txt("oberflaeche.auktion_intro_beschreibung"))
+    effektiver_wert = _render_empirisches_modell()
+    st.divider()
+    _render_uebergabe(effektiver_wert)
+
+
+def _render_deutschland(ga: GlobalAssumptions) -> None:
+    """Deutsches EEG-Marktsystem: manuelle Eintragung des erwarteten
+    Marktpraemienzuschlags (global gespeichert) und Uebergabe an das
+    Cashflow-Modell; das empirische oesterreichische Ausschreibungs-
+    modell wird darunter nur ausgegraut (nicht bedienbar) angezeigt."""
+    st.markdown(txt("oberflaeche.auktion_intro_titel_de"))
+    st.caption(txt("oberflaeche.auktion_intro_beschreibung_de"))
+
+    wert = st.number_input(
+        txt("oberflaeche.auktion_de_zuschlag_label"), 0.0, 25.0,
+        float(ga.de_marktpraemie_erwartet_ct_kwh), 0.01,
+        key="de_marktpraemie_wert",
+        help=txt("oberflaeche.auktion_de_zuschlag_hilfe"),
+    )
+    if abs(float(wert) - ga.de_marktpraemie_erwartet_ct_kwh) > 1e-9:
+        ga.de_marktpraemie_erwartet_ct_kwh = float(wert)
+        services.save_global_assumptions(ga)
+
+    _render_uebergabe(float(wert))
+
+    st.divider()
+    st.info(txt("oberflaeche.auktion_de_empirie_hinweis"))
+    # Ausgrauen ueber einen per key adressierbaren Container: reduzierte
+    # Deckkraft und deaktivierte Mauseingaben fuer den gesamten Block.
+    st.markdown(
+        "<style>.st-key-auktion_empirie_ausgegraut"
+        "{opacity:0.45; pointer-events:none; user-select:none;}</style>",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="auktion_empirie_ausgegraut"):
+        st.markdown(txt("oberflaeche.auktion_intro_titel"))
+        st.caption(txt("oberflaeche.auktion_intro_beschreibung"))
+        _render_empirisches_modell()
+
+
+def _render_empirisches_modell() -> float:
+    """Empirisches EAG-Ausschreibungsmodell (Oesterreich): Historie,
+    Verteilungs-Fitting, Prognose und Gebotswahl - liefert den effektiv
+    gewaehlten Zuschlagswert (ct/kWh)."""
+    runden, df = services.get_ausschreibungen()
+    modell = services.get_auktions_modell()
+    letzte = modell.letzte_runde
 
     # --- Historie ------------------------------------------------------------
     section_title(txt("oberflaeche.auktion_historie_sektion"))
@@ -238,8 +290,13 @@ def render_auktion() -> None:
     )
     st.info(txt("oberflaeche.auktion_werte_nach_risikoneigung", uebersicht=uebersicht))
 
-    st.divider()
+    return float(effektiver_wert)
 
+
+def _render_uebergabe(effektiver_wert: float) -> None:
+    """Uebergabe des gewaehlten Zuschlagswerts an das Cashflow-Modell -
+    im oesterreichischen Marktsystem der empirisch gewaehlte, im
+    deutschen der manuell eingetragene Wert."""
     # --- Uebergabe an das Cashflow-Modell -------------------------------------
     section_title(txt("oberflaeche.auktion_uebergabe_cashflow"))
     st.session_state[STATE_EMPFOHLENES_GEBOT] = float(round(effektiver_wert, 2))

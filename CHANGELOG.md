@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.22 – Marktsystem-Schalter Österreich (EAG) / Deutschland (EEG) (2026-07)
+
+- **Neuer Länderschalter** direkt unter der Überschrift der Seite
+  „Globale Annahmen“: zwei Flaggen-Buttons (Österreich/Deutschland,
+  gleiche Bild-Icon-Technik wie der Sprachumschalter, neue Flaggendatei
+  `assets/flags/de.png`). Ein Klick stellt die gesamte Marktsystematik
+  als Paket um und speichert sofort:
+  - **Österreich (EAG):** 6-Stunden-Regel für den Prämienentfall,
+    Steuermodus „Körperschaftsteuer mit AfA“, Zinsmethodik act/365,
+    Untertitel „… EAG-Marktprämienmodell, Österreich“, empirisches
+    Ausschreibungsmodell aktiv (unverändert wie bisher).
+  - **Deutschland (EEG):** 1-Stunden-Regel, Steuermodus „Deutsche
+    Gewerbesteuer“, Zinsmethodik 30/360, Untertitel
+    „… EEG-Marktprämienmodell, Deutschland“; auf der Marktprämienseite
+    wird die empirische Methodik (Historie, Kurven-Fitting, Prognose)
+    ausgegraut und stattdessen der erwartete Marktprämienzuschlag
+    manuell eingetragen (global gespeichert, Übergabe an Projekte wie
+    bisher).
+  Die einzelnen Einstellungen bleiben nach dem Wechsel weiterhin
+  manuell änderbar.
+- **Rubrik umbenannt:** „Ausschreibung“ heißt jetzt „Marktprämie“
+  (alle vier Sprachen).
+- Engine: neues Enum `MarktSystem` und Felder
+  `GlobalAssumptions.markt_system` sowie
+  `GlobalAssumptions.de_marktpraemie_erwartet_ct_kwh` (rückwärts-
+  kompatibel, Bestandsdateien laden mit Standard Österreich).
+- 12 neue Tests (Modell/Serialisierung, Flaggen-Buttons und
+  Paket-Umstellung, marktabhängiger Untertitel, deutsche
+  Marktprämienseite inkl. Speicherung und Übergabe des manuellen
+  Werts); Suite: 229.
+
 ## v4.21 – Excel-Projektimport: echte Rückwärtskompatibilität (2026-07)
 
 - **Bugfix (vom Nutzer gemeldet):** Projekt-Excel-Dumps, die vor der

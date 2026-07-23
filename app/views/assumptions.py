@@ -13,9 +13,12 @@ import pandas as pd
 import streamlit as st
 
 from app import services
+from app.config import FLAGS_DIR
 from engine import (
     DirektvermarktungsModus,
+    GlobalAssumptions,
     MarktpreisSzenario,
+    MarktSystem,
     NegativeStundenModus,
     NegativeStundenRegel,
     OpexItem,
@@ -25,12 +28,68 @@ from engine import (
 )
 from texte import txt
 
+#: Marktsystematik-Umschalter: Code -> (Flaggen-Datei, Textschluessel).
+#: Gleiche Bild-Icon-Technik wie der Sprachumschalter in
+#: streamlit_app.py (echte PNG-Flaggen statt Emoji, siehe Begruendung
+#: dort und in texte.SPRACHEN).
+_MARKT_SYSTEME: dict[MarktSystem, tuple[str, str]] = {
+    MarktSystem.OESTERREICH: ("at", "oberflaeche.annahmen_markt_oesterreich"),
+    MarktSystem.DEUTSCHLAND: ("de", "oberflaeche.annahmen_markt_deutschland"),
+}
+
+
+def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
+    """Stellt die Marktsystematik als Paket um und speichert sofort.
+
+    Oesterreich (EAG): 6h-Regel, Koerperschaftsteuer mit AfA, act/365.
+    Deutschland (EEG): 1h-Regel, deutsche Gewerbesteuer, 30/360.
+    Titelzeile und Marktpraemienseite folgen dem Schalter zur Laufzeit
+    (streamlit_app.py bzw. app/views/auktion.py); die einzelnen Felder
+    bleiben danach weiterhin manuell aenderbar.
+    """
+    ga.markt_system = ziel
+    if ziel == MarktSystem.OESTERREICH:
+        ga.negative_stunden_regel = NegativeStundenRegel.SECHS_STUNDEN
+        ga.tax_modus = TaxModus.AFA_KOERPERSCHAFTSTEUER
+        # Pflichtfeld des AfA-Modus (siehe GlobalAssumptions.check_afa_fields).
+        ga.afa_nutzungsdauer_jahre = ga.afa_nutzungsdauer_jahre or 20
+        ga.zinsmethode = ZinsMethode.OESTERREICH
+    else:
+        ga.negative_stunden_regel = NegativeStundenRegel.EINE_STUNDE
+        ga.tax_modus = TaxModus.GEWERBESTEUER_DE
+        ga.zinsmethode = ZinsMethode.DEUTSCH
+    services.save_global_assumptions(ga)
+
+
+def _render_markt_system_schalter(ga: GlobalAssumptions) -> None:
+    """Flaggen-Buttons direkt unter der Ueberschrift der Seite."""
+    st.markdown(txt("oberflaeche.annahmen_marktsystem_titel"))
+    spalten = st.columns([1, 1, 3])
+    for spalte, (system, (flagge, schluessel)) in zip(
+        spalten, _MARKT_SYSTEME.items(), strict=False
+    ):
+        with spalte:
+            col_flagge, col_knopf = st.columns([1, 3], vertical_alignment="center")
+            flaggen_pfad = FLAGS_DIR / f"{flagge}.png"
+            if flaggen_pfad.exists():
+                col_flagge.image(str(flaggen_pfad), width=28)
+            if col_knopf.button(
+                txt(schluessel),
+                key=f"marktsystem_{flagge}",
+                type="primary" if ga.markt_system == system else "secondary",
+                width="stretch",
+            ) and ga.markt_system != system:
+                _wechsle_markt_system(ga, system)
+                st.rerun()
+    st.caption(txt("oberflaeche.annahmen_marktsystem_hinweis"))
+
 
 def render_assumptions() -> None:
     st.subheader(txt("oberflaeche.nav_globale_annahmen"))
-    st.caption(txt("oberflaeche.annahmen_hinweis"))
 
     ga = services.get_global_assumptions()
+    _render_markt_system_schalter(ga)
+    st.caption(txt("oberflaeche.annahmen_hinweis"))
 
     # --- Marktpreisszenarien -------------------------------------------------
     with st.expander(txt("oberflaeche.annahmen_marktpreisszenarien_titel"), expanded=True):

@@ -4,13 +4,14 @@
 
 # --- Cabecera / marco de la aplicación ------------------------------------------
 app_titel: "Evaluación de Proyectos PV"
-app_untertitel: "Rentabilidad · Sensibilidad · Riesgo — Modelo de prima de mercado EAG, Austria"
+app_untertitel_at: "Rentabilidad · Sensibilidad · Riesgo — Modelo de prima de mercado EAG, Austria"
+app_untertitel_de: "Rentabilidad · Sensibilidad · Riesgo — Modelo de prima de mercado EEG, Alemania"
 
 # --- Navegación ----------------------------------------------------------------
 nav_titel: "Navegación"
 nav_portfolio: "Cartera"
 nav_neues_projekt: "Nuevo proyecto"
-nav_ausschreibung: "Subasta"
+nav_ausschreibung: "Prima de mercado"
 nav_globale_annahmen: "Supuestos globales"
 
 # --- Botones comunes --------------------------------------------------------------
@@ -451,3 +452,16 @@ annahmen_gewerbesteuer_hebesatz_hilfe: "Depende del municipio, habitualmente 400
 annahmen_gewerbesteuer_freibetrag_label: "Deducción (€/año)"
 annahmen_gewerbesteuer_freibetrag_hilfe: "Deducción legal para sociedades personalistas - a partir de 2026: 24.500 €/año."
 annahmen_gewerbesteuer_effektiv_hinweis: "Tipo impositivo efectivo: {satz} % (3,5 % × multiplicador municipal)."
+
+# --- Supuestos globales: sistema de mercado (selector de país) ---------------------
+annahmen_marktsystem_titel: "**Sistema de mercado**"
+annahmen_marktsystem_hinweis: "El selector de país cambia todo el sistema de mercado como paquete: regla de precios negativos (6h/1h), modo fiscal, método de cálculo de intereses, título de la aplicación y metodología de la página «Prima de mercado» (Austria: modelo empírico de subastas EAG; Alemania: prima de mercado EEG introducida manualmente). El cambio se guarda de inmediato y afecta a todos los proyectos; los ajustes individuales siguen siendo editables después."
+annahmen_markt_oesterreich: "Austria (EAG)"
+annahmen_markt_deutschland: "Alemania (EEG)"
+
+# --- Página prima de mercado: modelo EEG alemán ------------------------------------
+auktion_intro_titel_de: "### Prima de mercado EEG (fotovoltaica, Alemania)"
+auktion_intro_beschreibung_de: "Sistema de mercado alemán: la prima de mercado esperada (anzulegender Wert) se introduce manualmente. El modelo empírico de subastas (historial, ajuste de curvas, pronóstico) se basa en las subastas austriacas de OeMAG y está desactivado en el modo alemán."
+auktion_de_zuschlag_label: "Prima de mercado esperada / anzulegender Wert (ct/kWh)"
+auktion_de_zuschlag_hilfe: "Valor de adjudicación esperado de la próxima subasta EEG (segmento sobre suelo), introducido manualmente. Se guarda y puede transferirse a un proyecto más abajo."
+auktion_de_empirie_hinweis: "La metodología empírica siguiente (historial de subastas, ajuste de distribuciones, modelo de pronóstico) se refiere a las subastas austriacas EAG y aparece atenuada en el sistema de mercado alemán. Cambie a Austria en los supuestos globales para activarla."

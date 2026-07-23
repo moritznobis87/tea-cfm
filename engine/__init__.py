@@ -41,6 +41,7 @@ from .models import (
     GlobalAssumptions,
     KPIs,
     MarktpreisSzenario,
+    MarktSystem,
     NegativeStundenModus,
     NegativeStundenRegel,
     OpexItem,

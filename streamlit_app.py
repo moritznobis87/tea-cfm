@@ -53,9 +53,11 @@ apply_theme()
 # Imports der Views erst NACH set_page_config - Streamlit verlangt, dass
 # set_page_config der allererste Streamlit-Befehl des Skripts ist, und die
 # Views fuehren beim Import bereits Streamlit-Code aus (Caching-Dekoratoren).
+from app import services  # noqa: E402
 from app.components.sidebar import render_import_export  # noqa: E402
 from app.config import FLAGS_DIR  # noqa: E402
 from app.views.assumptions import render_assumptions  # noqa: E402
+from engine import MarktSystem  # noqa: E402
 from app.views.auktion import render_auktion  # noqa: E402
 from app.views.new_project import render_new_project  # noqa: E402
 from app.views.overview import render_overview  # noqa: E402
@@ -76,10 +78,17 @@ with st.container(key="app_header"):
     )
     if _MARKE["logo"].exists():
         col_logo.image(str(_MARKE["logo"]), width=_MARKE["logo_breite"])
+    # Untertitel folgt der in den globalen Annahmen gewaehlten
+    # Marktsystematik (EAG Oesterreich / EEG Deutschland).
+    _untertitel_key = (
+        "oberflaeche.app_untertitel_de"
+        if services.get_global_assumptions().markt_system == MarktSystem.DEUTSCHLAND
+        else "oberflaeche.app_untertitel_at"
+    )
     col_title.markdown(
         f"""<div>
         <p class="app-hero-title">{_MARKE["kopfzeile_titel"]}</p>
-        <p class="app-hero-sub">{txt("oberflaeche.app_untertitel")}</p>
+        <p class="app-hero-sub">{txt(_untertitel_key)}</p>
         </div>""",
         unsafe_allow_html=True,
     )

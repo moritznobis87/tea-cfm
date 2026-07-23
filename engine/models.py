@@ -28,6 +28,25 @@ class AnlagenTyp(str, Enum):
 KONVENTIONELL_ZUSCHLAG_ABSCHLAG_PCT = 0.25
 
 
+class MarktSystem(str, Enum):
+    """Marktsystematik der Bewertung - bestimmt als globaler Schalter,
+    welche laenderspezifischen Regeln als Paket gelten.
+
+    OESTERREICH: EAG-Marktpraemienmodell - 6h-Regel fuer den
+                 Praemienentfall, Koerperschaftsteuer mit AfA,
+                 Zinsmethode act/365, empirisches Ausschreibungsmodell
+                 (OeMAG-Historie, Kurven-Fitting, Prognose).
+    DEUTSCHLAND: EEG-Marktpraemienmodell - 1h-Regel, deutsche
+                 Gewerbesteuer, Zinsmethode 30/360; statt des
+                 empirischen Ausschreibungsmodells wird der erwartete
+                 Marktpraemienzuschlag (anzulegender Wert) manuell
+                 vorgegeben (de_marktpraemie_erwartet_ct_kwh).
+    """
+
+    OESTERREICH = "oesterreich"
+    DEUTSCHLAND = "deutschland"
+
+
 class TilgungsArt(str, Enum):
     ANNUITAET = "annuitaet"
     LINEAR = "linear"
@@ -294,6 +313,18 @@ class MarktpreisSzenario(BaseModel):
 
 class GlobalAssumptions(BaseModel):
     gueltig_ab: str = ""
+
+    # Marktsystematik (Laenderschalter) - siehe MarktSystem. Der Wechsel
+    # ueber die Flaggen-Buttons der Seite "Globale Annahmen" setzt die
+    # abhaengigen Felder (negative_stunden_regel, tax_modus, zinsmethode)
+    # als Paket um; sie bleiben danach einzeln aenderbar.
+    markt_system: MarktSystem = MarktSystem.OESTERREICH
+
+    # Erwarteter Marktpraemienzuschlag (anzulegender Wert) fuer das
+    # deutsche EEG-Modell - wird auf der Seite "Marktpraemie" manuell
+    # eingetragen, da das empirische Ausschreibungsmodell (OeMAG-
+    # Historie) nur fuer Oesterreich gilt.
+    de_marktpraemie_erwartet_ct_kwh: float = Field(ge=0, default=5.0)
 
     # Mehrere benannte Marktpreisszenarien zur Auswahl je Projekt (siehe
     # PVProject.marktpreisszenario). Nach Kalenderjahr indiziert.

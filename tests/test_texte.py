@@ -115,11 +115,12 @@ class TestSprachdropdownEndToEnd:
     auf Navigation, Buttons und den PDF-Export."""
 
     _NAV_ERWARTET = {
-        "de": ["Portfolio", "Neues Projekt", "Ausschreibung", "Globale Annahmen"],
-        "en": ["Portfolio", "New Project", "Auction", "Global Assumptions"],
-        "fr": ["Portefeuille", "Nouveau projet", "Appel d'offres",
+        "de": ["Portfolio", "Neues Projekt", "Marktprämie", "Globale Annahmen"],
+        "en": ["Portfolio", "New Project", "Market Premium", "Global Assumptions"],
+        "fr": ["Portefeuille", "Nouveau projet", "Prime de marché",
                "Hypothèses globales"],
-        "es": ["Cartera", "Nuevo proyecto", "Subasta", "Supuestos globales"],
+        "es": ["Cartera", "Nuevo proyecto", "Prima de mercado",
+               "Supuestos globales"],
     }
 
     @pytest.mark.parametrize("code", ["de", "en", "fr", "es"])

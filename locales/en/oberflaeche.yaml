@@ -4,13 +4,14 @@
 
 # --- Header / app frame -------------------------------------------------------
 app_titel: "PV Project Valuation"
-app_untertitel: "Economics · Sensitivity · Risk — EAG market premium model, Austria"
+app_untertitel_at: "Economics · Sensitivity · Risk — EAG market premium model, Austria"
+app_untertitel_de: "Economics · Sensitivity · Risk — EEG market premium model, Germany"
 
 # --- Navigation ----------------------------------------------------------------
 nav_titel: "Navigation"
 nav_portfolio: "Portfolio"
 nav_neues_projekt: "New Project"
-nav_ausschreibung: "Auction"
+nav_ausschreibung: "Market Premium"
 nav_globale_annahmen: "Global Assumptions"
 
 # --- Common buttons --------------------------------------------------------------
@@ -451,3 +452,16 @@ annahmen_gewerbesteuer_hebesatz_hilfe: "Depends on the municipality, commonly 40
 annahmen_gewerbesteuer_freibetrag_label: "Allowance (€/year)"
 annahmen_gewerbesteuer_freibetrag_hilfe: "Statutory allowance for partnerships - as of 2026: €24,500/year."
 annahmen_gewerbesteuer_effektiv_hinweis: "Effective tax rate: {satz} % (3.5 % × municipal multiplier)."
+
+# --- Global assumptions: market system (country switch) ----------------------------
+annahmen_marktsystem_titel: "**Market system**"
+annahmen_marktsystem_hinweis: "The country switch changes the entire market system as a package: rule for negative prices (6h/1h), tax mode, interest calculation method, app title line and the methodology of the \"Market Premium\" page (Austria: empirical EAG auction model, Germany: manual EEG market premium value). The switch is saved immediately and affects all projects; the individual settings remain editable afterwards."
+annahmen_markt_oesterreich: "Austria (EAG)"
+annahmen_markt_deutschland: "Germany (EEG)"
+
+# --- Market premium page: German EEG model -----------------------------------------
+auktion_intro_titel_de: "### EEG market premium (photovoltaics, Germany)"
+auktion_intro_beschreibung_de: "German market system: the expected market premium value (anzulegender Wert) is entered manually. The empirical auction model (history, curve fitting, forecast) is based on the Austrian OeMAG auctions and is disabled in German mode."
+auktion_de_zuschlag_label: "Expected market premium / anzulegender Wert (ct/kWh)"
+auktion_de_zuschlag_hilfe: "Manually expected award value of the next EEG auction (ground-mounted segment). It is saved and can be transferred to a project below."
+auktion_de_empirie_hinweis: "The empirical methodology below (auction history, distribution fitting, forecast model) refers to the Austrian EAG auctions and is greyed out in the German market system. Switch to Austria in the global assumptions to activate it."

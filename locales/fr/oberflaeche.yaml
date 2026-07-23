@@ -4,13 +4,14 @@
 
 # --- En-tête / cadre de l'application ------------------------------------------
 app_titel: "Évaluation de Projets PV"
-app_untertitel: "Rentabilité · Sensibilité · Risque — Modèle de prime de marché EAG, Autriche"
+app_untertitel_at: "Rentabilité · Sensibilité · Risque — Modèle de prime de marché EAG, Autriche"
+app_untertitel_de: "Rentabilité · Sensibilité · Risque — Modèle de prime de marché EEG, Allemagne"
 
 # --- Navigation ----------------------------------------------------------------
 nav_titel: "Navigation"
 nav_portfolio: "Portefeuille"
 nav_neues_projekt: "Nouveau projet"
-nav_ausschreibung: "Appel d'offres"
+nav_ausschreibung: "Prime de marché"
 nav_globale_annahmen: "Hypothèses globales"
 
 # --- Boutons courants --------------------------------------------------------------
@@ -451,3 +452,16 @@ annahmen_gewerbesteuer_hebesatz_hilfe: "Dépend de la commune, généralement 40
 annahmen_gewerbesteuer_freibetrag_label: "Abattement (€/an)"
 annahmen_gewerbesteuer_freibetrag_hilfe: "Abattement légal pour les sociétés de personnes - en 2026 : 24 500 €/an."
 annahmen_gewerbesteuer_effektiv_hinweis: "Taux d'imposition effectif : {satz} % (3,5 % × coefficient communal)."
+
+# --- Hypothèses globales : système de marché (commutateur pays) --------------------
+annahmen_marktsystem_titel: "**Système de marché**"
+annahmen_marktsystem_hinweis: "Le commutateur pays change l'ensemble du système de marché : règle des prix négatifs (6h/1h), mode fiscal, méthode de calcul des intérêts, titre de l'application et méthodologie de la page « Prime de marché » (Autriche : modèle empirique d'appels d'offres EAG, Allemagne : prime de marché EEG saisie manuellement). Le changement est enregistré immédiatement et s'applique à tous les projets ; les réglages individuels restent modifiables ensuite."
+annahmen_markt_oesterreich: "Autriche (EAG)"
+annahmen_markt_deutschland: "Allemagne (EEG)"
+
+# --- Page prime de marché : modèle EEG allemand ------------------------------------
+auktion_intro_titel_de: "### Prime de marché EEG (photovoltaïque, Allemagne)"
+auktion_intro_beschreibung_de: "Système de marché allemand : la prime de marché attendue (anzulegender Wert) est saisie manuellement. Le modèle empirique d'appels d'offres (historique, ajustement de courbes, prévision) repose sur les appels d'offres autrichiens OeMAG et est désactivé en mode allemand."
+auktion_de_zuschlag_label: "Prime de marché attendue / anzulegender Wert (ct/kWh)"
+auktion_de_zuschlag_hilfe: "Valeur d'attribution attendue de la prochaine enchère EEG (segment au sol), saisie manuellement. Elle est enregistrée et peut être transférée à un projet ci-dessous."
+auktion_de_empirie_hinweis: "La méthodologie empirique ci-dessous (historique des enchères, ajustement des distributions, modèle de prévision) concerne les appels d'offres autrichiens EAG et est grisée dans le système de marché allemand. Basculez sur l'Autriche dans les hypothèses globales pour l'activer."
