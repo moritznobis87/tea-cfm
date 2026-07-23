@@ -5,25 +5,25 @@ description = "TEA PV-Projektbewertung – Wirtschaftlichkeitsrechnung für PV-P
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pydantic>=2.10",
-    "pandas>=2.2",
-    "numpy>=1.26",
+    "pydantic>=2.13.4",
+    "pandas>=3.0.5",
+    "numpy>=2.4.6",
     # pyarrow 25.0.0 hat einen reproduzierbaren Segmentation-Fault-Bug beim
     # Rendern von st.dataframe() (getestet gegen numpy 2.5.1 / pandas 3.0.3).
     # Die Versionen 21, 23 und 24 sind stabil, deshalb < 25 pinnen.
-    "pyarrow>=20,<25",
+    "pyarrow>=25.0.0,<26",
     "numpy-financial>=1.0",
-    "scipy>=1.13",
-    "pyyaml>=6.0",
-    "openpyxl>=3.1",
-    "streamlit>=1.40",
-    "plotly>=5.20",
+    "scipy>=1.17.1",
+    "pyyaml>=6.0.3",
+    "openpyxl>=3.1.5",
+    "streamlit>=1.60.0",
+    "plotly>=6.9.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "ruff>=0.6",
+    "pytest>=9.1.1",
+    "ruff>=0.16.0",
 ]
 
 [tool.pytest.ini_options]
