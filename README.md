@@ -137,6 +137,29 @@ Excel-Download in der Sidebar ist der vorgesehene Sicherungsweg.
 | `ruff` | Lint + Import-Sortierung (Konfiguration in `pyproject.toml`) |
 | GitHub Actions | CI auf Python 3.11/3.12: Lint + Tests bei jedem Push/PR |
 
+## Repository-Spiegelung
+
+`main` wird nach jedem Push automatisch nach
+[`moritznobis87/valyze`](https://github.com/moritznobis87/valyze) gespiegelt
+(`.github/workflows/mirror-to-valyze.yml`).
+
+Die Spiegelung ist ein **Force-Push**: `valyze/main` wird überschrieben, nicht
+zusammengeführt. Direkt in `valyze` committete Änderungen gehen beim nächsten
+Lauf verloren – `valyze` ist eine Lesekopie, alle Änderungen gehören hierher.
+
+Der Workflow braucht ein Secret `MIRROR_TOKEN`, weil der eingebaute
+`GITHUB_TOKEN` nur auf dieses Repository schreiben darf. Einrichtung:
+
+1. [Fine-grained Token erstellen](https://github.com/settings/personal-access-tokens/new)
+   – Repository access auf `moritznobis87/valyze` beschränken, unter
+   Permissions **Contents: Read and write** setzen.
+2. Token unter *Settings → Secrets and variables → Actions → New repository
+   secret* als `MIRROR_TOKEN` hinterlegen.
+
+Läuft das Token ab, schlägt der Workflow fehl und `valyze` bleibt auf dem
+letzten gespiegelten Stand stehen; die Spiegelung lässt sich nach der
+Erneuerung über *Actions → Mirror to valyze → Run workflow* nachholen.
+
 ## Bekannte Einschränkungen
 
 - Die Beispiel-Preiskurven in `data/global_assumptions.yaml` sind

@@ -1,0 +1,54 @@
+# Mirrors main into moritznobis87/valyze after every push, so the two repos stay
+# byte-identical without anyone remembering to copy commits across.
+#
+# The mirror is a force-push: valyze's main is overwritten, never merged. Anything
+# committed directly to valyze is lost on the next run, so treat valyze as a
+# read-only copy and make all changes here.
+#
+# Requires a MIRROR_TOKEN secret, because the built-in GITHUB_TOKEN is scoped to
+# this repository and cannot write to valyze. See the repo README section
+# "Mirroring to valyze" for how to create it.
+name: Mirror to valyze
+
+on:
+  push:
+    branches: ["main"]
+  # Lets you re-run the mirror by hand after fixing a failure, without an empty commit.
+  workflow_dispatch:
+
+# Two pushes in quick succession would otherwise race and could leave valyze on the
+# older of the two commits. Queue them instead of cancelling: every push should mirror.
+concurrency:
+  group: mirror-to-valyze
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # Without this a fork running the workflow would try to push into valyze.
+    if: github.repository == 'moritznobis87/tea-cfm'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The mirror pushes full history; the default shallow checkout makes the
+          # receiving end reject the push with "did not receive expected object".
+          fetch-depth: 0
+
+      - name: Push main to valyze
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MIRROR_TOKEN}" ]; then
+            echo "::error::MIRROR_TOKEN is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          # The token is interpolated into the URL rather than passed as an argument
+          # so it never lands in the command echo or the run log.
+          git push --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/moritznobis87/valyze.git" \
+            "${GITHUB_SHA}:refs/heads/main"
+
+          echo "Mirrored ${GITHUB_SHA} to moritznobis87/valyze (main)."
