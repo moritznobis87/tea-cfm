@@ -492,3 +492,55 @@ class TestVergleichssicht:
         assert rumpf.index("if ist_vergleich:") < rumpf.index(
             "render_parameter_spalte("
         )
+
+
+class TestLandkarte:
+    """Die Rendite-Risiko-Landkarte zeigt alle Rechnungen, auch in der
+    Sicht "Standorte" - erst dadurch entstehen die Variantenpfade, und
+    die Spannweite eines Standorts ist genau das, was diese Darstellung
+    zeigen kann."""
+
+    def _tabelle(self):
+        import pandas as pd
+
+        return pd.DataFrame(
+            [
+                {"id": "b1", "name": "Buchkirchen · Basis",
+                 "standort": "Buchkirchen", "typ": "Agri-PV", "kwp": 2800,
+                 "irr_pct": 9.8, "invest_eur_kwp": 596},
+                {"id": "b2", "name": "Buchkirchen · Netz high",
+                 "standort": "Buchkirchen", "typ": "Agri-PV", "kwp": 2800,
+                 "irr_pct": 6.5, "invest_eur_kwp": 640},
+                {"id": "a1", "name": "Amstetten", "standort": "Amstetten",
+                 "typ": "Agri-PV", "kwp": 2000, "irr_pct": 12.0,
+                 "invest_eur_kwp": 540},
+            ]
+        )
+
+    def test_varianten_eines_standorts_sind_verbunden(self):
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(self._tabelle(), None)
+        linien = [s for s in fig.data if s.mode == "lines"]
+        assert len(linien) == 1, "genau ein Pfad - Amstetten hat nur eine Rechnung"
+        assert list(linien[0].x) == [596, 640]
+
+    def test_leitvarianten_sind_beschriftet_der_rest_tritt_zurueck(self):
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(self._tabelle(), None, {"b1", "a1"})
+        punkte = next(s for s in fig.data if s.mode == "markers+text")
+        beschriftet = dict(zip(punkte.customdata[:, 1], punkte.text, strict=False))
+        assert beschriftet["Buchkirchen · Basis"] == "Buchkirchen · Basis"
+        assert beschriftet["Buchkirchen · Netz high"] == ""
+        deckkraft = dict(zip(punkte.customdata[:, 1], punkte.marker.opacity,
+                             strict=False))
+        assert deckkraft["Buchkirchen · Netz high"] < deckkraft["Buchkirchen · Basis"]
+
+    def test_ohne_hervorhebung_sind_alle_gleichrangig(self):
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(self._tabelle(), None)
+        punkte = next(s for s in fig.data if s.mode == "markers+text")
+        assert all(t for t in punkte.text)
+        assert len(set(punkte.marker.opacity)) == 1

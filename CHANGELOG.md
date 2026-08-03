@@ -2,6 +2,23 @@
 
 ## v5.2 – Blick über alle Varianten (2026-08)
 
+### v5.2.1 – Variantenpfade auch in der Sicht „Standorte"
+
+- **Die Rendite-Risiko-Landkarte zeigt jetzt immer alle Rechnungen.**
+  Bisher folgte sie der Sichtwahl und zeigte unter „Standorte" nur die
+  Leitvarianten — damit fehlten genau die Variantenpfade, für die die
+  Darstellung gedacht ist. Die Leitvarianten sind ausgeschrieben und
+  voll deckend, die übrigen treten zurück und sind über die Linie mit
+  ihrem Leitfall verbunden. Ranking und Vergleichstabelle bleiben bei
+  der gewählten Sicht: Sie sind Listen und müssen zur
+  Kennzahlenleiste passen.
+- Beschriftet werden nur die hervorgehobenen Punkte — zwölf
+  ausgeschriebene Namen überlagern einander; der Rest steht im Hover.
+- 3 neue Tests (Pfade, Hervorhebung, Gleichrangigkeit ohne Auswahl);
+  Suite: 340.
+
+
+
 Sensitivitäten ließen sich anlegen und ansteuern, aber nicht vergleichen:
 Wer wissen wollte, welche Rechnung gewinnt und woran das liegt, musste
 zwischen den Reitern hin- und herspringen und sich die Zahlen merken. Die

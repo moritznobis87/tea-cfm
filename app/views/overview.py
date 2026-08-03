@@ -324,6 +324,38 @@ def render_overview() -> None:
         ]
     )
 
+    # Die Landkarte zeigt IMMER alle Rechnungen, auch in der Sicht
+    # "Standorte": Erst dadurch entstehen die Variantenpfade, und die
+    # Spannweite eines Standorts ist genau das, was diese Darstellung
+    # zeigen kann. Die Leitvarianten sind ausgeschrieben und voll
+    # deckend, die uebrigen treten zurueck. Ranking und Vergleichstabelle
+    # bleiben dagegen bei der gewaehlten Sicht - sie sind Listen und
+    # muessen zur Kennzahlenleiste passen.
+    alle_aktiven = [z for z in zeilen if z["projekt"].aktiv]
+    landkarte = pd.DataFrame(
+        [
+            {
+                "id": z["id"],
+                "name": z["projekt"].anzeigename,
+                "standort": z["projekt"].name,
+                "typ": "Agri-PV"
+                if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
+                else "Konventionell",
+                "kwp": z["projekt"].nennleistung_kwp,
+                "irr_pct": (z["kpis"].equity_irr or 0) * 100,
+                "invest_eur_kwp": (
+                    z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
+                    if z["projekt"].nennleistung_kwp
+                    else 0
+                ),
+            }
+            for z in alle_aktiven
+        ]
+    )
+    hervorheben = (
+        {g["leit"].id for g in gruppen} if sicht == "standorte" else None
+    )
+
     col_xl1, col_xl2 = st.columns([1.6, 3])
     if col_xl1.button(txt("oberflaeche.btn_pipeline_excel"), width="stretch",
                       help=txt("oberflaeche.portfolio_excel_hilfe")):
@@ -353,8 +385,11 @@ def render_overview() -> None:
     ])
     with tab_karte:
         st.caption(txt("oberflaeche.overview_bubble_hilfe"))
+        if sicht == "standorte" and len(landkarte) > len(gruppen):
+            st.caption(txt("oberflaeche.overview_bubble_varianten"))
         st.plotly_chart(
-            charts.portfolio_bubble_chart(analytik, selected), width="stretch"
+            charts.portfolio_bubble_chart(landkarte, selected, hervorheben),
+            width="stretch",
         )
     with tab_ranking:
         st.plotly_chart(

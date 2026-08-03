@@ -657,10 +657,19 @@ def varianten_kumuliert_chart(reihen: list[tuple[str, pd.DataFrame]]) -> go.Figu
     return fig
 
 
-def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figure:
+def portfolio_bubble_chart(
+    df: pd.DataFrame,
+    selected_id: str | None,
+    hervorheben: set[str] | None = None,
+) -> go.Figure:
     """Rendite-Risiko-Landkarte des Portfolios: spezifisches Invest
     (€/kWp) gegen EK-Rendite, Blasengröße = Anlagenleistung, Farbe =
-    Anlagentyp. Das ausgewählte Projekt ist rot umrandet.
+    Anlagentyp. Das ausgewählte Projekt ist umrandet.
+
+    hervorheben: ids, die ausgeschrieben und voll deckend gezeichnet
+    werden (die Leitvarianten). Alle uebrigen Rechnungen bleiben
+    sichtbar, treten aber zurueck - sie sind der Moeglichkeitsraum eines
+    Standorts, nicht dessen Zahl. Ohne Angabe sind alle gleichrangig.
 
     Robust gegenueber einem leeren DataFrame (z.B. wenn alle Projekte
     ueber den Inaktiv-Filter ausgeblendet sind) - eine leere Figure
@@ -687,15 +696,27 @@ def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figu
         teil = df[df["typ"] == typ]
         if teil.empty:
             continue
+        # Beschriftung nur an den hervorgehobenen Punkten: Zwoelf
+        # ausgeschriebene Namen ueberlagern einander und machen die
+        # Landkarte unlesbar - der Rest steht im Hover.
+        beschriftung = [
+            name if (hervorheben is None or pid in hervorheben) else ""
+            for pid, name in zip(teil["id"], teil["name"], strict=False)
+        ]
+        deckkraft = [
+            0.75 if (hervorheben is None or pid in hervorheben) else 0.3
+            for pid in teil["id"]
+        ]
         fig.add_scatter(
             x=teil["invest_eur_kwp"], y=teil["irr_pct"],
             mode="markers+text", name=typ,
-            text=teil["name"], textposition="top center",
+            text=beschriftung, textposition="top center",
             textfont=dict(size=11, color=Colors.MUTED),
+            customdata=teil[["kwp", "name"]],
             marker=dict(
                 size=teil["kwp"], sizemode="area",
                 sizeref=2.0 * df["kwp"].max() / (46.0**2), sizemin=8,
-                color=farbe, opacity=0.75,
+                color=farbe, opacity=deckkraft,
                 line=dict(
                     width=[3 if pid == selected_id else 1 for pid in teil["id"]],
                     color=[
@@ -704,9 +725,8 @@ def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figu
                     ],
                 ),
             ),
-            customdata=teil[["kwp"]],
             hovertemplate=(
-                "%{text}<br>%{x:,.0f} €/kWp · %{y:,.2f} % IRR · "
+                "%{customdata[1]}<br>%{x:,.0f} €/kWp · %{y:,.2f} % IRR · "
                 "%{customdata[0]:,.0f} kWp<extra></extra>"
             ),
         )
