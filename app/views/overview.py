@@ -1,7 +1,12 @@
 """
 Portfolioseite: aggregierte Kennzahlen, Portfolio-Analytik
-(Rendite-Risiko-Landkarte, Ranking, Vergleichstabelle), Projektkarten mit
-Cashflow-Sparkline und darunter das Dashboard des ausgewaehlten Projekts.
+(Rendite-Risiko-Landkarte, Ranking, Vergleichstabelle) und die
+Projektkarten als Einstieg.
+
+Das Dashboard eines Projekts haengt NICHT mehr unten an dieser Seite -
+es hat eine eigene Adresse (siehe app/views/project_page.py). Dadurch
+beginnt die Projektansicht oben statt nach drei Bildschirmhoehen, und ein
+Link auf ein bestimmtes Projekt laesst sich verschicken.
 """
 
 from __future__ import annotations
@@ -11,13 +16,12 @@ import html
 import pandas as pd
 import streamlit as st
 
-from app import services
+from app import router, services
 from app.components import charts
-from app.components.kpi import render_kpi_row
+from app.components.kpi import Kennzahl, render_kennzahlen
 from app.config import STATE_SELECTED_PROJECT
-from app.formatting import fmt_eur, fmt_kwp, fmt_number, fmt_pct
+from app.formatting import fmt_eur, fmt_eur_kompakt, fmt_kwp, fmt_number, fmt_pct
 from app.theme import badge
-from app.views.project_detail import render_project_dashboard
 from engine import AnlagenTyp
 from engine.io_yaml import load_project_yaml
 from texte import txt
@@ -28,8 +32,6 @@ def render_overview() -> None:
     if not projects:
         st.info(txt("oberflaeche.overview_keine_projekte"))
         return
-
-    global_assumptions = services.get_global_assumptions()
 
     # Alle Projekte einmal bewerten (gecacht auf Datei-mtimes, siehe
     # services) - Grundlage fuer Portfolio-KPIs, Analytik und Karten.
@@ -65,16 +67,36 @@ def render_overview() -> None:
                  if z["kpis"].equity_irr is not None]
     mittlere_irr = sum(irr_werte) / len(irr_werte) if irr_werte else None
 
-    render_kpi_row(
-        [
-            (txt("oberflaeche.portfolio_kpi_anzahl_projekte"), f"{len(kpi_basis)}"),
-            (txt("oberflaeche.portfolio_kpi_gesamt_kwp"),
-             f"{fmt_number(gesamt_kwp / 1000, 1)} MWp"),
-            (txt("oberflaeche.portfolio_kpi_gesamt_capex"), fmt_eur(gesamt_capex)),
-            (txt("oberflaeche.portfolio_kpi_gesamt_ek"), fmt_eur(gesamt_ek)),
-            (txt("oberflaeche.portfolio_kpi_ek_rendite"), fmt_pct(mittlere_irr)),
+    # Leitkennzahl statt fuenf gleichrangiger Kacheln: Der mittlere Equity
+    # IRR ist die Zahl, an der das Portfolio gemessen wird; Anzahl, MWp und
+    # die beiden Summen ordnen ihn nur ein.
+    ziel_pct = 0.08
+    ziel = None
+    if mittlere_irr is not None:
+        bezug = ziel_pct * 1.5
+        ziel = (
+            min(max(mittlere_irr / bezug, 0.0), 1.0),
+            min(ziel_pct / bezug, 1.0),
+            txt("oberflaeche.kpi_ziel", wert=fmt_pct(ziel_pct, 1)),
+        )
+    render_kennzahlen(
+        leit=Kennzahl(
+            label=txt("oberflaeche.portfolio_kpi_ek_rendite"),
+            wert=fmt_pct(mittlere_irr, 1),
+            zusatz=txt("oberflaeche.portfolio_kpi_irr_methode"),
+        ),
+        begleiter=[
+            Kennzahl(txt("oberflaeche.portfolio_kpi_anzahl_projekte"),
+                     f"{len(kpi_basis)}"),
+            Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_kwp"),
+                     f"{fmt_number(gesamt_kwp / 1000, 1)} MWp"),
+            Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_capex"),
+                     fmt_eur_kompakt(gesamt_capex), None, fmt_eur(gesamt_capex)),
+            Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_ek"),
+                     fmt_eur_kompakt(gesamt_ek), None, fmt_eur(gesamt_ek)),
         ],
         group="portfolio",
+        ziel=ziel,
     )
 
     # --- Portfolio-Analytik ---------------------------------------------------
@@ -116,61 +138,56 @@ def render_overview() -> None:
             width="stretch",
         )
 
-    # Zuklappbar (Standard: eingeklappt), damit die Uebersicht kompakt
-    # bleibt und die Analytik nur bei Bedarf Platz einnimmt.
-    with st.expander(
-        f"{txt('oberflaeche.portfolio_analytik_titel')} "
-        f"({txt('oberflaeche.portfolio_tab_karte')} · "
-        f"{txt('oberflaeche.portfolio_tab_ranking')} · "
-        f"{txt('oberflaeche.portfolio_tab_tabelle')})",
-        expanded=False,
-    ):
-        tab_karte, tab_ranking, tab_tabelle = st.tabs([
-            txt("oberflaeche.portfolio_tab_karte"),
-            txt("oberflaeche.portfolio_tab_ranking"),
-            txt("oberflaeche.portfolio_tab_tabelle"),
-        ])
-        with tab_karte:
-            st.caption(txt("oberflaeche.overview_bubble_hilfe"))
-            st.plotly_chart(
-                charts.portfolio_bubble_chart(analytik, selected), width="stretch"
-            )
-        with tab_ranking:
-            st.plotly_chart(
-                charts.portfolio_ranking_chart(analytik, selected), width="stretch"
-            )
-        with tab_tabelle:
-            vergleich = pd.DataFrame(
-                [
-                    {
-                        "Projekt": z["projekt"].name,
-                        "Typ": "Agri-PV"
-                        if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
-                        else "Konventionell",
-                        "Leistung (kWp)": round(z["projekt"].nennleistung_kwp),
-                        "EK-Rendite (%)": round(z["kpis"].equity_irr * 100, 2)
-                        if z["kpis"].equity_irr is not None
-                        else None,
-                        "NPV bei 8 % (€)": round(z["kpis"].npv_eur),
-                        "Invest (€)": round(z["kpis"].capex_total_eur),
-                        "Invest (€/kWp)": round(
-                            z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
-                        )
-                        if z["projekt"].nennleistung_kwp
-                        else None,
-                        "Min. DSCR (x)": round(z["kpis"].dscr_min, 2)
-                        if z["kpis"].dscr_min is not None
-                        else None,
-                        "Payback (Jahr)": z["kpis"].payback_jahre,
-                    }
-                    for z in aktive
-                ]
-            )
-            st.dataframe(
-                vergleich.sort_values("EK-Rendite (%)", ascending=False),
-                width="stretch",
-                hide_index=True,
-            )
+    # Kein Klappfeld mehr um die Tabs: Tabs sind gleichrangige Sichten auf
+    # denselben Gegenstand, Klappfelder optionales Detail INNERHALB einer
+    # Sicht - und nie ineinander (dieselbe Regel gilt auf der Projektseite).
+    st.subheader(txt("oberflaeche.portfolio_analytik_titel"))
+    tab_karte, tab_ranking, tab_tabelle = st.tabs([
+        txt("oberflaeche.portfolio_tab_karte"),
+        txt("oberflaeche.portfolio_tab_ranking"),
+        txt("oberflaeche.portfolio_tab_tabelle"),
+    ])
+    with tab_karte:
+        st.caption(txt("oberflaeche.overview_bubble_hilfe"))
+        st.plotly_chart(
+            charts.portfolio_bubble_chart(analytik, selected), width="stretch"
+        )
+    with tab_ranking:
+        st.plotly_chart(
+            charts.portfolio_ranking_chart(analytik, selected), width="stretch"
+        )
+    with tab_tabelle:
+        vergleich = pd.DataFrame(
+            [
+                {
+                    "Projekt": z["projekt"].name,
+                    "Typ": "Agri-PV"
+                    if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
+                    else "Konventionell",
+                    "Leistung (kWp)": round(z["projekt"].nennleistung_kwp),
+                    "EK-Rendite (%)": round(z["kpis"].equity_irr * 100, 2)
+                    if z["kpis"].equity_irr is not None
+                    else None,
+                    "NPV bei 8 % (€)": round(z["kpis"].npv_eur),
+                    "Invest (€)": round(z["kpis"].capex_total_eur),
+                    "Invest (€/kWp)": round(
+                        z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
+                    )
+                    if z["projekt"].nennleistung_kwp
+                    else None,
+                    "Min. DSCR (x)": round(z["kpis"].dscr_min, 2)
+                    if z["kpis"].dscr_min is not None
+                    else None,
+                    "Payback (Jahr)": z["kpis"].payback_jahre,
+                }
+                for z in aktive
+            ]
+        )
+        st.dataframe(
+            vergleich.sort_values("EK-Rendite (%)", ascending=False),
+            width="stretch",
+            hide_index=True,
+        )
 
     # --- Projektkarten ------------------------------------------------------
     st.subheader(txt("oberflaeche.overview_projekte_titel"))
@@ -198,11 +215,4 @@ def render_overview() -> None:
             )
             if st.button(txt("oberflaeche.btn_oeffnen"), key=f"open_{z['id']}", width="stretch"):
                 st.session_state[STATE_SELECTED_PROJECT] = z["id"]
-                st.rerun()
-
-    if not selected or selected not in projects:
-        return
-
-    st.divider()
-    project = load_project_yaml(projects[selected])
-    render_project_dashboard(project, global_assumptions, projects[selected])
+                router.gehe_zu("projekt", projekt_id=z["id"])

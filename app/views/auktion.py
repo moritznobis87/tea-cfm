@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from app import services
+from app import router, services
 from app.components import charts
 from app.components.kpi import render_kpi_row
 from app.config import STATE_SELECTED_PROJECT
@@ -34,6 +34,7 @@ def render_auktion() -> None:
         return
 
     st.markdown(txt("oberflaeche.auktion_intro_titel"))
+    st.info(txt("oberflaeche.auktion_werkzeug_hinweis"), icon=":material/science:")
     st.caption(txt("oberflaeche.auktion_intro_beschreibung"))
     effektiver_wert = _render_empirisches_modell()
     st.divider()
@@ -46,6 +47,7 @@ def _render_deutschland(ga: GlobalAssumptions) -> None:
     Cashflow-Modell; das empirische oesterreichische Ausschreibungs-
     modell wird darunter nur ausgegraut (nicht bedienbar) angezeigt."""
     st.markdown(txt("oberflaeche.auktion_intro_titel_de"))
+    st.info(txt("oberflaeche.auktion_werkzeug_hinweis"), icon=":material/science:")
     st.caption(txt("oberflaeche.auktion_intro_beschreibung_de"))
 
     wert = st.number_input(
@@ -322,3 +324,6 @@ def _render_uebergabe(effektiver_wert: float) -> None:
                 "oberflaeche.auktion_uebernommen_erfolg",
                 name=projekt.name, wert=fmt_ct_kwh(effektiver_wert),
             ))
+            # Der Vorschlagswert ist erst dann etwas wert, wenn man seine
+            # Wirkung sieht - deshalb direkt auf die Projektseite.
+            router.gehe_zu("projekt", projekt_id=ziel_projekt)

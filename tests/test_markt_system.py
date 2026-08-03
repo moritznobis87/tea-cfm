@@ -42,6 +42,14 @@ def _ga_datei_gesichert():
         services._load_global_assumptions_cached.clear()
 
 
+def _navigiere(at, key: str):
+    """Seitenwechsel ueber die Seitenleiste - seit v5.0 hervorgehobene
+    Knoepfe statt eines Radio-Felds (siehe app/components/sidebar.py)."""
+    [b for b in at.button if b.key == key][0].click()
+    at.run()
+    return at
+
+
 def _app() -> "AppTest":  # noqa: F821
     from streamlit.testing.v1 import AppTest
 
@@ -80,7 +88,7 @@ class TestModell:
 class TestFlaggenSchalter:
     def test_beide_flaggen_buttons_vorhanden(self, _ga_datei_gesichert):
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         assert not at.exception
         schluessel = {b.key for b in at.button if b.key}
@@ -101,7 +109,7 @@ class TestFlaggenSchalter:
         from engine.io_yaml import load_global_assumptions_yaml
 
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
@@ -117,7 +125,7 @@ class TestFlaggenSchalter:
         from engine.io_yaml import load_global_assumptions_yaml
 
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
@@ -142,7 +150,7 @@ class TestKopfzeilenTitel:
 
     def test_deutschland_zeigt_eeg_untertitel(self, _ga_datei_gesichert):
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
@@ -157,7 +165,7 @@ class TestMarktpraemienSeiteDeutschland:
         self, _ga_datei_gesichert
     ):
         at = _app()
-        at.sidebar.radio[0].set_value("auktion")
+        _navigiere(at, "nav_ausschreibung")
         at.run()
         assert not at.exception
         assert not any(
@@ -170,11 +178,11 @@ class TestMarktpraemienSeiteDeutschland:
         self, _ga_datei_gesichert
     ):
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
-        at.sidebar.radio[0].set_value("auktion")
+        _navigiere(at, "nav_ausschreibung")
         at.run()
         assert not at.exception, at.exception
 
@@ -193,11 +201,11 @@ class TestMarktpraemienSeiteDeutschland:
         from engine.io_yaml import load_global_assumptions_yaml
 
         at = _app()
-        at.sidebar.radio[0].set_value("annahmen")
+        _navigiere(at, "nav_annahmen")
         at.run()
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
-        at.sidebar.radio[0].set_value("auktion")
+        _navigiere(at, "nav_ausschreibung")
         at.run()
         eingabe = [n for n in at.number_input if n.key == "de_marktpraemie_wert"][0]
         eingabe.set_value(4.75)

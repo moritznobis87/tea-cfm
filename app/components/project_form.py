@@ -20,6 +20,7 @@ Risikomuster fuer inkonsistentes Formularverhalten.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime
 
 import pandas as pd
@@ -133,17 +134,78 @@ def _positionstabelle(
 EPC_DEFAULT_EUR_KWP = {"Agri-PV": 520.0, "Konventionell": 430.0}
 
 
+@contextlib.contextmanager
+def _formularrahmen(form_key: str, mit_formular: bool):
+    """st.form nur dort, wo auf ein Absenden gewartet wird."""
+    if mit_formular:
+        with st.form(form_key, clear_on_submit=False):
+            yield
+    else:
+        yield
+
+
 def render_project_form(
     existing: PVProject | None, form_key: str
 ) -> PVProject | None:
-    """Rendert die Projektmaske.
+    """Projektmaske in voller Seitenbreite, mit Absenden-Knopf.
 
     Ohne `existing` = Neuanlage (sinnvolle Defaults), mit `existing` =
     Bearbeiten (vorausgefuellt, gleiche id). Gibt das neue/aktualisierte
     PVProject zurueck, wenn abgeschickt wurde, sonst None.
     """
+    return _felder(existing, form_key, spaltig=False, mit_formular=True)
+
+
+def render_parameter_spalte(
+    existing: PVProject | None, form_key: str
+) -> PVProject | None:
+    """Projektmaske als schmale Spalte neben dem Ergebnis.
+
+    Gibt bei jedem Durchlauf den aktuellen ENTWURF zurueck - er wird
+    gerechnet, aber nicht gespeichert. Das Speichern ist ein eigener
+    Schritt (siehe app/views/project_page.py), damit sich gefahrlos
+    ausprobieren laesst.
+    """
+    return _felder(existing, form_key, spaltig=True, mit_formular=False)
+
+
+def verwirf_entwurf(form_key: str) -> None:
+    """Loescht alle Widget-Zustaende der Parameterspalte.
+
+    Danach lesen die Felder ihre Vorbelegung wieder aus dem gespeicherten
+    Projekt - das ist genau die Wirkung von "Verwerfen".
+    """
+    for schluessel in [s for s in st.session_state if s.startswith(f"{form_key}_")]:
+        del st.session_state[schluessel]
+
+
+def _felder(
+    existing: PVProject | None,
+    form_key: str,
+    *,
+    spaltig: bool,
+    mit_formular: bool,
+) -> PVProject | None:
+    """Gemeinsamer Rumpf beider Darstellungen der Projektmaske.
+
+    spaltig=False  - breite Anordnung mit mehreren Feldern nebeneinander
+                     (Neuanlage, volle Seitenbreite).
+    spaltig=True   - alles untereinander fuer die schmale Parameterspalte
+                     neben dem Ergebnis.
+    mit_formular=True  - Eingaben wirken erst beim Absenden (st.form).
+    mit_formular=False - jede Aenderung loest einen Rerun aus, und der
+                     Entwurf wird bei JEDEM Durchlauf zurueckgegeben. Das
+                     ist die Grundlage der sofortigen Neuberechnung neben
+                     dem Ergebnis; gespeichert wird davon nichts.
+    """
+
+    def spalten(anzahl: int):
+        """In der schmalen Spalte gibt es keine Nebeneinander-Anordnung;
+        st selbst verhaelt sich wie ein Spaltencontainer."""
+        return st.columns(anzahl) if not spaltig else [st] * anzahl
+
     st.markdown("**Technische Anlagenparameter**")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = spalten(3)
     nennleistung_kwp = col1.number_input(
         "Leistung (kWp)", min_value=0.0,
         value=existing.nennleistung_kwp if existing else 5000.0,
@@ -163,7 +225,7 @@ def render_project_form(
         horizontal=True, key=f"{form_key}_typ_live",
     )
 
-    col_ibn1, col_ibn2 = st.columns(2)
+    col_ibn1, col_ibn2 = spalten(2)
     inbetriebnahme_jahr = col_ibn1.number_input(
         txt("oberflaeche.formular_ibn_jahr_label"), min_value=2000, max_value=2100,
         value=existing.inbetriebnahme_jahr if existing else datetime.now().year + 1,
@@ -226,8 +288,12 @@ def render_project_form(
             elif default_eur_kwp is not None and not existing:
                 st.session_state[key] = default_eur_kwp
             else:
+                # Zwei Nachkommastellen: Mit nur einer verliert der
+                # Rueckweg (Anzeige -> Gesamtbetrag) bei kleinen Positionen
+                # mehrere hundert Euro, und die Seite meldete Aenderungen,
+                # die niemand vorgenommen hat.
                 st.session_state[key] = (
-                    round(default_abs_eur / nennleistung_kwp, 1)
+                    round(default_abs_eur / nennleistung_kwp, 2)
                     if nennleistung_kwp
                     else 0.0
                 )
@@ -252,7 +318,7 @@ def render_project_form(
         return eingabe if absolut else eingabe * nennleistung_kwp
 
     epc_default_eur_kwp = EPC_DEFAULT_EUR_KWP[anlagentyp_label]
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4 = spalten(4)
     epc = capex_feld(
         c1, "EPC",
         capex_defaults.epc_eur
@@ -276,7 +342,7 @@ def render_project_form(
         "widmung",
         default_eur_kwp=1.0,
     )
-    c5, c6, c7, c8 = st.columns(4)
+    c5, c6, c7, c8 = spalten(4)
     genehmigung = capex_feld(
         c5, "Genehmigung",
         capex_defaults.genehmigung_eur if existing else 80000.0,
@@ -294,7 +360,7 @@ def render_project_form(
     m_and_a = capex_feld(
         c8, "M&A", capex_defaults.m_and_a_eur if existing else 20000.0, "ma",
     )
-    c9, _, _, _ = st.columns(4)
+    c9, _, _, _ = spalten(4)
     poenale = capex_feld(
         c9, txt("oberflaeche.formular_capex_poenale"),
         capex_defaults.poenale_puffer_eur if existing else 35000.0,
@@ -353,7 +419,7 @@ def render_project_form(
     )
     st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
 
-    with st.form(form_key, clear_on_submit=False):
+    with _formularrahmen(form_key, mit_formular):
         name = st.text_input(
             "Projektname",
             value=existing.name if existing else "",
@@ -362,7 +428,7 @@ def render_project_form(
         )
 
         st.markdown("**Wirtschaftliche Parameter**")
-        col5, col6, col7, col8 = st.columns(4)
+        col5, col6, col7, col8 = spalten(4)
         fk_zins = col5.number_input(
             "Fremdkapitalzins (%)", min_value=0.0,
             value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
@@ -390,7 +456,7 @@ def render_project_form(
             value=gemeindeabgabe_default, step=0.5,
             key=f"{form_key}_gemeindeabgabe",
         )
-        col9, _, _, _ = st.columns(4)
+        col9, _, _, _ = spalten(4)
         direktvermarktung_default = (
             existing.direktvermarktungskosten_eur_mwh
             if existing
@@ -457,7 +523,7 @@ def render_project_form(
                 min_value=0.01, step=0.5, key=flaeche_key,
                 help=txt("oberflaeche.formular_pacht_flaeche_umsatz_hilfe"),
             )
-            col_pct, col_min = st.columns(2)
+            col_pct, col_min = spalten(2)
             pct_key = f"{form_key}_pacht_umsatz_pct"
             if pacht_mode_changed or pct_key not in st.session_state:
                 st.session_state[pct_key] = round(
@@ -523,16 +589,22 @@ def render_project_form(
             )
             flaeche_ha = existing.projektflaeche_ha if existing else None
 
-        button_label = (
-            txt("oberflaeche.formular_btn_speichern") if existing
-            else txt("oberflaeche.formular_btn_anlegen")
-        )
-        submitted = st.form_submit_button(button_label, type="primary")
+        if mit_formular:
+            button_label = (
+                txt("oberflaeche.formular_btn_speichern") if existing
+                else txt("oberflaeche.formular_btn_anlegen")
+            )
+            abgeschickt = st.form_submit_button(button_label, type="primary")
+        else:
+            # Ohne Formular gibt es nichts abzuschicken - der Entwurf
+            # entsteht bei jedem Durchlauf neu.
+            abgeschickt = True
 
-    if not submitted:
+    if not abgeschickt:
         return None
     if not name.strip():
-        st.error(txt("oberflaeche.projekt_name_fehlt"))
+        if mit_formular:
+            st.error(txt("oberflaeche.projekt_name_fehlt"))
         return None
     positionsfehler = _namensfehler(zusatz_capex + zusatz_opex)
     if positionsfehler:

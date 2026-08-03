@@ -190,6 +190,21 @@ def _baue_css() -> str:
         }}
         div[data-testid="stMetric"] label {{ color: {Colors.MUTED}; }}
 
+        /* Die Werte werden gerundet dargestellt (siehe app/formatting.py:
+           fmt_eur_kompakt), deshalb genuegen feste Schriftgroessen - das
+           frueher noetige Mess-Skript zur nachtraeglichen Verkleinerung
+           entfaellt. */
+        .kpi-leiste {{
+            display: grid;
+            grid-template-columns: minmax(280px, 0.9fr) 2fr;
+            gap: 14px;
+            margin: 0.35rem 0 1rem 0;
+        }}
+        .kpi-begleiter {{
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }}
         .kpi-row {{
             display: grid;
             grid-auto-flow: column;
@@ -197,24 +212,24 @@ def _baue_css() -> str:
             gap: 12px;
             margin: 0.35rem 0 0.9rem 0;
         }}
-        /* Fuenf Kacheln nebeneinander lassen in einem schmalen Fenster nur
-           rund 60px Textbreite je Kachel - dort reicht auch die kleinste
-           zulaessige Schrift nicht mehr, und lange Betraege wurden mit
-           Auslassungspunkten abgeschnitten. Ab diesen Breiten bricht die
-           Zeile deshalb um, statt die Kacheln weiter zu stauchen. */
+        /* In schmalen Fenstern wird aus der zweispaltigen Leiste ein
+           Stapel; die Begleiter bleiben zu zweit nebeneinander. */
         @media (max-width: 1150px) {{
+            .kpi-leiste {{ grid-template-columns: 1fr; }}
             .kpi-row {{
                 grid-auto-flow: row;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
         }}
         @media (max-width: 780px) {{
+            .kpi-begleiter {{ grid-template-columns: 1fr; }}
             .kpi-row {{
                 grid-auto-flow: row;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }}
         }}
-        .kpi-card {{
+
+        .kpi-card, .kpi-hero {{
             position: relative;
             background: linear-gradient(180deg, {Colors.PAPER} 0%, {Colors.WASH} 100%);
             border: 1px solid {Colors.LINE};
@@ -224,47 +239,138 @@ def _baue_css() -> str:
             overflow: hidden;
             transition: transform 140ms ease, box-shadow 140ms ease;
         }}
-        .kpi-card::before {{
+        .kpi-card::before, .kpi-hero::before {{
             content: "";
             position: absolute;
             top: 0; left: 0; bottom: 0;
             width: 3px;
-            background: {Colors.BRAND};
+            background: {Colors.NEUTRAL};
         }}
-        .kpi-card:hover {{
+        .kpi-hero {{
+            border-color: {Colors.BRAND};
+            box-shadow: 0 0 0 1px {Colors.BRAND};
+            padding: 16px 20px 14px 22px;
+            display: flex;
+            flex-direction: column;
+        }}
+        .kpi-hero::before {{ width: 4px; background: {Colors.BRAND}; }}
+        .kpi-card:hover, .kpi-hero:hover {{
             transform: translateY(-2px);
             box-shadow: 0 6px 18px rgba(20, 48, 79, 0.10);
         }}
-        .kpi-card .kpi-label {{
+        .kpi-hero:hover {{
+            box-shadow: 0 0 0 1px {Colors.BRAND}, 0 6px 18px rgba(20, 48, 79, 0.10);
+        }}
+        .kpi-label {{
             color: {Colors.MUTED};
-            font-size: 0.78rem;
-            font-weight: 600;
+            font-size: 0.74rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 3px;
+            letter-spacing: 0.06em;
+            margin-bottom: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }}
-        .kpi-card .kpi-value {{
+        /* Wert und Einordnung untereinander statt nebeneinander: Neben
+           der Parameterspalte sind die Begleitkacheln schmal, und der
+           Zusatz wurde sonst nach zwei Zeichen abgeschnitten. */
+        .kpi-zeile {{
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }}
+        .kpi-value {{
             font-variant-numeric: tabular-nums;
             color: {Colors.INK};
             font-weight: 700;
-            font-size: 2rem;            /* Maximum; JS passt gruppenweise an */
-            line-height: 1.25;
+            font-size: 1.5rem;
+            line-height: 1.3;
+            white-space: nowrap;
+        }}
+        .kpi-sub {{
+            color: {Colors.MUTED};
+            font-size: 0.72rem;
+            line-height: 1.2;
+            max-width: 100%;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;    /* Sicherheitsnetz, falls die JS-Anpassung
-                                           einen Reflow (Sidebar/Expander/Tab) einmal
-                                           nicht rechtzeitig einholt */
+            text-overflow: ellipsis;
         }}
-        /* 1px-iframes (Schriftgroessen-Skript, siehe app/components/kpi.py)
-           samt Container aus dem Layoutfluss nehmen, damit kein Leerraum
-           entsteht. Skripte in display:none-iframes laufen weiterhin. */
-        div[data-testid="stElementContainer"]:has(iframe[height="0"]),
-        div[data-testid="stElementContainer"]:has(iframe[height="1"]) {{
-            display: none;
+        .kpi-hero-value {{
+            font-variant-numeric: tabular-nums;
+            color: {Colors.INK};
+            font-weight: 700;
+            font-size: 2.6rem;
+            line-height: 1.15;
+            white-space: nowrap;
         }}
+        .kpi-delta {{
+            display: inline-block;
+            align-self: flex-start;
+            margin-top: 6px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            background: #E6F1EC;
+            color: {Colors.POSITIVE};
+            font-size: 0.72rem;
+            font-weight: 600;
+        }}
+        .kpi-delta.negativ {{ background: #FBEBE9; color: {Colors.NEGATIVE}; }}
+        /* Einordnung: Balken bis zum Wert, Marke bei der Zielgroesse -
+           beantwortet "gut oder schlecht?" ohne eine zweite Zahl. */
+        .kpi-ziel {{ margin-top: 12px; }}
+        .kpi-ziel-bahn {{
+            position: relative;
+            height: 5px;
+            border-radius: 3px;
+            background: #E5EAED;
+        }}
+        .kpi-ziel-fuell {{
+            position: absolute; top: 0; left: 0; bottom: 0;
+            border-radius: 3px;
+            background: {Colors.BRAND};
+        }}
+        .kpi-ziel-marke {{
+            position: absolute;
+            top: -4px; bottom: -4px;
+            width: 2px;
+            background: {Colors.INK};
+        }}
+        .kpi-ziel-label {{
+            color: {Colors.MUTED};
+            font-size: 0.7rem;
+            margin-top: 4px;
+        }}
+        .kpi-fuss {{
+            color: {Colors.MUTED};
+            font-size: 0.72rem;
+            margin-top: auto;
+            padding-top: 10px;
+        }}
+
+        /* --- Kontextzeile ------------------------------------------------------ */
+        /* Marktsystem, Szenario und Diskontsatz gelten app-weit. Sie stehen
+           hier sichtbar, statt als kleines Eingabefeld irgendwo auf der
+           Seite - sonst verschiebt man unbemerkt die Vergleichsbasis. */
+        .kontextzeile {{
+            background: {Colors.WASH};
+            border: 1px solid {Colors.LINE};
+            border-radius: 8px;
+            padding: 7px 14px;
+            color: {Colors.MUTED};
+            font-size: 0.84rem;
+            margin: 0.2rem 0 0.6rem 0;
+        }}
+        .kontextzeile b {{ color: {Colors.INK}; font-weight: 600; }}
+
+        /* --- Brotkrume --------------------------------------------------------- */
+        .brotkrume {{
+            font-size: 0.82rem;
+            color: {Colors.MUTED};
+            margin-bottom: 2px;
+        }}
+        .brotkrume b {{ color: {Colors.BRAND}; font-weight: 600; }}
 
         /* --- Projektkarten ---------------------------------------------------- */
         .project-card {{
@@ -330,6 +436,35 @@ def _baue_css() -> str:
             border-right: 1px solid {Colors.LINE};
         }}
         section[data-testid="stSidebar"] .stRadio label {{ font-weight: 500; }}
+
+        /* Navigationseintraege sind Ortswechsel, keine Formularauswahl:
+           linksbuendig, ohne Rahmen, der aktive Eintrag hervorgehoben
+           (siehe app/components/sidebar.py). */
+        .nav-gruppe {{
+            color: {Colors.MUTED};
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin: 1.1rem 0 0.3rem 0.15rem;
+        }}
+        section[data-testid="stSidebar"] .stButton > button[kind="tertiary"] {{
+            justify-content: flex-start;
+            text-align: left;
+            border: none;
+            background: transparent;
+            color: {Colors.MUTED};
+            font-weight: 400;
+            padding: 0.28rem 0.7rem;
+            /* Links eckig: Der Aktiv-Balken sitzt an dieser Kante und
+               wuerde von einer Rundung zu einem Bogen beschnitten. */
+            border-radius: 0 8px 8px 0;
+            min-height: 0;
+        }}
+        section[data-testid="stSidebar"] .stButton > button[kind="tertiary"]:hover {{
+            background: {Colors.WASH} !important;
+            color: {Colors.INK} !important;
+        }}
 
         /* --- Markenfarbe erzwingen (Fallback, falls kein Theme greift) -------- */
         :root {{ --primary-color: {Colors.BRAND}; }}

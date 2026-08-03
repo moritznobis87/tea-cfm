@@ -53,14 +53,15 @@ apply_theme()
 # Imports der Views erst NACH set_page_config - Streamlit verlangt, dass
 # set_page_config der allererste Streamlit-Befehl des Skripts ist, und die
 # Views fuehren beim Import bereits Streamlit-Code aus (Caching-Dekoratoren).
-from app import services  # noqa: E402
-from app.components.sidebar import render_import_export  # noqa: E402
+from app import router, services  # noqa: E402
+from app.components.sidebar import render_sidebar  # noqa: E402
 from app.config import FLAGS_DIR  # noqa: E402
 from app.views.assumptions import render_assumptions  # noqa: E402
 from engine import MarktSystem  # noqa: E402
 from app.views.auktion import render_auktion  # noqa: E402
 from app.views.new_project import render_new_project  # noqa: E402
 from app.views.overview import render_overview  # noqa: E402
+from app.views.project_page import render_project_page  # noqa: E402
 from texte import SESSION_KEY, SPRACHEN, sprachauswahl_label, txt  # noqa: E402
 
 # --- Kopfzeile (Hero) --------------------------------------------------------
@@ -147,29 +148,19 @@ with st.container(key="app_header"):
 st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
 # --- Navigation ----------------------------------------------------------------
-# Stabile interne Codes als Radio-Werte (nicht die uebersetzten Labels):
-# so bleibt die Auswahl beim Sprachwechsel gueltig und Streamlit muss den
-# gespeicherten Widget-Zustand nicht verwerfen. Explizite Zuordnung zu den
-# Sprachdatei-Schluesseln (keine Namenskonvention noetig/riskant).
-_NAV_SCHLUESSEL = {
-    "portfolio": "oberflaeche.nav_portfolio",
-    "neu": "oberflaeche.nav_neues_projekt",
-    "auktion": "oberflaeche.nav_ausschreibung",
-    "annahmen": "oberflaeche.nav_globale_annahmen",
-}
-nav = st.sidebar.radio(
-    txt("oberflaeche.nav_titel"),
-    list(_NAV_SCHLUESSEL),
-    format_func=lambda code: txt(_NAV_SCHLUESSEL[code]),
-    key="nav",
-)
-render_import_export()
+# Die geoeffnete Seite steht in der Adresse (?seite=...), nicht nur im
+# Session-State - siehe app/router.py. Dadurch funktionieren Neuladen,
+# Lesezeichen, verschickte Links und der Zurueck-Knopf des Browsers.
+render_sidebar()
 
-if nav == "portfolio":
+_seite = router.aktuelle_seite()
+if _seite == "portfolio":
     render_overview()
-elif nav == "neu":
+elif _seite == "projekt":
+    render_project_page()
+elif _seite == "neu":
     render_new_project()
-elif nav == "auktion":
+elif _seite == "ausschreibung":
     render_auktion()
 else:
     render_assumptions()

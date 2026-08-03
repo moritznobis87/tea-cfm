@@ -1,5 +1,65 @@
 # Changelog
 
+## v5.0 – Neue Seitenstruktur (2026-08)
+
+Umbau der Oberfläche in fünf Schritten. Die Rechenregeln sind unverändert;
+alle Änderungen betreffen Navigation, Anordnung und Darstellung.
+
+- **Jede Seite hat eine eigene Adresse** (`?seite=projekt&id=…&tab=…`,
+  neu: `app/router.py`). Neuladen, Lesezeichen, verschickte Links und der
+  Zurück-Knopf des Browsers funktionieren dadurch. Bis hierher lag die
+  geöffnete Ansicht allein im Session-State, und die Projektansicht hing
+  unten an der Portfolioseite – erreichbar erst nach rund drei
+  Bildschirmhöhen.
+- **Navigation statt Formularauswahl.** Das Radio-Feld der Seitenleiste ist
+  hervorgehobenen Einträgen gewichen; das geöffnete Projekt wird genauso
+  markiert wie die aktive Seite. Neu sind eine Projektliste mit direktem
+  Wechsel, ein „+ Neues Projekt"-Knopf und die Gruppe **Sichern** mit
+  *Projekte sichern*, *Annahmen sichern* und *Wiederherstellen* als
+  direkte Einträge.
+- **Eingabe neben dem Ergebnis.** Die Projektmaske steht als Parameterspalte
+  rechts neben den Auswertungen und arbeitet auf einem Entwurf: Jede
+  Änderung rechnet sofort durch, gespeichert wird auf Knopfdruck. Die
+  Fußzeile zählt die offenen Änderungen und bietet *Verwerfen* an. Damit
+  lässt sich gefahrlos ausprobieren – bisher waren Absenden und Speichern
+  derselbe Schritt.
+  - Nicht live rechnen Tornado, Heatmap, Monte Carlo, Szenarien und
+    Break-even: Sie führen je Aufruf Dutzende bis Tausende
+    Bewertungsläufe aus und beziehen sich weiter auf den gespeicherten
+    Stand. Die Sicht „Risiko" weist darauf hin, solange ein abweichender
+    Entwurf offen ist.
+- **Eine Regel für Tabs und Klappfelder**: Tabs sind gleichrangige Sichten
+  auf denselben Gegenstand, Klappfelder optionales Detail innerhalb einer
+  Sicht – und nie ineinander. Aus sieben Projekt-Tabs werden vier
+  (**Ergebnis** = Cashflow + Erlöse, **Finanzierung**, **Risiko** =
+  Sensitivität + Monte Carlo + Szenarien, **Annahmen**); die
+  Portfolio-Analytik verliert ihr umschließendes Klappfeld.
+- **Leitkennzahl statt fünf gleichrangiger Kacheln.** Equity IRR groß, mit
+  Zielmarke und – bei offenen Änderungen – der Abweichung zum
+  gespeicherten Stand; NPV, Equity Value, Enterprise Value und CAPEX
+  begleiten kompakt daneben. Auf der Portfolioseite entsprechend der
+  mittlere Equity IRR.
+- **Beträge werden gerundet dargestellt** („9,34 Mio €" statt
+  „9.338.144 €", genauer Wert im Tooltip). Damit passen alle Werte bei
+  fester Schriftgröße: Das bisherige Mess-Skript mit Resize- und
+  MutationObserver entfällt ersatzlos – rund 100 Zeilen JavaScript und
+  die Ursache der im Safari gemeldeten abgeschnittenen Werte.
+- **Kontextzeile** unter dem Projekttitel: Marktsystem, Preisszenario,
+  Diskontsatz, Leistung, Inbetriebnahme, Anlagentyp und Zuschlagswert.
+  Der Diskontsatz gilt app-weit und ist dort einstellbar, statt als
+  kleines Zahlenfeld mitten auf der Seite zu stehen.
+- **Aktionen nach Gewicht sortiert**: PDF-Bericht hervorgehoben, Excel
+  daneben, Duplizieren/Inaktiv/Löschen im Überlaufmenü. Löschen hat nicht
+  mehr die Prominenz eines Exports.
+- **Auktionsmodul als Analysewerkzeug gekennzeichnet**: eigene Gruppe
+  *Werkzeuge* in der Navigation, Hinweis auf der Seite, und die Übernahme
+  des Vorschlagswerts führt direkt auf die Projektseite.
+- Investkosten in €/kWp werden mit zwei statt einer Nachkommastelle
+  geführt – mit nur einer verlor der Rückweg bei kleinen Positionen
+  mehrere hundert Euro.
+- 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
+  vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
+
 ## v4.29 – Excel-Import älterer Dateien, Zusatzblöcke einklappbar (2026-08)
 
 - **Gespeicherte Projekte lassen sich wieder einlesen.** Die

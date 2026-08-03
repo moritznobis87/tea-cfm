@@ -21,6 +21,31 @@ sys.path.insert(0, str(ROOT))
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
 
+def _gehe_zu(at: AppTest, key: str) -> AppTest:
+    """Navigation ueber die Seitenleiste (Knoepfe statt Radio-Feld)."""
+    [b for b in at.button if b.key == key][0].click()
+    at.run()
+    assert not at.exception
+    return at
+
+
+def _oeffne_projekt(at: AppTest) -> AppTest:
+    """Erstes Projekt ueber seine Karte im Portfolio oeffnen."""
+    [b for b in at.button if b.key and b.key.startswith("open_")][0].click()
+    at.run()
+    assert not at.exception
+    return at
+
+
+def _kpi_markup(at: AppTest, gruppe: str) -> str:
+    treffer = [
+        m.value for m in at.markdown
+        if f'data-kpi-group="{gruppe}"' in m.value and "kpi-leiste" in m.value
+    ]
+    assert len(treffer) == 1, f"Kennzahlenleiste '{gruppe}' nicht eindeutig"
+    return treffer[0]
+
+
 @pytest.fixture
 def at() -> AppTest:
     app = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
@@ -33,30 +58,21 @@ class TestSeitenRendern:
     def test_portfolio_zeigt_kennzahlen_und_projekte(self, at: AppTest):
         # Portfolio-KPI-Leiste (Projekte, MWp, Invest, EK, Ø IRR) - als
         # HTML-Kacheln mit Auto-Fit-Schrift, gruppiert als "portfolio".
-        kpi_html = [
-            m.value for m in at.markdown if 'data-kpi-group="portfolio"' in m.value
-        ]
-        assert len(kpi_html) == 1
-        assert kpi_html[0].count('class="kpi-card"') == 5
+        markup = _kpi_markup(at, "portfolio")
+        # Eine Leitkachel (Ø Equity IRR) und vier begleitende.
+        assert markup.count('class="kpi-hero"') == 1
+        assert markup.count('class="kpi-card"') == 4
         oeffnen_buttons = [
             b for b in at.button if b.key and b.key.startswith("open_")
         ]
         assert len(oeffnen_buttons) >= 1
 
-    def test_projekt_dashboard_oeffnet_ohne_fehler(self, at: AppTest):
-        oeffnen_buttons = [
-            b for b in at.button if b.key and b.key.startswith("open_")
-        ]
-        oeffnen_buttons[0].click()
-        at.run()
-        assert not at.exception
-        # 5 Projekt-KPIs als Kachelgruppe "projekt".
-        projekt_kpis = [
-            m.value for m in at.markdown if 'data-kpi-group="projekt"' in m.value
-        ]
-        assert len(projekt_kpis) == 1
-        assert projekt_kpis[0].count('class="kpi-card"') == 5
-        # NPV-Diskontsatz-Eingabe vorhanden und wirksam (Label folgt Wert).
+    def test_projektseite_oeffnet_ohne_fehler(self, at: AppTest):
+        at = _oeffne_projekt(at)
+        markup = _kpi_markup(at, "projekt")
+        assert markup.count('class="kpi-hero"') == 1
+        assert markup.count('class="kpi-card"') == 4
+        # Der Diskontsatz steht in der Kontextzeile und ist dort einstellbar.
         npv_inputs = [
             n for n in at.get("number_input") if n.key == "npv_diskontsatz_pct"
         ]
@@ -64,20 +80,19 @@ class TestSeitenRendern:
         npv_inputs[0].set_value(7.5)
         at.run()
         assert not at.exception
-        projekt_kpis = [
-            m.value for m in at.markdown if 'data-kpi-group="projekt"' in m.value
+        assert "NPV bei 7,50 %" in _kpi_markup(at, "projekt")
+        kontext = [
+            m.value for m in at.markdown if 'class="kontextzeile"' in m.value
         ]
-        assert "NPV bei 7,50 %" in projekt_kpis[0]
+        assert kontext and "Diskontsatz 7,50 %" in kontext[0]
 
     def test_neues_projekt_zeigt_formular(self, at: AppTest):
-        at.sidebar.radio[0].set_value("neu")
-        at.run()
+        _gehe_zu(at, "nav_neu")
         assert not at.exception
         assert len(at.get("number_input")) > 10
 
     def test_globale_annahmen_rendern(self, at: AppTest):
-        at.sidebar.radio[0].set_value("annahmen")
-        at.run()
+        _gehe_zu(at, "nav_annahmen")
         assert not at.exception
 
 
@@ -141,16 +156,11 @@ class TestKPIUndChartBugfixes:
         import re
 
         def kpi_werte(app):
-            markup = " ".join(
-                m.value for m in app.markdown
-                if m.value and "kpi-value" in m.value
-            )
-            return re.findall(r'data-kpi-group="portfolio"[^>]*>([^<]+)<', markup)
+            markup = _kpi_markup(app, "portfolio")
+            return re.findall(r'class="kpi-value"[^>]*>([^<]+)<', markup)
 
         vorher = kpi_werte(at)
-        [b for b in at.button if b.key and b.key.startswith("open_")][0].click()
-        at.run()
-        assert not at.exception
+        at = _oeffne_projekt(at)
         btn = [b for b in at.button if b.key and b.key.startswith("aktiv_")][0]
         assert btn.label == "Inaktiv schalten", (
             "Projekt war vor dem Test bereits inaktiv - Testisolation verletzt"
@@ -159,14 +169,17 @@ class TestKPIUndChartBugfixes:
             btn.click()
             at.run()
             assert not at.exception
+            [b for b in at.button if b.key == "nav_portfolio"][0].click()
+            at.run()
             nachher = kpi_werte(at)
-            # Alle fuenf KPIs (inkl. Projektanzahl an Position 0) muessen
-            # sich gemeinsam veraendern, wenn ein Projekt inaktiv wird.
+            # Die Projektanzahl ist die erste Begleitkachel und muss dem
+            # Inaktiv-Filter folgen.
             assert vorher[0] != nachher[0], (
                 "Projektanzahl reagiert nicht auf Inaktiv-Filter"
             )
             assert int(nachher[0]) == int(vorher[0]) - 1
         finally:
+            at = _oeffne_projekt(at)
             btn_zurueck = [
                 b for b in at.button if b.key and b.key.startswith("aktiv_")
             ][0]
@@ -174,26 +187,25 @@ class TestKPIUndChartBugfixes:
                 btn_zurueck.click()
                 at.run()
 
-    def test_kpi_value_hat_ellipsis_sicherheitsnetz(self):
-        """CSS-Sicherheitsnetz: falls die JS-Anpassung einen Reflow einmal
-        nicht rechtzeitig einholt, muss der Wert sauber mit '…'
-        abgeschnitten werden statt hart (unleserlich) geclippt."""
-        from app.theme import _baue_css
+    def test_kennzahl_ohne_schriftanpassung_per_skript(self):
+        """Die frueher noetige Messung per JavaScript ist ersatzlos
+        entfallen: Die Werte werden gerundet dargestellt und passen damit
+        bei fester Schriftgroesse (siehe app/components/kpi.py)."""
+        import pathlib
 
-        css = _baue_css()
-        block = css[css.index(".kpi-card .kpi-value"):]
-        block = block[:block.index("}")]
-        assert "text-overflow: ellipsis" in block
-        assert "overflow: hidden" in block
+        quelle = pathlib.Path("app/components/kpi.py").read_text(encoding="utf-8")
+        assert "ResizeObserver" not in quelle
+        assert "<script" not in quelle
+        assert "st.iframe" not in quelle
 
-    def test_kpi_fit_skript_beobachtet_layoutwechsel(self):
-        """Das Schriftgroessen-Skript verlaesst sich nicht mehr nur auf
-        feste Timeouts, sondern beobachtet Groessen-/DOM-Aenderungen
-        aktiv weiter (Sidebar/Tab/Expander-Wechsel, spaetere Reruns)."""
-        from app.components.kpi import _FIT_SCRIPT
+    def test_betraege_werden_gerundet_dargestellt(self):
+        from app.formatting import fmt_eur_kompakt
 
-        assert "ResizeObserver" in _FIT_SCRIPT
-        assert "MutationObserver" in _FIT_SCRIPT
+        assert fmt_eur_kompakt(1_243_117) == "1,24 Mio €"
+        assert fmt_eur_kompakt(842_600) == "843 Tsd €"
+        assert fmt_eur_kompakt(-183_400) == "-183 Tsd €"
+        assert fmt_eur_kompakt(-1_183_400) == "-1,18 Mio €"
+        assert fmt_eur_kompakt(912) == "912 €"
 
     def test_steuer_chart_zeigt_steuer_eur(self, project, global_assumptions):
         """Neue Steuerzahlungen-Grafik unter der Betriebskosten-Grafik:
@@ -209,26 +221,17 @@ class TestKPIUndChartBugfixes:
         assert list(trace.y) == list(result.cashflow.data["steuer_eur"])
         assert list(trace.x) == list(result.cashflow.data["jahr"])
 
-    def test_kpi_reihenfolge_im_projekt_dashboard(self):
-        """KPI-Zeile: Equity IRR, NPV, Equity Value, Enterprise Value,
-        CAPEX - ohne LCOE und ohne DSCR-Kachel (siehe
-        app/views/project_detail.py)."""
-        import pathlib
+    def test_kpi_reihenfolge_auf_der_projektseite(self, at: AppTest):
+        """Leitkennzahl Equity IRR, danach NPV, Equity Value, Enterprise
+        Value und CAPEX."""
+        import re
 
-        quelle = pathlib.Path("app/views/project_detail.py").read_text(
-            encoding="utf-8"
-        )
-        block = quelle[quelle.index("render_kpi_row(\n        [\n"):]
-        block = block[:block.index("group=")]
-        erwartet = [
-            "projekt_kpi_irr", "projekt_kpi_npv_bei",
-            "projekt_kpi_equity_value", "projekt_kpi_enterprise_value",
-            "projekt_kpi_capex",
-        ]
-        assert [k for k in erwartet if k in block] == erwartet
-        assert "projekt_kpi_lcoe" not in block
-        assert "projekt_kpi_dscr_min" not in block
-        assert "calculate_lcoe" not in quelle
+        at = _oeffne_projekt(at)
+        markup = _kpi_markup(at, "projekt")
+        labels = re.findall(r'class="kpi-label">([^<]+)<', markup)
+        assert labels[0] == "Equity IRR"
+        assert labels[1].startswith("NPV bei")
+        assert labels[2:] == ["Equity Value", "Enterprise Value", "CAPEX"]
 
     def test_equity_und_enterprise_value(self, project, global_assumptions):
         """Equity Value = NPV + Eigenkapitaleinsatz;
@@ -330,9 +333,7 @@ class TestKovenantenStatus:
     def test_unauffaelliges_projekt_meldet_eingehaltene_schwellen(
         self, at: AppTest
     ):
-        oeffnen = [b for b in at.button if b.key and b.key.startswith("open_")]
-        oeffnen[0].click()
-        at.run()
+        at = _oeffne_projekt(at)
         assert not at.exception
         texte = [s.value for s in at.success]
         assert any("DSCR" in t for t in texte), texte
@@ -360,8 +361,7 @@ class TestInvestkostenUmschalter:
     siehe app/components/project_form.py."""
 
     def _formular(self, at: AppTest) -> AppTest:
-        at.sidebar.radio[0].set_value("neu")
-        at.run()
+        _gehe_zu(at, "nav_neu")
         assert not at.exception
         return at
 
@@ -406,8 +406,7 @@ class TestFreieKostenpositionen:
     (app/components/project_form.py)."""
 
     def _formular(self, at: AppTest) -> AppTest:
-        at.sidebar.radio[0].set_value("neu")
-        at.run()
+        _gehe_zu(at, "nav_neu")
         assert not at.exception
         return at
 

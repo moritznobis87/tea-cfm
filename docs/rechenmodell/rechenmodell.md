@@ -1982,6 +1982,7 @@ unberührt – es rechnet mit der Kurve, die hinterlegt ist.
 | 14 | Sensitivität, Monte Carlo | `engine/sensitivity.py`, `engine/analytics.py` | `tests/test_analytics.py` |
 | 15 | Auktionsmodell | `engine/auktion.py` | `tests/test_auktion.py` |
 | 16 | Portfolio, Wertbrücke | `app/views/overview.py`, `app/components/charts.py` | `tests/test_ui_smoke.py` |
+| – | Seitensteuerung, Projektseite | `app/router.py`, `app/views/project_page.py` | `tests/test_navigation.py` |
 
 ## 18.2 Teststrategie
 

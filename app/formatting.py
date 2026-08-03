@@ -31,6 +31,25 @@ def fmt_eur(value: float | None, digits: int = 0) -> str:
     return f"{fmt_number(value, digits)} €"
 
 
+def fmt_eur_kompakt(value: float | None) -> str:
+    """Gerundeter Euro-Betrag fuer Kennzahlkacheln, z.B. '1,24 Mio €'.
+
+    Die ausgeschriebene Form ('1.243.117 €') ist der eigentliche Grund,
+    warum Kachelwerte frueher abgeschnitten wurden: Sie ist breiter als
+    jede vertretbare Kachel und traegt eine Genauigkeit, die beim
+    Ueberfliegen niemand braucht. Der genaue Betrag steht im Tooltip der
+    Kachel (siehe app/components/kpi.py).
+    """
+    if value is None:
+        return "n/a"
+    betrag = abs(value)
+    if betrag >= 1_000_000:
+        return f"{fmt_number(value / 1_000_000, 2)} Mio €"
+    if betrag >= 10_000:
+        return f"{fmt_number(value / 1_000, 0)} Tsd €"
+    return fmt_eur(value)
+
+
 def fmt_pct(value: float | None, digits: int = 2) -> str:
     """Prozentwert aus einem Anteil (0.0743 -> '7,43 %')."""
     if value is None:

@@ -1,13 +1,14 @@
 """
-Projekt-Dashboard: KPI-Leisten, sieben Analyse-Tabs (Cashflow, Erlöse,
-Finanzierung, Sensitivität inkl. Tornado/Heatmap/Gebotsassistent,
-Monte Carlo, Szenarien, Annahmen) sowie Bearbeiten, Duplizieren, Löschen
-und Excel-Export eines Einzelprojekts.
+Die einzelnen Auswertungen eines Projekts.
+
+Dieses Modul liefert die Bausteine, die app/views/project_page.py zu vier
+Sichten zusammensetzt: Ergebnis (Cashflow + Erlöse), Finanzierung,
+Risiko (Sensitivität + Monte Carlo + Szenarien) und Annahmen. Der Rahmen
+- Kopfzeile, Kennzahlen, Parameterspalte, Aktionen - liegt in
+project_page.py.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import numpy as np
 import streamlit as st
@@ -15,192 +16,16 @@ import streamlit as st
 from app import services
 from app.components import charts
 from app.components.kpi import render_kpi_row
-from app.components.project_form import render_project_form
-from app.config import STATE_DELETE_CANDIDATE, STATE_SELECTED_PROJECT, monate_kurz
 from app.formatting import fmt_ct_kwh, fmt_dscr, fmt_eur, fmt_kwp, fmt_number, fmt_pct
 from app.theme import section_title
 from engine import (
-    AnlagenTyp,
-    GlobalAssumptions,
     NegativeStundenModus,
     NegativeStundenRegel,
-    PVProject,
 )
 from engine.analytics import HEATMAP_ACHSEN
-from engine.kpis import npv_at
 from texte import txt
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-def _typ_label(project: PVProject) -> str:
-    return (txt("oberflaeche.badge_agri") if project.anlagentyp == AnlagenTyp.AGRI_PV
-            else txt("oberflaeche.badge_konventionell"))
-
-
-def render_project_dashboard(
-    project: PVProject, global_assumptions: GlobalAssumptions, file_path: Path
-) -> None:
-    result = services.get_valuation(file_path.stem)
-    if result is None:
-        st.error(txt("oberflaeche.projekt_nicht_geladen"))
-        return
-    df = result.cashflow.data
-    kpis = result.kpis
-
-    # --- Kopfzeile ---------------------------------------------------------
-    st.markdown(f"### {project.name}")
-    st.caption(txt(
-        "oberflaeche.projekt_kopfzeile_caption",
-        typ=_typ_label(project), leistung=fmt_kwp(project.nennleistung_kwp),
-        monat=monate_kurz()[project.inbetriebnahme_monat - 1],
-        jahr=project.inbetriebnahme_jahr,
-        zuschlag=fmt_ct_kwh(project.eag_zuschlagswert_effektiv_ct_kwh),
-        szenario=result.effective_assumptions.marktpreisszenario_name,
-    ))
-
-    # --- Aktionen ----------------------------------------------------------
-    with st.expander(txt("oberflaeche.projekt_bearbeiten_titel")):
-        updated = render_project_form(existing=project, form_key=f"edit_{project.id}")
-        if updated is not None:
-            # Bewusst file_path statt project.id verwenden: id und Dateiname
-            # koennen (z.B. durch manuelle YAML-Bearbeitung) auseinander-
-            # laufen - wir wollen immer die tatsaechlich geoeffnete Datei
-            # ueberschreiben, nicht versehentlich eine zweite erzeugen.
-            services.save_project(updated, file_path)
-            st.session_state.pop(f"pdf_bericht_{file_path.stem}", None)
-            st.success(txt("oberflaeche.projekt_aktualisiert"))
-            st.rerun()
-
-    if not project.aktiv:
-        st.info(txt("oberflaeche.projekt_inaktiv_hinweis"))
-    col_aktiv, col_dup, col_del, col_export, col_pdf = st.columns(
-        [1.6, 1, 1, 1.8, 1.8]
-    )
-    with col_aktiv:
-        aktiv_label = (txt("oberflaeche.btn_inaktiv_schalten") if project.aktiv
-                      else txt("oberflaeche.btn_aktivieren"))
-        if st.button(aktiv_label, key=f"aktiv_{project.id}", width="stretch"):
-            project.aktiv = not project.aktiv
-            services.save_project(project, file_path)
-            st.rerun()
-    with col_dup:
-        if st.button(txt("oberflaeche.btn_duplizieren"), key=f"dup_{project.id}", width="stretch"):
-            kopie = services.duplicate_project(file_path.stem)
-            if kopie is not None:
-                st.session_state[STATE_SELECTED_PROJECT] = kopie.id
-                st.rerun()
-    with col_del:
-        if st.button(txt("oberflaeche.btn_loeschen"), key=f"del_{project.id}", width="stretch"):
-            st.session_state[STATE_DELETE_CANDIDATE] = file_path.stem
-    with col_export:
-        st.download_button(
-            txt("oberflaeche.btn_excel_export"),
-            data=services.cashflow_to_excel(result),
-            file_name=f"{services.slugify(project.name)}_cashflow.xlsx",
-            mime=_XLSX_MIME,
-            width="stretch",
-        )
-    with col_pdf:
-        pdf_key = f"pdf_bericht_{file_path.stem}"
-        if pdf_key not in st.session_state:
-            if st.button(txt("oberflaeche.btn_pdf_bericht"), key=f"pdf_btn_{project.id}",
-                         width="stretch"):
-                with st.spinner(txt("oberflaeche.projekt_pdf_spinner")):
-                    st.session_state[pdf_key] = services.build_project_report(
-                        file_path.stem,
-                        st.session_state.get("npv_diskontsatz_pct", 8.0) / 100,
-                    )
-                st.rerun()
-        else:
-            st.download_button(
-                txt("oberflaeche.btn_pdf_bericht") + " herunterladen",
-                data=st.session_state[pdf_key],
-                file_name=f"{services.slugify(project.name)}_bericht.pdf",
-                mime="application/pdf",
-                width="stretch",
-                key=f"pdf_dl_{project.id}",
-            )
-
-    # Loeschen nur nach expliziter Bestaetigung - das ist nicht rueckholbar.
-    if st.session_state.get(STATE_DELETE_CANDIDATE) == file_path.stem:
-        st.warning(txt("oberflaeche.projekt_loeschen_warnung", name=project.name))
-        col_ja, col_nein, _ = st.columns([1, 1, 4])
-        if col_ja.button(txt("oberflaeche.btn_ja_loeschen"), type="primary", key=f"del_ok_{project.id}"):
-            services.delete_project(file_path.stem)
-            st.session_state.pop(STATE_DELETE_CANDIDATE, None)
-            st.session_state.pop(STATE_SELECTED_PROJECT, None)
-            st.rerun()
-        if col_nein.button(txt("oberflaeche.btn_abbrechen"), key=f"del_no_{project.id}"):
-            st.session_state.pop(STATE_DELETE_CANDIDATE, None)
-            st.rerun()
-
-    # --- KPI-Leisten ---------------------------------------------------------
-    # NPV-Diskontsatz frei waehlbar (gilt fuer NPV-Kachel und LCOE). Der Wert
-    # wird exakt per XNPV berechnet. Die Einstellung gilt app-weit
-    # (Session-State), damit Projekte zum selben Satz verglichen werden.
-    st.session_state.setdefault("npv_diskontsatz_pct", 8.0)
-    col_rate, _ = st.columns([1.3, 5])
-    npv_satz_pct = col_rate.number_input(
-        txt("oberflaeche.projekt_npv_diskontsatz_label"),
-        min_value=0.0,
-        max_value=10.0,
-        step=0.25,
-        key="npv_diskontsatz_pct",
-        help=txt("oberflaeche.projekt_npv_diskontsatz_hilfe"),
-    )
-    npv_wert = npv_at(result.cashflow, npv_satz_pct / 100)
-
-    # Equity Value: Barwert der kuenftigen Eigenkapital-Cashflows. Der
-    # NPV enthaelt den Eigenkapitaleinsatz des Jahres 0 als Abfluss;
-    # rechnet man ihn wieder hinzu, bleibt der Wert des Eigenkapitals.
-    equity_value_eur = npv_wert + kpis.eigenkapital_eur
-    # Enterprise Value = Eigenkapitalwert + Fremdkapital. Angesetzt wird
-    # die zum Bewertungsstichtag aufgenommene Kreditsumme (CAPEX
-    # abzueglich Eigenkapitaleinsatz).
-    fremdkapital_eur = kpis.capex_total_eur - kpis.eigenkapital_eur
-    enterprise_value_eur = equity_value_eur + fremdkapital_eur
-    render_kpi_row(
-        [
-            (txt("oberflaeche.projekt_kpi_irr"), fmt_pct(kpis.equity_irr)),
-            (txt("oberflaeche.projekt_kpi_npv_bei",
-                satz=fmt_number(npv_satz_pct, 2)), fmt_eur(npv_wert)),
-            (txt("oberflaeche.projekt_kpi_equity_value"), fmt_eur(equity_value_eur)),
-            (txt("oberflaeche.projekt_kpi_enterprise_value"),
-             fmt_eur(enterprise_value_eur)),
-            (txt("oberflaeche.projekt_kpi_capex"), fmt_eur(kpis.capex_total_eur)),
-        ],
-        group="projekt",
-    )
-
-    _render_kovenanten_status(result)
-
-    tab_cf, tab_erloese, tab_fin, tab_sens, tab_mc, tab_szen, tab_annahmen = st.tabs(
-        [
-            txt("oberflaeche.projekt_tab_cashflow"),
-            txt("oberflaeche.projekt_tab_erloese"),
-            txt("oberflaeche.projekt_tab_finanzierung"),
-            txt("oberflaeche.projekt_tab_sensitivitaet"),
-            txt("oberflaeche.projekt_tab_monte_carlo"),
-            txt("oberflaeche.projekt_tab_szenarien"),
-            txt("oberflaeche.projekt_tab_annahmen"),
-        ]
-    )
-
-    with tab_cf:
-        _render_cashflow_tab(result, df)
-    with tab_erloese:
-        _render_revenue_tab(result, df)
-    with tab_fin:
-        _render_financing_tab(result, df, project)
-    with tab_sens:
-        _render_sensitivity_tab(result, project, file_path.stem)
-    with tab_mc:
-        _render_monte_carlo_tab(file_path.stem, npv_satz_pct / 100)
-    with tab_szen:
-        _render_scenario_tab(result, file_path.stem, npv_satz_pct / 100)
-    with tab_annahmen:
-        _render_assumptions_tab(result)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +42,7 @@ def _jahresliste(jahre: list[int], hoechstens: int = 8) -> str:
     return f"{sichtbar} … (+{len(jahre) - hoechstens})"
 
 
-def _render_kovenanten_status(result) -> None:
+def render_kovenanten_status(result) -> None:
     """Ampel zu den beiden DSCR-Schwellen des Kreditvertrags.
 
     Die Kacheln zeigen bewusst keinen DSCR mehr - der einzelne Minimalwert
@@ -287,7 +112,7 @@ def _render_kovenanten_status(result) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_cashflow_tab(result, df) -> None:
+def render_cashflow_tab(result, df) -> None:
     section_title(txt("oberflaeche.dashboard_wertbruecke"))
     st.caption(txt("oberflaeche.projekt_wertbruecke_beschreibung"))
     st.plotly_chart(charts.equity_waterfall_chart(df), width="stretch")
@@ -368,7 +193,7 @@ def _render_cashflow_tab(result, df) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_revenue_tab(result, df) -> None:
+def render_revenue_tab(result, df) -> None:
     ea = result.effective_assumptions
 
     section_title(txt("oberflaeche.dashboard_verguetung_marktwert_zeitverlauf"))
@@ -400,7 +225,7 @@ def _render_revenue_tab(result, df) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_financing_tab(result, df, project) -> None:
+def render_financing_tab(result, df, project) -> None:
     ea = result.effective_assumptions
     fremdkapital = ea.capex_total_eur * (1 - ea.eigenkapitalquote_pct)
 
@@ -470,7 +295,7 @@ def _render_financing_tab(result, df, project) -> None:
 _ACHSEN_NAMEN = {k: name for k, (name, _) in HEATMAP_ACHSEN.items()}
 
 
-def _render_sensitivity_tab(result, project, project_id: str) -> None:
+def render_sensitivity_tab(result, project, project_id: str) -> None:
     section_title(txt("oberflaeche.dashboard_tornado"))
     st.caption(txt("oberflaeche.projekt_tornado_beschreibung"))
     tornado_df = services.get_tornado(project_id)
@@ -560,7 +385,7 @@ def _render_sensitivity_tab(result, project, project_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_monte_carlo_tab(project_id: str, diskontsatz: float) -> None:
+def render_monte_carlo_tab(project_id: str, diskontsatz: float) -> None:
     section_title(txt("oberflaeche.dashboard_monte_carlo"))
     st.caption(txt("oberflaeche.projekt_mc_beschreibung"))
 
@@ -674,7 +499,7 @@ def _render_monte_carlo_tab(project_id: str, diskontsatz: float) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_scenario_tab(result, project_id: str, diskontsatz: float) -> None:
+def render_scenario_tab(result, project_id: str, diskontsatz: float) -> None:
     section_title(txt("oberflaeche.dashboard_marktpreisszenarien_vergleich"))
     st.caption(txt(
         "oberflaeche.projekt_szenarien_beschreibung",
@@ -707,7 +532,7 @@ def _render_scenario_tab(result, project_id: str, diskontsatz: float) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _render_assumptions_tab(result) -> None:
+def render_assumptions_tab(result) -> None:
     """Transparenz-Tab: der vollstaendig aufgeloeste Parametersatz, mit dem
     dieses Projekt tatsaechlich gerechnet wurde (Projektmaske + Globale
     Annahmen nach dem Merge)."""

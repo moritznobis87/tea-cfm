@@ -114,13 +114,32 @@ class TestSprachdropdownEndToEnd:
     laufenden Streamlit-App (streamlit_app.py): Umschalten wirkt sofort
     auf Navigation, Buttons und den PDF-Export."""
 
+    #: Beschriftung je Navigationsknopf (seit v5.0 Knoepfe statt Radio-Feld).
     _NAV_ERWARTET = {
-        "de": ["Portfolio", "Neues Projekt", "Marktprämie", "Globale Annahmen"],
-        "en": ["Portfolio", "New Project", "Market Premium", "Global Assumptions"],
-        "fr": ["Portefeuille", "Nouveau projet", "Prime de marché",
-               "Hypothèses globales"],
-        "es": ["Cartera", "Nuevo proyecto", "Prima de mercado",
-               "Supuestos globales"],
+        "de": {
+            "nav_portfolio": "Portfolio",
+            "nav_annahmen": "Globale Annahmen",
+            "nav_ausschreibung": "Marktprämie",
+            "nav_neu": "+ Neues Projekt",
+        },
+        "en": {
+            "nav_portfolio": "Portfolio",
+            "nav_annahmen": "Global Assumptions",
+            "nav_ausschreibung": "Market Premium",
+            "nav_neu": "+ New project",
+        },
+        "fr": {
+            "nav_portfolio": "Portefeuille",
+            "nav_annahmen": "Hypothèses globales",
+            "nav_ausschreibung": "Prime de marché",
+            "nav_neu": "+ Nouveau projet",
+        },
+        "es": {
+            "nav_portfolio": "Cartera",
+            "nav_annahmen": "Supuestos globales",
+            "nav_ausschreibung": "Prima de mercado",
+            "nav_neu": "+ Nuevo proyecto",
+        },
     }
 
     @pytest.mark.parametrize("code", ["de", "en", "fr", "es"])
@@ -144,7 +163,9 @@ class TestSprachdropdownEndToEnd:
             knopf.click()
             at.run()
             assert not at.exception
-        assert at.sidebar.radio[0].options == self._NAV_ERWARTET[code]
+        beschriftungen = {b.key: b.label for b in at.button if b.key}
+        for key, erwartet in self._NAV_ERWARTET[code].items():
+            assert beschriftungen[key] == erwartet, key
 
     def test_pdf_export_folgt_gewaehlter_sprache(self):
         """Der PDF-Bericht wird in der ueber das Dropdown gewaehlten
@@ -322,7 +343,9 @@ class TestWeitereSeitenUebersetzt:
         )
         at.run()
         assert not at.exception
-        at.sidebar.radio[0].set_value(nav_code)
+        knopf = {"neu": "nav_neu", "auktion": "nav_ausschreibung",
+                 "annahmen": "nav_annahmen"}[nav_code]
+        [b for b in at.button if b.key == knopf][0].click()
         at.run()
         assert not at.exception, at.exception
         texte_ = " ".join(m.value for m in at.markdown if m.value)
@@ -343,9 +366,11 @@ class TestWeitereSeitenUebersetzt:
         [b for b in at.button if b.key == "sprachauswahl_en"][0].click()
         at.run()
         assert not at.exception
-        labels = [e.label for e in at.sidebar.expander]
-        assert any("Save / restore projects" in (lbl or "") for lbl in labels)
-        assert any("Save / restore global assumptions" in (lbl or "") for lbl in labels)
+        # Seit v5.0 stehen Sichern und Wiederherstellen als direkte
+        # Eintraege in der Navigation statt in Klappfeldern.
+        beschriftungen = [d.label for d in at.get("download_button")]
+        assert "Save projects" in beschriftungen
+        assert "Save assumptions" in beschriftungen
 
 
 class TestFlaggenIcons:
@@ -392,7 +417,9 @@ class TestFlaggenIcons:
         [b for b in at.button if b.key == "sprachauswahl_en"][0].click()
         at.run()
         assert not at.exception
-        assert "New Project" in at.sidebar.radio[0].options
+        assert "+ New project" in [
+            b.label for b in at.button if b.key == "nav_neu"
+        ]
 
 
 class TestRebrandingValyze:

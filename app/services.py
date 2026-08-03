@@ -125,6 +125,28 @@ def get_valuation(project_id: str) -> ValuationResult | None:
 
 
 @st.cache_data(show_spinner=False)
+def _run_valuation_entwurf_cached(
+    projekt_json: str, ga_mtime: float
+) -> ValuationResult:
+    return run_valuation(
+        PVProject.model_validate_json(projekt_json), get_global_assumptions()
+    )
+
+
+def get_valuation_fuer(project: PVProject) -> ValuationResult:
+    """Bewertung eines (auch ungespeicherten) Projekts.
+
+    Grundlage der sofortigen Neuberechnung neben der Parameterspalte: Der
+    Entwurf liegt nicht auf der Platte, der Cache-Schluessel ist deshalb
+    seine JSON-Fassung statt eines Dateizeitstempels. Gleiche Eingaben
+    liefern damit weiterhin ein gecachtes Ergebnis.
+    """
+    return _run_valuation_entwurf_cached(
+        project.model_dump_json(), GLOBAL_ASSUMPTIONS_PATH.stat().st_mtime
+    )
+
+
+@st.cache_data(show_spinner=False)
 def _run_sensitivity_cached(
     project_path: str, project_mtime: float, ga_mtime: float
 ) -> pd.DataFrame:

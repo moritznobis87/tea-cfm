@@ -1,20 +1,29 @@
 """
-Sidebar-Komponente: Sichern/Wiederherstellen von Projekten und Globalen
-Annahmen ueber Excel-Dateien.
+Seitenleiste: Navigation, Projektwechsel und Sichern/Wiederherstellen.
 
-Hintergrund: Streamlit Cloud hat kein dauerhaftes Dateisystem - neu
-angelegte Projekte gehen bei einem Reboot/Redeploy verloren, wenn sie
-nicht im GitHub-Repo liegen. Der Excel-Down-/Upload ist der bewusst
-einfache Sicherungsweg (und fuer tabellarische Daten wie Preiskurven
-ohnehin das bequemere Bearbeitungsformat als YAML).
+Warum Knoepfe statt eines Radio-Feldes: Ein Radio-Feld ist ein
+Formularelement - es sagt "triff eine Auswahl innerhalb dieses Formulars".
+Navigation ist aber keine Auswahl, sondern ein Ortswechsel. Der aktive
+Eintrag wird deshalb hervorgehoben ("hier bist du gerade"), und aus
+demselben Grund sieht das geoeffnete Projekt genauso aus wie die aktive
+Seite: Es ist dieselbe Sache.
+
+Sichern und Wiederherstellen bleiben bewusst in der Navigation und nicht
+auf einer Einstellungsseite - beides wird haeufig gebraucht und soll ein
+Klick sein. Hintergrund: Streamlit Cloud hat kein dauerhaftes Dateisystem,
+neu angelegte Projekte gehen bei einem Reboot verloren, wenn sie nicht
+gesichert wurden. Der Excel-Down-/Upload ist der bewusst einfache
+Sicherungsweg (und fuer tabellarische Daten wie Preiskurven ohnehin das
+bequemere Bearbeitungsformat als YAML).
 """
 
 from __future__ import annotations
 
 import streamlit as st
 
-from app import services
+from app import router, services
 from app.config import PROJECTS_DIR
+from app.theme import Colors
 from engine.io_excel import (
     excel_to_global_assumptions,
     excel_to_projects,
@@ -26,68 +35,168 @@ from texte import txt
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+#: Navigationseintraege ausserhalb der Projektliste.
+_NAV = (
+    ("portfolio", "oberflaeche.nav_portfolio"),
+    ("annahmen", "oberflaeche.nav_globale_annahmen"),
+)
 
-def render_import_export() -> None:
-    with st.sidebar.expander(txt("oberflaeche.sidebar_projekte_titel")):
-        st.caption(txt("oberflaeche.sidebar_projekte_beschreibung"))
+#: Werkzeuge stehen bewusst in einer eigenen Gruppe: Die Ausschreibungs-
+#: analyse wertet vergangene Runden aus und liefert einen Vorschlagswert,
+#: sie fuehrt aber keine eigenen Projektdaten. Gleichrangig neben
+#: Portfolio und Annahmen gestellt, legte sie das Gegenteil nahe.
+_WERKZEUGE = (
+    ("ausschreibung", "oberflaeche.nav_ausschreibung"),
+)
 
-        st.markdown(txt("oberflaeche.sidebar_herunterladen_titel"))
-        projects_dict = services.list_project_files()
-        if projects_dict:
-            alle_projekte = [load_project_yaml(p) for p in projects_dict.values()]
-            st.download_button(
-                txt("oberflaeche.sidebar_alle_projekte_excel"),
-                data=projects_to_excel(alle_projekte),
-                file_name="projekte.xlsx",
-                mime=_XLSX_MIME,
-                width="stretch",
-            )
-        else:
-            st.caption(txt("oberflaeche.sidebar_keine_projekte"))
 
-        st.markdown(txt("oberflaeche.sidebar_hochladen_titel"))
-        uploaded_projekte = st.file_uploader(
+def _hervorhebung(keys: list[str]) -> None:
+    """Hebt die genannten Knopf-Container als 'aktiv' hervor.
+
+    Streamlit vergibt fuer jeden Container mit `key` die CSS-Klasse
+    `st-key-<key>`; darueber laesst sich genau der aktive Eintrag
+    einfaerben, ohne alle Knoepfe der Seitenleiste anzufassen.
+    """
+    if not keys:
+        return
+    wahl = ", ".join(f".st-key-{k} button" for k in keys)
+    st.markdown(
+        f"""<style>
+        {wahl} {{
+            background: {Colors.WASH} !important;
+            color: {Colors.INK} !important;
+            font-weight: 600 !important;
+            box-shadow: inset 3px 0 0 {Colors.BRAND} !important;
+        }}
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _gruppentitel(text: str) -> None:
+    st.sidebar.markdown(
+        f'<div class="nav-gruppe">{text}</div>', unsafe_allow_html=True
+    )
+
+
+def render_sidebar() -> None:
+    """Baut die vollstaendige Seitenleiste."""
+    aktiv_keys: list[str] = []
+    seite = router.aktuelle_seite()
+    offenes_projekt = router.aktuelles_projekt()
+
+    _gruppentitel(txt("oberflaeche.nav_titel"))
+    for code, schluessel in _NAV:
+        key = f"nav_{code}"
+        if seite == code:
+            aktiv_keys.append(key)
+        if st.sidebar.button(
+            txt(schluessel), key=key, width="stretch", type="tertiary"
+        ):
+            router.gehe_zu(code)
+
+    _gruppentitel(txt("oberflaeche.nav_gruppe_werkzeuge"))
+    for code, schluessel in _WERKZEUGE:
+        key = f"nav_{code}"
+        if seite == code:
+            aktiv_keys.append(key)
+        if st.sidebar.button(
+            txt(schluessel), key=key, width="stretch", type="tertiary",
+            help=txt("oberflaeche.nav_ausschreibung_hilfe"),
+        ):
+            router.gehe_zu(code)
+
+    # --- Projekte -----------------------------------------------------------
+    projekte = services.list_project_files()
+    _gruppentitel(txt("oberflaeche.nav_gruppe_projekte"))
+    if not projekte:
+        st.sidebar.caption(txt("oberflaeche.sidebar_keine_projekte"))
+    for pid, pfad in projekte.items():
+        projekt = load_project_yaml(pfad)
+        key = f"projektwahl_{pid}"
+        if seite == "projekt" and offenes_projekt == pid:
+            aktiv_keys.append(key)
+        beschriftung = projekt.name if projekt.aktiv else f"{projekt.name} ·"
+        if st.sidebar.button(
+            beschriftung, key=key, width="stretch", type="tertiary",
+            help=None if projekt.aktiv else txt("oberflaeche.badge_inaktiv"),
+        ):
+            router.gehe_zu("projekt", projekt_id=pid)
+
+    if st.sidebar.button(
+        txt("oberflaeche.nav_neues_projekt_knopf"), key="nav_neu",
+        width="stretch", type="primary",
+    ):
+        router.gehe_zu("neu")
+
+    # --- Sichern ------------------------------------------------------------
+    _gruppentitel(txt("oberflaeche.nav_gruppe_sichern"))
+    if projekte:
+        alle_projekte = [load_project_yaml(p) for p in projekte.values()]
+        st.sidebar.download_button(
+            txt("oberflaeche.sidebar_projekte_sichern"),
+            data=projects_to_excel(alle_projekte),
+            file_name="projekte.xlsx",
+            mime=_XLSX_MIME,
+            width="stretch",
+            help=txt("oberflaeche.sidebar_projekte_beschreibung"),
+        )
+    st.sidebar.download_button(
+        txt("oberflaeche.sidebar_annahmen_sichern"),
+        data=global_assumptions_to_excel(services.get_global_assumptions()),
+        file_name="globale_annahmen.xlsx",
+        mime=_XLSX_MIME,
+        width="stretch",
+        help=txt("oberflaeche.sidebar_annahmen_beschreibung"),
+    )
+    _wiederherstellen()
+
+    _hervorhebung(aktiv_keys)
+
+
+def _wiederherstellen() -> None:
+    """Beide Uploads in einem Popover - Wiederherstellen ist der seltenere
+    Fall und soll die Leiste nicht dauerhaft in die Laenge ziehen."""
+    with st.sidebar.popover(
+        txt("oberflaeche.sidebar_wiederherstellen"), width="stretch"
+    ):
+        st.markdown(f"**{txt('oberflaeche.sidebar_projekte_titel')}**")
+        hochgeladene_projekte = st.file_uploader(
             txt("oberflaeche.sidebar_projekte_upload_label"),
             type=["xlsx"], key="project_upload",
         )
-        if uploaded_projekte and st.button(
+        if hochgeladene_projekte and st.button(
             txt("oberflaeche.sidebar_hochgeladene_projekte_speichern"),
             type="primary", width="stretch",
         ):
             try:
-                importierte = excel_to_projects(uploaded_projekte.getvalue())
-                for project in importierte:
-                    services.save_project(project, PROJECTS_DIR / f"{project.id}.yaml")
-                st.success(txt("oberflaeche.sidebar_projekte_gespeichert", namen=", ".join(p.name for p in importierte)))
+                importierte = excel_to_projects(hochgeladene_projekte.getvalue())
+                for projekt in importierte:
+                    services.save_project(
+                        projekt, PROJECTS_DIR / f"{projekt.id}.yaml"
+                    )
+                st.success(
+                    txt("oberflaeche.sidebar_projekte_gespeichert",
+                        namen=", ".join(p.name for p in importierte))
+                )
                 st.rerun()
-            except Exception as exc:
-                st.error(txt("oberflaeche.sidebar_excel_fehler", fehler=exc))
+            except Exception as fehler:
+                st.error(txt("oberflaeche.sidebar_excel_fehler", fehler=fehler))
 
-    with st.sidebar.expander(txt("oberflaeche.sidebar_annahmen_titel")):
-        st.caption(txt("oberflaeche.sidebar_annahmen_beschreibung"))
-
-        st.markdown(txt("oberflaeche.sidebar_herunterladen_titel"))
-        st.download_button(
-            txt("oberflaeche.sidebar_annahmen_excel"),
-            data=global_assumptions_to_excel(services.get_global_assumptions()),
-            file_name="globale_annahmen.xlsx",
-            mime=_XLSX_MIME,
-            width="stretch",
-        )
-
-        st.markdown(txt("oberflaeche.sidebar_hochladen_titel"))
-        uploaded_ga = st.file_uploader(
+        st.divider()
+        st.markdown(f"**{txt('oberflaeche.sidebar_annahmen_titel')}**")
+        hochgeladene_ga = st.file_uploader(
             txt("oberflaeche.sidebar_annahmen_upload_label"), type=["xlsx"],
             key="global_assumptions_upload",
         )
-        if uploaded_ga and st.button(
+        if hochgeladene_ga and st.button(
             txt("oberflaeche.sidebar_annahmen_uebernehmen"),
             type="primary", width="stretch",
         ):
             try:
-                neue_ga = excel_to_global_assumptions(uploaded_ga.getvalue())
+                neue_ga = excel_to_global_assumptions(hochgeladene_ga.getvalue())
                 services.save_global_assumptions(neue_ga)
                 st.success(txt("oberflaeche.sidebar_annahmen_uebernommen"))
                 st.rerun()
-            except Exception as exc:
-                st.error(txt("oberflaeche.sidebar_excel_fehler", fehler=exc))
+            except Exception as fehler:
+                st.error(txt("oberflaeche.sidebar_excel_fehler", fehler=fehler))
