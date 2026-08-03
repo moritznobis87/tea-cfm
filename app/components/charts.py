@@ -21,15 +21,15 @@ _EUR_HOVER = "%{y:,.0f} €"
 
 
 def _signed_colors(values: pd.Series) -> list[str]:
-    """Gruen fuer Zufluesse, Rot fuer Abfluesse - einheitlich in allen
+    """Tuerkis fuer Zufluesse, Navy fuer Abfluesse - einheitlich in allen
     Cashflow-Darstellungen.
 
-    Diese Faerbung bleibt bewusst ausserhalb der Blau-Tuerkis-Familie:
-    Sie trifft eine Aussage (Geld kommt herein oder geht hinaus). Rein
-    kategoriale Reihen - Anlagentyp, Erloesbestandteile, Kostenpositionen,
-    Quantile - sind dagegen auf die Markenfamilie umgestellt, weil dort
-    ein Gruen oder Rot eine Wertung nahelegte, die es nicht gibt."""
-    return [Colors.POSITIVE if v >= 0 else Colors.NEGATIVE for v in values]
+    Die Richtung steht bereits in der Lage des Balkens zur Nulllinie;
+    die Farbe muss sie nicht ein zweites Mal behaupten. Fuer Gruen und
+    Rot bleiben damit die Faelle, in denen wirklich etwas nicht stimmt:
+    die Unterdeckung im DSCR-Verlauf und die Zielverfehlung in der
+    IRR-Heatmap."""
+    return [Colors.BRAND if v >= 0 else Colors.INK_SOFT for v in values]
 
 
 def revenue_chart(df: pd.DataFrame) -> go.Figure:
@@ -285,8 +285,8 @@ def equity_waterfall_chart(df: pd.DataFrame) -> go.Figure:
             ],
             y=[erloese, opex, zinsen, steuern, 0, capex, kredit, tilgung, 0],
             connector=dict(line=dict(color=Colors.LINE, width=1)),
-            increasing=dict(marker_color=Colors.POSITIVE),
-            decreasing=dict(marker_color=Colors.NEGATIVE),
+            increasing=dict(marker_color=Colors.BRAND),
+            decreasing=dict(marker_color=Colors.INK_SOFT),
             totals=dict(marker_color=Colors.INK),
             # Bewusst %{delta} statt %{y}: Bei Waterfall-Traces liefert
             # %{y} die kumulierte Endposition des Balkens auf der

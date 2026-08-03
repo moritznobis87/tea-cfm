@@ -180,3 +180,53 @@ class TestVierAnsichten:
         analytik = quelle[quelle.index("portfolio_analytik_titel"):]
         analytik = analytik[: analytik.index("portfolio_tab_tabelle")]
         assert "st.expander" not in analytik
+
+
+class TestAlphabetischeReihenfolge:
+    """Projekte stehen in Seitenleiste und Kachelübersicht in der
+    Reihenfolge ihrer ANGEZEIGTEN Namen.
+
+    Vorher wurde nach Dateinamen sortiert. Der Dateiname folgt der
+    Projekt-ID, und die bleibt bei einer Umbenennung bewusst stehen -
+    die Liste stand danach in einer Reihenfolge, die mit den sichtbaren
+    Namen nichts mehr zu tun hatte.
+    """
+
+    def test_sortierschluessel_loest_umlaute_und_grossschreibung_auf(self):
+        from app.services import sortierschluessel
+
+        namen = ["Zwentendorf", "Ötscher", "agri", "Agri"]
+        assert sorted(namen, key=sortierschluessel) == [
+            "agri", "Agri", "Ötscher", "Zwentendorf",
+        ]
+
+    def test_liste_folgt_den_projektnamen(self, tmp_path, monkeypatch):
+        from app import services
+        from engine.io_yaml import load_project_yaml, save_project_yaml
+
+        vorlage = load_project_yaml(ROOT / "data" / "projects" / "template-agri.yaml")
+        # Dateinamen (= IDs) bewusst gegenlaeufig zur Anzeige waehlen.
+        for pid, name in [
+            ("aaa", "Zwentendorf Nord"),
+            ("mmm", "Ötscher Süd"),
+            ("zzz", "Agri West"),
+        ]:
+            kopie = vorlage.model_copy(deep=True)
+            kopie.id, kopie.name = pid, name
+            save_project_yaml(kopie, tmp_path / f"{pid}.yaml")
+
+        monkeypatch.setattr(services, "PROJECTS_DIR", tmp_path)
+        assert list(services.list_project_files()) == ["zzz", "mmm", "aaa"]
+
+    def test_seitenleiste_und_kacheln_zeigen_dieselbe_reihenfolge(self, at: AppTest):
+        seitenleiste = [
+            b.key.removeprefix("projektwahl_")
+            for b in at.button
+            if b.key and b.key.startswith("projektwahl_")
+        ]
+        kacheln = [
+            b.key.removeprefix("open_")
+            for b in at.button
+            if b.key and b.key.startswith("open_")
+        ]
+        assert seitenleiste == kacheln

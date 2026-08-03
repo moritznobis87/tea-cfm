@@ -60,6 +60,29 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 - 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
   vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
 
+### v5.0.4 – Cashflow-Diagramme in der Markenfamilie
+
+- **Wertbrücke, Gesamt-Cashflow und operativer Cashflow** folgen jetzt
+  ebenfalls dem Blau-Türkis: Zufluss türkis, Abfluss navy – in der
+  Oberfläche wie im PDF-Bericht. Die Richtung steht bereits in der Lage
+  des Balkens zur Nulllinie; die Farbe muss sie nicht ein zweites Mal
+  behaupten.
+- Grün und Rot bleiben damit den Fällen vorbehalten, in denen wirklich
+  etwas nicht stimmt: der Unterdeckung im DSCR-Verlauf und der
+  Zielverfehlung in der IRR-Heatmap.
+- Bildunterschriften, die Farben benennen (Tornado, Gebotsdichte,
+  Verteilungsverlauf), in allen vier Sprachen nachgezogen.
+
+### v5.0.3 – Alphabetische Projektliste
+
+- 4 neue Tests (Sortierschlüssel, Reihenfolge nach Projektnamen, gleiche
+  Reihenfolge in Leiste und Kacheln); Suite: 297.
+- **Projekte stehen alphabetisch** – in der Seitenleiste wie in der
+  Kachelübersicht. Sortiert wird nach dem angezeigten Namen; bisher nach
+  Dateinamen, und der folgt der Projekt-ID, die bei einer Umbenennung
+  bewusst stehen bleibt. Umlaute werden aufgelöst und Groß-/Kleinschreibung
+  ignoriert, damit „Ötscher" nicht hinter „Zwentendorf" landet.
+
 ### v5.0.2 – Farbschema und zwei Beschriftungen
 
 - **Diagramme in der Blau-Türkis-Familie.** Die gestapelten

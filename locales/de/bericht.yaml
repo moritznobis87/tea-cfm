@@ -98,13 +98,13 @@ auktion_fitting_intro: >-
 
 abb_15_caption: >-
   Abb. 15: Je Runde geschätzte Gebotsverteilungen (Farbverlauf von grau =
-  älteste zu rot = jüngste Runde; unterzeichnete Runden gestrichelt).
+  älteste zu dunkelblau = jüngste Runde; unterzeichnete Runden gestrichelt).
 
 abb_16_caption: >-
   Abb. 16: Prognostizierte Verteilung der nächsten Runde – Dichte der
   Zuschlagswerte (am Grenzzuschlag {grenzzuschlag_ct} abgeschnitten),
   gestrichelt die Verteilung aller Gebote, graues Band: P10–P90 der
-  Grenzzuschlag-Unsicherheit; grün: angesetzter Projektwert {projektwert_ct}.
+  Grenzzuschlag-Unsicherheit; türkis: angesetzter Projektwert {projektwert_ct}.
 
 abb_17_caption: >-
   Abb. 17: Gebotswert und Zuschlagswahrscheinlichkeit P(Grenzzuschlag > Gebot)
@@ -174,7 +174,7 @@ abb_7_caption: "Abb. 7: Kapital- und Investitionsstruktur."
 abb_8_caption: "Abb. 8: NPV-Kurve; die Nullstelle entspricht per Definition der EK-Rendite (IRR)."
 
 # --- Kapitel 5-7: Sensitivität, Risiko, Szenarien -----------------------------
-abb_9_caption: "Abb. 9: Wirkung der Einzelvariation jedes Werttreibers um ±10 % auf die EK-Rendite (alle übrigen Annahmen konstant), sortiert nach Spannweite. Grün: Verbesserung, Rot: Verschlechterung gegenüber der Basis."
+abb_9_caption: "Abb. 9: Wirkung der Einzelvariation jedes Werttreibers um ±10 % auf die EK-Rendite (alle übrigen Annahmen konstant), sortiert nach Spannweite. Türkis: Verbesserung, Navy: Verschlechterung gegenüber der Basis."
 be_text_nicht_erreichbar: "Die Zielrendite von {ziel} % ist im untersuchten Gebotsbereich (bis 15 ct/kWh) nicht erreichbar."
 be_text_ohne_praemie: "Die Zielrendite von {ziel} % wird bereits ohne nennenswerte Prämie erreicht – der Marktwert trägt das Projekt allein."
 be_text_breakeven: "Break-even-Gebot: Für eine Zielrendite von {ziel} % ist ein anzulegender Wert von mindestens <b>{breakeven}</b> erforderlich. Gegenüber dem angesetzten Zuschlagswert von {angesetzt} besteht damit ein {label} von {differenz}."

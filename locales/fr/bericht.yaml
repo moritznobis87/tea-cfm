@@ -109,7 +109,7 @@ auktion_fitting_intro: >-
 
 abb_15_caption: >-
   Fig. 15 : distributions d'offres estimées par tour (dégradé de
-  couleur du gris = tour le plus ancien au rouge = tour le plus récent ;
+  couleur du gris = tour le plus ancien au bleu foncé = tour le plus récent ;
   tours sous-souscrits en pointillés).
 
 abb_16_caption: >-
@@ -117,7 +117,7 @@ abb_16_caption: >-
   valeurs d'attribution (tronquée à la valeur d'attribution marginale
   {grenzzuschlag_ct}), en pointillés : distribution de toutes les
   offres, bande grise : P10–P90 de l'incertitude de la valeur
-  d'attribution marginale ; en vert : valeur de projet retenue
+  d'attribution marginale ; en turquoise : valeur de projet retenue
   {projektwert_ct}.
 
 abb_17_caption: >-
@@ -187,7 +187,7 @@ capex_sonstige: "Autres"
 capex_poenale_puffer_kurz: "Pénalité/marge"
 abb_7_caption: "Fig. 7 : structure du capital et des investissements."
 abb_8_caption: "Fig. 8 : courbe de VAN ; le point où elle croise zéro correspond, par définition, au rendement des capitaux propres (TRI)."
-abb_9_caption: "Fig. 9 : effet de la variation individuelle de chaque facteur de valeur de ±10 % sur le rendement des capitaux propres (toutes les autres hypothèses restant constantes), trié par amplitude. Vert : amélioration, rouge : dégradation par rapport à la base."
+abb_9_caption: "Fig. 9 : effet de la variation individuelle de chaque facteur de valeur de ±10 % sur le rendement des capitaux propres (toutes les autres hypothèses restant constantes), trié par amplitude. Turquoise : amélioration, bleu marine : dégradation par rapport à la base."
 be_text_nicht_erreichbar: "Le rendement cible de {ziel} % n'est pas atteignable dans la plage d'offres examinée (jusqu'à 15 ct/kWh)."
 be_text_ohne_praemie: "Le rendement cible de {ziel} % est déjà atteint sans prime notable – la valeur de marché porte seule le projet."
 be_text_breakeven: "Offre au seuil de rentabilité : pour un rendement cible de {ziel} %, une valeur applicable d'au moins <b>{breakeven}</b> est nécessaire. Par rapport à la valeur d'attribution retenue de {angesetzt}, cela laisse une {label} de {differenz}."

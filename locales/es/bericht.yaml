@@ -106,7 +106,7 @@ auktion_fitting_intro: >-
 
 abb_15_caption: >-
   Fig. 15: distribuciones de ofertas estimadas por ronda (degradado de
-  color de gris = ronda más antigua a rojo = ronda más reciente; rondas
+  color de gris = ronda más antigua a azul oscuro = ronda más reciente; rondas
   infrasuscritas discontinuas).
 
 abb_16_caption: >-
@@ -114,7 +114,7 @@ abb_16_caption: >-
   valores de adjudicación (truncada en el valor de adjudicación
   marginal {grenzzuschlag_ct}), discontinua: distribución de todas las
   ofertas, banda gris: P10–P90 de la incertidumbre del valor de
-  adjudicación marginal; en verde: valor de proyecto asumido
+  adjudicación marginal; en turquesa: valor de proyecto asumido
   {projektwert_ct}.
 
 abb_17_caption: >-
@@ -184,7 +184,7 @@ capex_sonstige: "Otros"
 capex_poenale_puffer_kurz: "Penalización/margen"
 abb_7_caption: "Fig. 7: estructura de capital e inversión."
 abb_8_caption: "Fig. 8: curva de VAN; el punto donde cruza cero corresponde, por definición, a la rentabilidad del capital propio (TIR)."
-abb_9_caption: "Fig. 9: efecto de variar individualmente cada factor de valor en ±10 % sobre la rentabilidad del capital propio (manteniendo constantes el resto de supuestos), ordenado por amplitud. Verde: mejora, rojo: empeoramiento respecto a la base."
+abb_9_caption: "Fig. 9: efecto de variar individualmente cada factor de valor en ±10 % sobre la rentabilidad del capital propio (manteniendo constantes el resto de supuestos), ordenado por amplitud. Turquesa: mejora, azul marino: empeoramiento respecto a la base."
 be_text_nicht_erreichbar: "La rentabilidad objetivo del {ziel} % no es alcanzable dentro del rango de ofertas analizado (hasta 15 ct/kWh)."
 be_text_ohne_praemie: "La rentabilidad objetivo del {ziel} % ya se alcanza sin una prima significativa – el valor de mercado sostiene el proyecto por sí solo."
 be_text_breakeven: "Oferta de equilibrio: para una rentabilidad objetivo del {ziel} % se requiere un valor aplicable de al menos <b>{breakeven}</b>. Frente al valor de adjudicación asumido de {angesetzt}, esto deja un {label} de {differenz}."

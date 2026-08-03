@@ -99,7 +99,7 @@ auktion_fitting_intro: >-
 
 abb_15_caption: >-
   Fig. 15: Estimated bid distributions per round (colour gradient from
-  grey = oldest to red = most recent round; undersubscribed rounds
+  grey = oldest to dark blue = most recent round; undersubscribed rounds
   dashed).
 
 abb_16_caption: >-
@@ -174,7 +174,7 @@ capex_sonstige: "Other"
 capex_poenale_puffer_kurz: "Penalty/buffer"
 abb_7_caption: "Fig. 7: Capital and investment structure."
 abb_8_caption: "Fig. 8: NPV curve; the zero crossing corresponds by definition to the equity return (IRR)."
-abb_9_caption: "Fig. 9: Effect of individually varying each value driver by ±10 % on the equity return (all other assumptions held constant), sorted by range. Green: improvement, red: deterioration versus the base case."
+abb_9_caption: "Fig. 9: Effect of individually varying each value driver by ±10 % on the equity return (all other assumptions held constant), sorted by range. Turquoise: improvement, navy: deterioration versus the base case."
 be_text_nicht_erreichbar: "The target return of {ziel} % is not achievable within the examined bid range (up to 15 ct/kWh)."
 be_text_ohne_praemie: "The target return of {ziel} % is already achieved without a meaningful premium – the market value carries the project alone."
 be_text_breakeven: "Break-even bid: for a target return of {ziel} %, a feed-in value of at least <b>{breakeven}</b> is required. Compared with the assumed award value of {angesetzt}, this leaves a {label} of {differenz}."

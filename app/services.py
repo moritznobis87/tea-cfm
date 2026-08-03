@@ -88,9 +88,41 @@ def save_global_assumptions(assumptions: GlobalAssumptions) -> None:
 # ---------------------------------------------------------------------------
 
 
+_UMLAUT_MAP = str.maketrans(
+    {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "ae", "Ö": "oe", "Ü": "ue", "ß": "ss"}
+)
+
+
+def sortierschluessel(name: str) -> str:
+    """Vergleichsschluessel fuer die alphabetische Anzeige.
+
+    Ohne Normalisierung landet "Ö..." hinter "Z..." und "agri" vor
+    "Agri" - beides erklaert dem Nutzer niemand. Umlaute werden deshalb
+    aufgeloest und Gross-/Kleinschreibung ignoriert.
+    """
+    return name.strip().translate(_UMLAUT_MAP).casefold()
+
+
 def list_project_files() -> dict[str, Path]:
-    """Alle Projekt-Dateien, alphabetisch, als {projekt_id: pfad}."""
-    return {f.stem: f for f in sorted(PROJECTS_DIR.glob("*.yaml"))}
+    """Alle Projekt-Dateien als {projekt_id: pfad}, alphabetisch nach dem
+    ANGEZEIGTEN Projektnamen.
+
+    Frueher wurde nach Dateinamen sortiert. Der Dateiname folgt der
+    Projekt-ID, und die bleibt bei einer Umbenennung bewusst stehen
+    (Dateiidentitaet) - die Liste stand danach in einer Reihenfolge, die
+    mit den sichtbaren Namen nichts mehr zu tun hatte.
+    """
+    dateien = sorted(PROJECTS_DIR.glob("*.yaml"))
+    with_namen = []
+    for pfad in dateien:
+        try:
+            name = load_project_yaml(pfad).name
+        except Exception:
+            # Eine unlesbare Datei soll die Liste nicht sprengen; sie
+            # sortiert sich unter ihrem Dateinamen ein.
+            name = pfad.stem
+        with_namen.append((sortierschluessel(name), pfad))
+    return {pfad.stem: pfad for _, pfad in sorted(with_namen)}
 
 
 def get_project(project_id: str) -> PVProject | None:
@@ -168,11 +200,6 @@ def get_eag_sensitivity(project_id: str) -> pd.DataFrame | None:
 # ---------------------------------------------------------------------------
 # Projekte: Lebenszyklus
 # ---------------------------------------------------------------------------
-
-_UMLAUT_MAP = str.maketrans(
-    {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "ae", "Ö": "oe", "Ü": "ue", "ß": "ss"}
-)
-
 
 def slugify(name: str) -> str:
     """Erzeugt einen dateisystem- und URL-sicheren Slug ohne

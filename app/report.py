@@ -210,7 +210,7 @@ def _fig_zu_bild(fig: plt.Figure, breite_cm: float = _CHART_B_CM) -> Image:
 def _chart_gesamt_cashflow(df: pd.DataFrame) -> Image:
     fig, ax = _fig()
     fmt, einheit = _eur_achse(df["cf_kumuliert_eur"].abs().max())
-    farben = [POSITIVE if v >= 0 else NEGATIVE for v in df["cf_gesamt_eur"]]
+    farben = [BRAND if v >= 0 else INK_SOFT for v in df["cf_gesamt_eur"]]
     ax.bar(df["jahr"], df["cf_gesamt_eur"], color=farben, width=0.72,
            label="Cashflow p.a.")
     ax2 = ax.twinx()
@@ -244,7 +244,7 @@ def _chart_wertbruecke(df: pd.DataFrame) -> Image:
     fmt, einheit = _eur_achse(posten[0][1])
     laufend = 0.0
     for i, (_name, wert) in enumerate(posten):
-        farbe = POSITIVE if wert >= 0 else NEGATIVE
+        farbe = BRAND if wert >= 0 else INK_SOFT
         ax.bar(i, wert, bottom=laufend, color=farbe, width=0.62)
         laufend += wert
         ax.plot([i + 0.31, i + 0.69], [laufend, laufend], color=MUTED,
