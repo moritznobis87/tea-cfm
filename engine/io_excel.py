@@ -311,7 +311,11 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
 # ---------------------------------------------------------------------------
 
 PROJEKT_SPALTEN = [
-    "id", "name", "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
+    # "name" ist der Standort, "variante" die Sensitivitaet an diesem
+    # Standort (leer = Grundfall). Zwei Zeilen mit gleichem Namen und
+    # verschiedener Variante sind zwei Rechnungen desselben Projekts.
+    "id", "name", "variante",
+    "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
     "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
     "pacht_modus", "pacht_umsatzbeteiligung_pct", "pacht_mindestpacht_eur_ha_jahr",
@@ -347,6 +351,9 @@ OPTIONALE_PROJEKT_SPALTEN = frozenset(
         "capex_widmung_eur", "capex_genehmigung_eur",
         # seit v4.28 (frei benannte Zusatzpositionen)
         "capex_zusatzpositionen_json", "zusatz_opex_json",
+        # seit v5.1 (Standort + Variante); fehlt sie, ist jede Zeile der
+        # Grundfall ihres Standorts
+        "variante",
     }
 )
 
@@ -364,6 +371,21 @@ def _zahl(reihe, spalte: str, standard: float = 0.0) -> float:
     if wert is None or pd.isna(wert):
         return standard
     return float(wert)
+
+
+def _text(reihe, spalte: str, standard: str = "") -> str:
+    """Textwert einer Zelle, tolerant gegen fehlende Spalte und Leerzelle.
+
+    ``str(reihe[spalte])`` allein taugt nicht: Eine leere Zelle liest
+    pandas als NaN, und str(NaN) ergibt die Zeichenkette "nan" - die
+    stuende dann als Variantenname in der Oberflaeche.
+    """
+    if spalte not in reihe:
+        return standard
+    wert = reihe[spalte]
+    if wert is None or pd.isna(wert):
+        return standard
+    return str(wert).strip()
 
 
 def _json_liste(wert) -> list[dict]:
@@ -391,6 +413,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
         {
             "id": p.id,
             "name": p.name,
+            "variante": p.variante,
             "aktiv": p.aktiv,
             "inbetriebnahme_jahr": p.inbetriebnahme_jahr,
             "inbetriebnahme_monat": p.inbetriebnahme_monat,
@@ -457,6 +480,7 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
             PVProject(
                 id=str(r["id"]),
                 name=str(r["name"]),
+                variante=_text(r, "variante"),
                 aktiv=bool(r.get("aktiv", True))
                 if not pd.isna(r.get("aktiv", True)) else True,
                 inbetriebnahme_jahr=int(r["inbetriebnahme_jahr"]),

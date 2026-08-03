@@ -305,7 +305,7 @@ def _render_uebergabe(effektiver_wert: float) -> None:
     st.caption(txt("oberflaeche.auktion_uebergabe_beschreibung"))
     projekte = services.list_project_files()
     if projekte:
-        namen = {pid: services.get_project(pid).name for pid in projekte}
+        namen = {pid: services.get_project(pid).anzeigename for pid in projekte}
         col_a, col_b = st.columns([2, 1])
         ziel_projekt = col_a.selectbox(
             txt("oberflaeche.auktion_projekt_label"), list(projekte),
@@ -322,7 +322,7 @@ def _render_uebergabe(effektiver_wert: float) -> None:
             st.session_state[STATE_SELECTED_PROJECT] = ziel_projekt
             st.success(txt(
                 "oberflaeche.auktion_uebernommen_erfolg",
-                name=projekt.name, wert=fmt_ct_kwh(effektiver_wert),
+                name=projekt.anzeigename, wert=fmt_ct_kwh(effektiver_wert),
             ))
             # Der Vorschlagswert ist erst dann etwas wert, wenn man seine
             # Wirkung sieht - deshalb direkt auf die Projektseite.

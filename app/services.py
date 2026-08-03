@@ -104,25 +104,72 @@ def sortierschluessel(name: str) -> str:
 
 
 def list_project_files() -> dict[str, Path]:
-    """Alle Projekt-Dateien als {projekt_id: pfad}, alphabetisch nach dem
-    ANGEZEIGTEN Projektnamen.
+    """Alle Projekt-Dateien als {projekt_id: pfad}, alphabetisch nach
+    Standort und darin nach Variante.
 
     Frueher wurde nach Dateinamen sortiert. Der Dateiname folgt der
     Projekt-ID, und die bleibt bei einer Umbenennung bewusst stehen
     (Dateiidentitaet) - die Liste stand danach in einer Reihenfolge, die
     mit den sichtbaren Namen nichts mehr zu tun hatte.
+
+    Der Grundfall (leere Variante) sortiert innerhalb eines Standorts
+    nach vorn, sonst stuende "Basis" zwischen den Sensitivitaeten.
     """
     dateien = sorted(PROJECTS_DIR.glob("*.yaml"))
     with_namen = []
     for pfad in dateien:
         try:
-            name = load_project_yaml(pfad).name
+            projekt = load_project_yaml(pfad)
+            schluessel = (
+                sortierschluessel(projekt.name),
+                # False sortiert vor True: Der Grundfall steht damit vor
+                # den benannten Sensitivitaeten.
+                projekt.variante != "",
+                sortierschluessel(projekt.variante),
+            )
         except Exception:
             # Eine unlesbare Datei soll die Liste nicht sprengen; sie
             # sortiert sich unter ihrem Dateinamen ein.
-            name = pfad.stem
-        with_namen.append((sortierschluessel(name), pfad))
-    return {pfad.stem: pfad for _, pfad in sorted(with_namen)}
+            schluessel = (sortierschluessel(pfad.stem), False, "")
+        with_namen.append((schluessel, pfad))
+    # Nur nach dem Schluessel sortieren: Path ist zwar vergleichbar, ein
+    # Gleichstand wuerde die Reihenfolge aber vom Dateinamen abhaengig
+    # machen statt von der Eingabereihenfolge.
+    return {pfad.stem: pfad for _, pfad in sorted(with_namen, key=lambda e: e[0])}
+
+
+def list_projects() -> list[PVProject]:
+    """Alle Projekte in Anzeigereihenfolge (siehe list_project_files)."""
+    projekte = []
+    for pid in list_project_files():
+        projekt = get_project(pid)
+        if projekt is not None:
+            projekte.append(projekt)
+    return projekte
+
+
+def gruppiere_nach_standort(
+    projekte: list[PVProject] | None = None,
+) -> dict[str, list[PVProject]]:
+    """Projekte nach Standortnamen gebuendelt, Reihenfolge wie in
+    list_project_files.
+
+    Grundlage der Navigation: Die Sidebar fuehrt Standorte, die Varianten
+    liegen eine Ebene tiefer im Projektfenster. Ohne diese Buendelung
+    stuenden zwoelf gleichrangige Eintraege in der Liste, von denen drei
+    dasselbe Feld meinen.
+    """
+    if projekte is None:
+        projekte = list_projects()
+    gruppen: dict[str, list[PVProject]] = {}
+    for projekt in projekte:
+        gruppen.setdefault(projekt.name, []).append(projekt)
+    return gruppen
+
+
+def varianten_von(projekt: PVProject) -> list[PVProject]:
+    """Alle Varianten desselben Standorts, inklusive `projekt` selbst."""
+    return gruppiere_nach_standort().get(projekt.name, [projekt])
 
 
 def get_project(project_id: str) -> PVProject | None:
@@ -257,14 +304,37 @@ def save_project(project: PVProject, path: Path | None = None) -> Path:
     return target
 
 
+def freier_variantenname(standort: str, vorschlag: str = "Variante") -> str:
+    """Ein am Standort noch nicht vergebener Variantenname.
+
+    'Variante', dann 'Variante 2', 'Variante 3' - der Nutzer benennt sie
+    anschliessend um; wichtig ist nur, dass zwei Kopien nicht denselben
+    Namen tragen und damit ununterscheidbar waeren.
+    """
+    vergeben = {p.variante for p in gruppiere_nach_standort().get(standort, [])}
+    if vorschlag not in vergeben:
+        return vorschlag
+    laufnummer = 2
+    while f"{vorschlag} {laufnummer}" in vergeben:
+        laufnummer += 1
+    return f"{vorschlag} {laufnummer}"
+
+
 def duplicate_project(project_id: str) -> PVProject | None:
-    """Legt eine Kopie eines Projekts mit neuer ID und '(Kopie)'-Namen an."""
+    """Legt eine weitere Variante desselben Standorts an.
+
+    Frueher entstand dabei ein Projekt namens '... (Kopie)' - also ein
+    zweiter Standort mit fast gleichem Namen. Genau daraus wuchs die
+    unuebersichtliche Projektliste: Sensitivitaeten waren technisch
+    eigenstaendige Projekte. Die Kopie behaelt jetzt den Standortnamen
+    und bekommt einen freien Variantennamen.
+    """
     original = get_project(project_id)
     if original is None:
         return None
     kopie = original.model_copy(deep=True)
-    kopie.name = f"{original.name} (Kopie)"
-    kopie.id = make_project_id(kopie.name)
+    kopie.variante = freier_variantenname(original.name)
+    kopie.id = make_project_id(f"{kopie.name} {kopie.variante}")
     save_project(kopie)
     return kopie
 
@@ -574,7 +644,7 @@ def build_pipeline_excel(n_mc: int = 300) -> bytes:
     from engine import pipeline_ergebnis_excel
 
     projekte = [
-        (get_project(pid), get_project(pid).name)
+        (get_project(pid), get_project(pid).anzeigename)
         for pid in list_project_files()
     ]
     return pipeline_ergebnis_excel(

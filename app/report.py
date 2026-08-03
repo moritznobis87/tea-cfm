@@ -878,8 +878,8 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     typ = "Agri-PV" if p.anlagentyp == AnlagenTyp.AGRI_PV else "Konventionell"
 
     puffer = io.BytesIO()
-    doc = _BerichtDoc(puffer, projekt_name=p.name, marken_name=inputs.marken_name,
-                      title=f"Wirtschaftlichkeitsanalyse {p.name}",
+    doc = _BerichtDoc(puffer, projekt_name=p.anzeigename, marken_name=inputs.marken_name,
+                      title=f"Wirtschaftlichkeitsanalyse {p.anzeigename}",
                       author=inputs.marken_name)
     story: list = []
 
@@ -903,7 +903,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     ))
     story.append(Spacer(1, 0.25 * cm))
     story.append(Paragraph(
-        p.name,
+        p.anzeigename,
         ParagraphStyle("DeckProjekt", fontName="Helvetica-Bold", fontSize=17,
                        leading=22, textColor=colors.HexColor(BRAND)),
     ))
@@ -1000,7 +1000,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     )
     summary_text = txt(
         "bericht.summary_text",
-        name=p.name, typ=typ, leistung=fmt_kwp(p.nennleistung_kwp),
+        name=p.anzeigename, typ=typ, leistung=fmt_kwp(p.nennleistung_kwp),
         monat=f"{p.inbetriebnahme_monat:02d}", jahr=p.inbetriebnahme_jahr,
         szenario=ea.marktpreisszenario_name, irr=fmt_pct(kpis.equity_irr),
         differenz=_de(abs(irr_delta) * 100, 2),

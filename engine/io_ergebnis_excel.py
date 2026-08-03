@@ -172,7 +172,7 @@ def _projektblatt(ws, project: PVProject, ga: GlobalAssumptions,
 
     typ = (_t("typ_agri") if project.anlagentyp == AnlagenTyp.AGRI_PV
            else _t("typ_konventionell"))
-    titel = ws.cell(row=1, column=1, value=f"{project.name} ({typ})"
+    titel = ws.cell(row=1, column=1, value=f"{project.anzeigename} ({typ})"
                     + ("" if project.aktiv else " – INAKTIV"))
     titel.font = _F_TITEL
 
@@ -386,7 +386,7 @@ def pipeline_ergebnis_excel(
     for project, wunschname in projekte:
         kpis = run_valuation(project, ga).kpis
         zeilen.append({
-            _t("spalte_projekt"): project.name,
+            _t("spalte_projekt"): project.anzeigename,
             _t("spalte_typ"): (_t("typ_agri")
                                if project.anlagentyp == AnlagenTyp.AGRI_PV
                                else _t("typ_konventionell")),

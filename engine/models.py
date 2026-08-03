@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AnlagenTyp(str, Enum):
@@ -272,7 +272,17 @@ class PVProject(BaseModel):
     in unter zwei Minuten. Alles Uebrige kommt aus GlobalAssumptions."""
 
     id: str
+    #: Name des STANDORTS bzw. Projekts - ohne Sensitivitaets-Zusatz.
+    #: Mehrere Varianten desselben Standorts tragen denselben Namen und
+    #: werden ueber ihn gruppiert (Sidebar, Variantenreiter).
     name: str
+    #: Name der Sensitivitaet/Variante innerhalb des Standorts, z.B.
+    #: "Netzkosten +20 %". Leer = der unbenannte Grundfall; die
+    #: Oberflaeche zeigt ihn als "Basis". Bewusst KEINE Ableitung aus dem
+    #: Projektnamen: "Loedersdorf Agri" und "Loedersdorf konventionell"
+    #: sind zwei Anlagentypen, keine Sensitivitaeten - das kann nur der
+    #: Nutzer entscheiden.
+    variante: str = ""
     # Inaktive Projekte bleiben erhalten, werden aber aus der Portfolio-
     # Analytik ausgeblendet und koennen aus den kumulierten KPIs
     # herausgerechnet werden - Pipeline-Bereinigung ohne Loeschen.
@@ -324,6 +334,30 @@ class PVProject(BaseModel):
     # Berechnungsgrundlage der Mindestpacht (siehe
     # pacht_mindestpacht_eur_ha_jahr) - sollte dort gesetzt sein.
     projektflaeche_ha: float | None = None
+
+    @field_validator("name", "variante", mode="before")
+    @classmethod
+    def _trimmen(cls, wert):
+        """Fuehrende/nachlaufende Leerzeichen wuerden zwei Varianten
+        desselben Standorts in getrennte Gruppen aufteilen, ohne dass man
+        den Unterschied sieht."""
+        return wert.strip() if isinstance(wert, str) else wert
+
+    @property
+    def anzeigename(self) -> str:
+        """Name fuer Titel, Dateinamen und Tabellen.
+
+        Ohne die Variante waeren zwei Sensitivitaeten desselben Standorts
+        in Portfoliotabelle, PDF-Titel und Excel-Dateinamen nicht
+        auseinanderzuhalten.
+        """
+        return f"{self.name} · {self.variante}" if self.variante else self.name
+
+    @property
+    def variantenlabel(self) -> str:
+        """Beschriftung der Variante fuer Reiter und Listen - der
+        unbenannte Grundfall heisst 'Basis'."""
+        return self.variante or "Basis"
 
     @property
     def eag_zuschlagswert_effektiv_ct_kwh(self) -> float:

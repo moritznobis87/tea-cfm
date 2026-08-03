@@ -109,6 +109,18 @@ Projekt-IDs entstehen per Slugify aus dem Namen (Umlaute
 transliteriert, Kollisionen erhalten eine Laufnummer) – siehe
 `services.make_project_id()`.
 
+**Standort und Variante:** Ein `PVProject` trägt zwei Namen – `name`
+(Standort) und `variante` (Sensitivität, leer = Grundfall). Mehrere
+Varianten desselben Standorts sind weiterhin eigenständige Projekte mit
+eigener Datei und eigener Adresse; gruppiert werden sie ausschließlich
+über den gleichen `name` (`services.gruppiere_nach_standort()`). Die
+Zuordnung wird **nicht** aus Namensmustern abgeleitet – „Lödersdorf
+Agri" und „Lödersdorf konventionell" sind zwei Anlagentypen, keine
+Sensitivitäten; das kann nur die eingebende Person entscheiden. Die
+Seitenleiste führt Standorte, die Variantenreihe im Projektfenster
+wechselt zwischen ihnen. In der Excel-Sicherung ist `variante` eine
+optionale Spalte, ältere Dateien bleiben lesbar.
+
 ## Teststrategie
 
 | Ebene | Dateien | Ansatz |

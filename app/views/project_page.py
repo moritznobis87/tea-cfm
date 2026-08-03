@@ -36,6 +36,7 @@ from app.formatting import (
     fmt_number,
     fmt_pct,
 )
+from app.theme import Colors
 from app.views.project_detail import (
     render_assumptions_tab,
     render_cashflow_tab,
@@ -142,9 +143,14 @@ def render_project_page() -> None:
     gespeichert = services.get_project(projekt_id)
     global_assumptions = services.get_global_assumptions()
 
+    varianten = services.varianten_von(gespeichert)
+    weg = [txt("oberflaeche.nav_portfolio"), gespeichert.name]
+    if gespeichert.variante:
+        weg.append(gespeichert.variante)
     st.markdown(
-        f'<div class="brotkrume"><b>{html.escape(txt("oberflaeche.nav_portfolio"))}'
-        f"</b> › {html.escape(gespeichert.name)}</div>",
+        f'<div class="brotkrume"><b>{html.escape(weg[0])}</b> › '
+        + " › ".join(html.escape(t) for t in weg[1:])
+        + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -153,6 +159,8 @@ def render_project_page() -> None:
                                                          vertical_alignment="bottom")
     with col_titel:
         st.markdown(f"### {gespeichert.name}")
+
+    _variantenleiste(varianten, projekt_id)
 
     form_key = f"param_{projekt_id}"
 
@@ -208,7 +216,7 @@ def render_project_page() -> None:
         st.download_button(
             txt("oberflaeche.btn_excel_export"),
             data=services.cashflow_to_excel(result),
-            file_name=f"{services.slugify(aktiv.name)}_cashflow.xlsx",
+            file_name=f"{services.slugify(aktiv.anzeigename)}_cashflow.xlsx",
             mime=_XLSX_MIME, width="stretch",
         )
     with col_mehr:
@@ -225,6 +233,47 @@ def render_project_page() -> None:
 # ---------------------------------------------------------------------------
 # Bausteine
 # ---------------------------------------------------------------------------
+
+
+def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
+    """Die Sensitivitaeten eines Standorts als Reiterreihe.
+
+    Warum hier und nicht in der Seitenleiste: Varianten sind kein
+    Ortswechsel, sondern derselbe Standort unter anderen Annahmen. Stehen
+    sie in der Projektliste, waechst diese mit jeder Sensitivitaet, und
+    man sieht der Liste nicht an, welche Eintraege dasselbe Feld meinen.
+    Hier bleibt der Standort stehen, waehrend die Rechnung wechselt - und
+    der Vergleich zweier Sensitivitaeten ist ein Klick.
+
+    Jede Variante ist weiterhin ein eigenes Projekt mit eigener Adresse;
+    der Reiter navigiert also schlicht zur Schwester-id.
+    """
+    with st.container(key="variantenleiste", horizontal=True):
+        st.markdown(
+            f'<div class="varianten-label">'
+            f'{html.escape(txt("oberflaeche.varianten_label"))}</div>',
+            unsafe_allow_html=True,
+        )
+        for variante in varianten:
+            key = f"variante_{variante.id}"
+            if st.button(variante.variantenlabel, key=key, type="tertiary",
+                         help=variante.anzeigename):
+                router.gehe_zu("projekt", projekt_id=variante.id)
+        if st.button(txt("oberflaeche.btn_neue_variante"), key="variante_neu",
+                     type="tertiary",
+                     help=txt("oberflaeche.btn_neue_variante_hilfe")):
+            neue = services.duplicate_project(projekt_id)
+            if neue is not None:
+                router.gehe_zu("projekt", projekt_id=neue.id)
+    st.markdown(
+        f"<style>.st-key-variante_{projekt_id} button {{"
+        f"background: {Colors.SELECT} !important;"
+        f"color: {Colors.INK} !important;"
+        f"font-weight: 600 !important;"
+        f"box-shadow: inset 0 -2px 0 {Colors.BRAND} !important;"
+        "}</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def _kontextzeile(project, result, global_assumptions, npv_satz_pct: float) -> None:
@@ -369,7 +418,7 @@ def _pdf_knopf(projekt_id: str, project: PVProject, npv_satz_pct: float,
         st.download_button(
             txt("oberflaeche.btn_pdf_bericht_laden"),
             data=st.session_state[pdf_key],
-            file_name=f"{services.slugify(project.name)}_bericht.pdf",
+            file_name=f"{services.slugify(project.anzeigename)}_bericht.pdf",
             mime="application/pdf", width="stretch", type="primary",
             key=f"pdf_dl_{projekt_id}",
         )
@@ -402,7 +451,8 @@ def _weitere_aktionen(project: PVProject, pfad) -> None:
 def _loeschbestaetigung(project: PVProject, pfad) -> None:
     if st.session_state.get(STATE_DELETE_CANDIDATE) != project.id:
         return
-    st.warning(txt("oberflaeche.projekt_loeschen_warnung", name=project.name))
+    st.warning(txt("oberflaeche.projekt_loeschen_warnung",
+                   name=project.anzeigename))
     col_ja, col_nein, _ = st.columns([1, 1, 4])
     if col_ja.button(txt("oberflaeche.btn_ja_loeschen"), type="primary",
                      key=f"del_ok_{project.id}"):

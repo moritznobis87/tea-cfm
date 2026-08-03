@@ -209,10 +209,21 @@ def _felder(
     # Bewusst ausserhalb des Formularrahmens: In der Spalte gibt es
     # keinen Absenden-Knopf, der Wert muss sofort in den Entwurf laufen.
     name = st.text_input(
-        "Projektname",
+        txt("oberflaeche.formular_name_label"),
         value=existing.name if existing else "",
-        placeholder="z.B. Sonnenfeld Agri-PV",
+        placeholder=txt("oberflaeche.formular_name_platzhalter"),
         key=f"{form_key}_name",
+        help=txt("oberflaeche.formular_name_hilfe"),
+    )
+    # Der Variantenname macht die Sensitivitaet benennbar. Er darf leer
+    # bleiben - das ist der Grundfall des Standorts; die Oberflaeche
+    # nennt ihn "Basis".
+    variante = st.text_input(
+        txt("oberflaeche.formular_variante_label"),
+        value=existing.variante if existing else "",
+        placeholder=txt("oberflaeche.formular_variante_platzhalter"),
+        key=f"{form_key}_variante",
+        help=txt("oberflaeche.formular_variante_hilfe"),
     )
 
     st.markdown("**Technische Anlagenparameter**")
@@ -615,10 +626,18 @@ def _felder(
         st.error(positionsfehler)
         return None
 
-    project_id = existing.id if existing else services.make_project_id(name)
+    project_id = (
+        existing.id if existing
+        else services.make_project_id(f"{name} {variante}".strip())
+    )
     return PVProject(
         id=project_id,
         name=name.strip(),
+        variante=variante.strip(),
+        # Ohne diese Uebernahme wuerde jedes Speichern aus der
+        # Parameterspalte ein stillgelegtes Projekt wieder aktivieren -
+        # der Aktiv-Schalter liegt im Ueberlaufmenue, nicht im Formular.
+        aktiv=existing.aktiv if existing else True,
         inbetriebnahme_jahr=inbetriebnahme_jahr,
         inbetriebnahme_monat=inbetriebnahme_monat,
         anlagentyp=AnlagenTyp.AGRI_PV
