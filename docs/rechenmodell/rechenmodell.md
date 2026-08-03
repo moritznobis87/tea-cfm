@@ -1415,11 +1415,18 @@ vollständige fachliche Wirkungszusammenhang berücksichtigt.
 
 Fünf Varianten des gebotenen Zuschlagswertes:
 
-$$ z_k = z_{\mathrm{Gebot}} \cdot (1 + \Delta_k), \qquad \Delta_k \in \{+10\,\%,\ +5\,\%,\ 0,\ -5\,\%,\ -10\,\%\} $$
+$$ z_k = z_{\mathrm{Gebot}} \cdot (1 + \Delta_k), \qquad \Delta_k \in \{+5\,\%,\ +2{,}5\,\%,\ 0,\ -2{,}5\,\%,\ -5\,\%\} $$
 
 Für jede Variante wird die vollständige Bewertung neu gerechnet und
 IRR und NPV ausgewiesen. Der Konventionell-Abschlag wirkt weiterhin, da
 die Variante am gebotenen Wert ansetzt.
+
+Die Stufen sind bewusst eng gefasst: In einer Ausschreibungsrunde
+bewegt sich der Zuschlagswert um wenige Zehntel Cent je Kilowattstunde.
+Eine Variation um 10 % beschreibt keine Entscheidung mehr, die
+tatsächlich zur Wahl steht; die weiteren Spannen bleiben der
+Tornado-Analyse (Abschnitt 14.3) und der Heatmap (Abschnitt 14.4)
+vorbehalten.
 
 ## 14.3 Tornado-Analyse
 

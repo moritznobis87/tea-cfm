@@ -190,7 +190,7 @@ be_text_ohne_praemie: "La rentabilidad objetivo del {ziel} % ya se alcanza sin u
 be_text_breakeven: "Oferta de equilibrio: para una rentabilidad objetivo del {ziel} % se requiere un valor aplicable de al menos <b>{breakeven}</b>. Frente al valor de adjudicación asumido de {angesetzt}, esto deja un {label} de {differenz}."
 be_puffer: "margen"
 be_fehlbetrag: "déficit"
-abb_10_caption: "Fig. 10: rentabilidad del capital propio al variar el valor de adjudicación EAG en ±5 % / ±10 %. {be_text}"
+abb_10_caption: "Fig. 10: rentabilidad del capital propio al variar el valor de adjudicación EAG en ±2,5 % / ±5 %. {be_text}"
 sigma_produktion: "Rendimiento específico"
 sigma_marktwert: "Nivel de valor de mercado"
 sigma_capex: "Costes de inversión"

@@ -197,11 +197,14 @@ def npv_curve_chart(npv_df: pd.DataFrame, equity_irr: float | None) -> go.Figure
 
 
 def eag_sensitivity_chart(sens_df: pd.DataFrame) -> go.Figure:
-    """IRR ueber dem variierten EAG-Zuschlagswert (±10 %/±5 %/Basis).
+    """IRR ueber dem variierten EAG-Zuschlagswert (±5 %/±2,5 %/Basis).
+
+    Die Stufen stehen in engine.sensitivity.DEFAULT_VARIANTEN_PCT; diese
+    Funktion zeichnet, was ihr uebergeben wird.
 
     Defensiv: einzelne Varianten koennen eine nicht berechenbare IRR
     (None) liefern, wenn der Cashflow keinen Vorzeichenwechsel mehr hat
-    (z.B. durchgehend negativ bei einem -10%-Downside).
+    (z.B. durchgehend negativ im tiefsten Downside).
     """
     irr_werte = pd.to_numeric(sens_df["equity_irr"], errors="coerce")
     irr_pct = (irr_werte * 100).tolist()
