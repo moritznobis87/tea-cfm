@@ -2,6 +2,24 @@
 
 ## v5.1 – Standort und Variante (2026-08)
 
+### v5.1.1 – Löschabfrage sichtbar, Wertkacheln untereinander
+
+- **Die Rückfrage vor dem Löschen stand am Seitenende.** Sie wurde erst
+  nach dem Aufbau der Arbeitsfläche erzeugt und landete deshalb unter
+  Kennzahlen, Diagrammen und Parameterspalte – wer im Überlaufmenü
+  „Löschen" wählte, sah oben nichts geschehen und hielt das Löschen für
+  kaputt. Sie steht jetzt direkt unter der Kopfzeile, dort, wo auch der
+  auslösende Knopf sitzt.
+- **Nach dem Löschen einer Variante bleibt man am Standort**, solange
+  dort noch eine Rechnung steht; der Sprung ins Portfolio war ein
+  Ortswechsel, den niemand verlangt hat.
+- **CAPEX und Enterprise Value getauscht**: Die begleitenden Kacheln
+  stehen zweispaltig und werden zeilenweise gefüllt – damit liegen
+  Equity Value und Enterprise Value jetzt übereinander statt über Eck.
+- 2 neue Tests (Rückfrage entsteht vor der Arbeitsfläche; Variante
+  anlegen und wieder löschen); Suite: 323.
+
+
 Sensitivitäten waren bisher Kopien mit eigenem Namen („… (Kopie)",
 „… (Netz high)"). Technisch waren sie eigenständige Projekte, und die
 Projektliste wuchs mit jeder Rechnung, ohne dass ihr anzusehen war,

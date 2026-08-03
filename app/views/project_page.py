@@ -162,6 +162,14 @@ def render_project_page() -> None:
 
     _variantenleiste(varianten, projekt_id)
 
+    # Die Loeschabfrage entsteht hier, gleich unter der Kopfzeile - dort
+    # steht auch der Knopf, der sie ausloest. Frueher wurde sie erst nach
+    # dem Aufbau der Arbeitsflaeche erzeugt und landete deshalb UNTER
+    # Kennzahlen, Diagrammen und Parameterspalte: Wer im Ueberlaufmenue
+    # "Loeschen" waehlte, sah oben nichts geschehen und hielt das
+    # Loeschen fuer kaputt.
+    _loeschbestaetigung(gespeichert, pfad)
+
     form_key = f"param_{projekt_id}"
 
     # --- Kontextzeile und Diskontsatz ---------------------------------------
@@ -221,8 +229,6 @@ def render_project_page() -> None:
         )
     with col_mehr:
         _weitere_aktionen(gespeichert, pfad)
-
-    _loeschbestaetigung(gespeichert, pfad)
 
     with col_ergebnis:
         _kennzahlen(result, npv_satz_pct, aenderungen, global_assumptions)
@@ -304,7 +310,13 @@ def _kontextzeile(project, result, global_assumptions, npv_satz_pct: float) -> N
 
 def _kennzahlen(result, npv_satz_pct: float, aenderungen: int,
                 global_assumptions) -> None:
-    """Leitkennzahl Equity IRR, daneben die vier begleitenden Groessen."""
+    """Leitkennzahl Equity IRR, daneben die vier begleitenden Groessen.
+
+    Reihenfolge der Begleiter: NPV, Equity Value, CAPEX, Enterprise
+    Value. Sie stehen zweispaltig und werden zeilenweise gefuellt -
+    damit liegen die beiden Wertbegriffe (Equity Value oben rechts,
+    Enterprise Value unten rechts) uebereinander statt ueber Eck.
+    """
     kpis = result.kpis
     npv_wert = npv_at(result.cashflow, npv_satz_pct / 100)
     equity_value = npv_wert + kpis.eigenkapital_eur
@@ -343,17 +355,17 @@ def _kennzahlen(result, npv_satz_pct: float, aenderungen: int,
                 fmt_eur(equity_value),
             ),
             Kennzahl(
-                txt("oberflaeche.projekt_kpi_enterprise_value"),
-                fmt_eur_kompakt(enterprise_value),
-                txt("oberflaeche.kpi_enterprise_value_formel"),
-                fmt_eur(enterprise_value),
-            ),
-            Kennzahl(
                 txt("oberflaeche.projekt_kpi_capex"),
                 fmt_eur_kompakt(kpis.capex_total_eur),
                 f"{fmt_number(kpis.capex_total_eur / result.effective_assumptions.nennleistung_kwp, 0)} €/kWp"
                 if result.effective_assumptions.nennleistung_kwp else None,
                 fmt_eur(kpis.capex_total_eur),
+            ),
+            Kennzahl(
+                txt("oberflaeche.projekt_kpi_enterprise_value"),
+                fmt_eur_kompakt(enterprise_value),
+                txt("oberflaeche.kpi_enterprise_value_formel"),
+                fmt_eur(enterprise_value),
             ),
         ],
         group="projekt",
@@ -456,8 +468,15 @@ def _loeschbestaetigung(project: PVProject, pfad) -> None:
     col_ja, col_nein, _ = st.columns([1, 1, 4])
     if col_ja.button(txt("oberflaeche.btn_ja_loeschen"), type="primary",
                      key=f"del_ok_{project.id}"):
+        # Nach dem Loeschen einer Variante bleibt man am Standort, solange
+        # dort noch eine Rechnung steht - der Sprung ins Portfolio waere
+        # ein Ortswechsel, den niemand verlangt hat.
+        geschwister = [v for v in services.varianten_von(project)
+                       if v.id != project.id]
         services.delete_project(project.id)
         st.session_state.pop(STATE_DELETE_CANDIDATE, None)
+        if geschwister:
+            router.gehe_zu("projekt", projekt_id=geschwister[0].id)
         router.gehe_zu("portfolio")
     if col_nein.button(txt("oberflaeche.btn_abbrechen"),
                        key=f"del_no_{project.id}"):
