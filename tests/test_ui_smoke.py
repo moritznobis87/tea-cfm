@@ -222,8 +222,14 @@ class TestKPIUndChartBugfixes:
         assert list(trace.x) == list(result.cashflow.data["jahr"])
 
     def test_kpi_reihenfolge_auf_der_projektseite(self, at: AppTest):
-        """Leitkennzahl Equity IRR, danach NPV, Equity Value, Enterprise
-        Value und CAPEX."""
+        """Leitkennzahl Equity IRR, danach NPV, Equity Value, CAPEX und
+        Enterprise Value.
+
+        Die vier Begleiter stehen zweispaltig und werden zeilenweise
+        gefuellt. Mit CAPEX an dritter Stelle liegen Equity Value und
+        Enterprise Value in derselben Spalte uebereinander - mit
+        Enterprise Value an dritter Stelle stuenden sie ueber Eck.
+        """
         import re
 
         at = _oeffne_projekt(at)
@@ -231,7 +237,7 @@ class TestKPIUndChartBugfixes:
         labels = re.findall(r'class="kpi-label">([^<]+)<', markup)
         assert labels[0] == "Equity IRR"
         assert labels[1].startswith("NPV bei")
-        assert labels[2:] == ["Equity Value", "Enterprise Value", "CAPEX"]
+        assert labels[2:] == ["Equity Value", "CAPEX", "Enterprise Value"]
 
     def test_equity_und_enterprise_value(self, project, global_assumptions):
         """Equity Value = NPV + Eigenkapitaleinsatz;
