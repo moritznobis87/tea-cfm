@@ -204,6 +204,17 @@ def _felder(
         st selbst verhaelt sich wie ein Spaltencontainer."""
         return st.columns(anzahl) if not spaltig else [st] * anzahl
 
+    # Der Projektname steht ganz oben - in der schmalen Parameterspalte
+    # war er zwischen Investkosten und Pacht praktisch unauffindbar.
+    # Bewusst ausserhalb des Formularrahmens: In der Spalte gibt es
+    # keinen Absenden-Knopf, der Wert muss sofort in den Entwurf laufen.
+    name = st.text_input(
+        "Projektname",
+        value=existing.name if existing else "",
+        placeholder="z.B. Sonnenfeld Agri-PV",
+        key=f"{form_key}_name",
+    )
+
     st.markdown("**Technische Anlagenparameter**")
     col1, col2, col3 = spalten(3)
     nennleistung_kwp = col1.number_input(
@@ -420,13 +431,6 @@ def _felder(
     st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
 
     with _formularrahmen(form_key, mit_formular):
-        name = st.text_input(
-            "Projektname",
-            value=existing.name if existing else "",
-            placeholder="z.B. Sonnenfeld Agri-PV",
-            key=f"{form_key}_name",
-        )
-
         st.markdown("**Wirtschaftliche Parameter**")
         col5, col6, col7, col8 = spalten(4)
         fk_zins = col5.number_input(

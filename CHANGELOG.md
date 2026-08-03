@@ -60,6 +60,16 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 - 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
   vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
 
+### v5.0.5 – Projektname wieder auffindbar
+
+- **Der Projektname steht an erster Stelle der Parameterspalte.** Er war
+  weiterhin vorhanden, stand aber zwischen Investkosten und Pacht – in
+  einer scrollenden Spalte praktisch unauffindbar, sodass ein Projekt
+  (etwa eine Kopie) nicht mehr umbenannt werden konnte.
+- Das Feld liegt bewusst außerhalb des Formularrahmens: In der
+  Parameterspalte gibt es keinen Absenden-Knopf, der Wert muss sofort in
+  den Entwurf laufen.
+
 ### v5.0.4 – Cashflow-Diagramme in der Markenfamilie
 
 - **Wertbrücke, Gesamt-Cashflow und operativer Cashflow** folgen jetzt
@@ -76,7 +86,7 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 ### v5.0.3 – Alphabetische Projektliste
 
 - 4 neue Tests (Sortierschlüssel, Reihenfolge nach Projektnamen, gleiche
-  Reihenfolge in Leiste und Kacheln); Suite: 297.
+  Reihenfolge in Leiste und Kacheln); Suite: 299.
 - **Projekte stehen alphabetisch** – in der Seitenleiste wie in der
   Kachelübersicht. Sortiert wird nach dem angezeigten Namen; bisher nach
   Dateinamen, und der folgt der Projekt-ID, die bei einer Umbenennung

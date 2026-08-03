@@ -230,3 +230,66 @@ class TestAlphabetischeReihenfolge:
             if b.key and b.key.startswith("open_")
         ]
         assert seitenleiste == kacheln
+
+
+class TestProjektUmbenennen:
+    """Gemeldet: Der Titel eines Projekts liess sich nicht mehr aendern.
+
+    Das Feld war vorhanden, stand in der Parameterspalte aber zwischen
+    Investkosten und Pacht - in einer scrollenden Spalte praktisch
+    unauffindbar. Es steht jetzt an erster Stelle.
+    """
+
+    def test_name_ist_das_erste_feld_der_parameterspalte(self, at: AppTest):
+        keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
+        at = _klick(at, keys[0])
+        projekt_id = keys[0].removeprefix("open_")
+
+        namensfeld = [t for t in at.get("text_input")
+                      if t.key == f"param_{projekt_id}_name"]
+        assert namensfeld, "Namensfeld fehlt in der Parameterspalte"
+
+        # Erstes Eingabefeld der Spalte ueberhaupt - vor Leistung und
+        # Vollbenutzungsstunden.
+        quelle = (ROOT / "app" / "components" / "project_form.py").read_text(
+            encoding="utf-8"
+        )
+        rumpf = quelle[quelle.index("def _felder("):]
+        assert rumpf.index('key=f"{form_key}_name"') < rumpf.index(
+            "Technische Anlagenparameter"
+        )
+
+    def test_umbenennen_wird_gezaehlt_und_gespeichert(self, at: AppTest, tmp_path):
+        import shutil
+
+        from app.config import PROJECTS_DIR
+
+        sicherung = tmp_path / "projects"
+        shutil.copytree(PROJECTS_DIR, sicherung)
+        try:
+            keys = [b.key for b in at.button
+                    if b.key and b.key.startswith("open_")]
+            at = _klick(at, keys[0])
+            projekt_id = keys[0].removeprefix("open_")
+
+            feld = [t for t in at.get("text_input")
+                    if t.key == f"param_{projekt_id}_name"][0]
+            feld.set_value("Umbenannt im Test")
+            at.run()
+            assert not at.exception
+            assert any(":orange[" in m.value and "Änderung" in m.value
+                       for m in at.markdown)
+
+            _klick(at, f"param_{projekt_id}__speichern")
+            assert any(m.value == "### Umbenannt im Test" for m in at.markdown)
+            # Die Datei behaelt ihre Identitaet, nur der Name aendert sich.
+            assert (PROJECTS_DIR / f"{projekt_id}.yaml").exists()
+            assert "Umbenannt im Test" in [
+                b.label for b in at.button
+                if b.key and b.key.startswith("projektwahl_")
+            ]
+        finally:
+            for datei in PROJECTS_DIR.glob("*.yaml"):
+                datei.unlink()
+            for datei in sicherung.glob("*.yaml"):
+                shutil.copy(datei, PROJECTS_DIR / datei.name)
