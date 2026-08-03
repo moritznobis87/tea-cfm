@@ -180,7 +180,7 @@ be_text_ohne_praemie: "Die Zielrendite von {ziel} % wird bereits ohne nennenswer
 be_text_breakeven: "Break-even-Gebot: Für eine Zielrendite von {ziel} % ist ein anzulegender Wert von mindestens <b>{breakeven}</b> erforderlich. Gegenüber dem angesetzten Zuschlagswert von {angesetzt} besteht damit ein {label} von {differenz}."
 be_puffer: "Puffer"
 be_fehlbetrag: "Fehlbetrag"
-abb_10_caption: "Abb. 10: EK-Rendite bei Variation des EAG-Zuschlagswerts um ±5 % / ±10 %. {be_text}"
+abb_10_caption: "Abb. 10: EK-Rendite bei Variation des EAG-Zuschlagswerts um ±2,5 % / ±5 %. {be_text}"
 sigma_produktion: "Spezifischer Ertrag"
 sigma_marktwert: "Marktwert-Niveau"
 sigma_capex: "Investitionskosten"

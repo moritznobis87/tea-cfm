@@ -100,6 +100,25 @@ class TestSensitivity:
         assert "Basis" in sens["variante"].tolist()
         basis = sens[sens["variante"] == "Basis"].iloc[0]
         assert basis["eag_zuschlagswert_ct_kwh"] == pytest.approx(7.0)
+
+    def test_stufen_und_beschriftung(self, project, global_assumptions):
+        """Die Stufen liegen bei 2,5 % und 5 %. Groessere Spannen
+        beschreiben keine Entscheidung mehr, die in einer
+        Ausschreibungsrunde zur Wahl steht - dafuer gibt es Tornado und
+        Heatmap."""
+        from engine.sensitivity import DEFAULT_VARIANTEN_PCT, variantenname
+
+        assert DEFAULT_VARIANTEN_PCT == [0.05, 0.025, 0.0, -0.025, -0.05]
+        sens = run_eag_sensitivity(project, global_assumptions)
+        assert sens["variante"].tolist() == [
+            "+5 %", "+2,5 %", "Basis", "-2,5 %", "-5 %",
+        ]
+        # Der hoechste Zuschlag liegt 5 % ueber dem Gebot, nicht 10 %.
+        assert sens["eag_zuschlagswert_ct_kwh"].max() == pytest.approx(7.35)
+        assert sens["eag_zuschlagswert_ct_kwh"].min() == pytest.approx(6.65)
+        # Ganze Prozente ohne Nachkommastelle, halbe mit.
+        assert variantenname(0.10) == "+10 %"
+        assert variantenname(-0.025) == "-2,5 %"
         # Hoeherer Zuschlag -> hoehere (oder gleiche) IRR: monotone Ordnung.
         sortiert = sens.sort_values("delta_pct")
         irr = sortiert["equity_irr"].tolist()

@@ -180,7 +180,7 @@ be_text_ohne_praemie: "The target return of {ziel} % is already achieved without
 be_text_breakeven: "Break-even bid: for a target return of {ziel} %, a feed-in value of at least <b>{breakeven}</b> is required. Compared with the assumed award value of {angesetzt}, this leaves a {label} of {differenz}."
 be_puffer: "buffer"
 be_fehlbetrag: "shortfall"
-abb_10_caption: "Fig. 10: Equity return when varying the EAG award value by ±5 % / ±10 %. {be_text}"
+abb_10_caption: "Fig. 10: Equity return when varying the EAG award value by ±2.5 % / ±5 %. {be_text}"
 sigma_produktion: "Specific yield"
 sigma_marktwert: "Market value level"
 sigma_capex: "Investment costs"

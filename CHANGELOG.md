@@ -2,6 +2,20 @@
 
 ## v5.1 – Standort und Variante (2026-08)
 
+### v5.1.2 – Engere Stufen der EAG-Zuschlag-Sensitivität
+
+- **Die Zuschlagswert-Varianten liegen jetzt bei ±2,5 % und ±5 %** statt
+  bei ±5 % und ±10 %. In einer Ausschreibungsrunde bewegt sich der
+  Zuschlagswert um wenige Zehntel Cent je Kilowattstunde; eine Variation
+  um 10 % beschrieb keine Entscheidung mehr, die tatsächlich zur Wahl
+  stand. Die weiteren Spannen bleiben Tornado-Analyse und Heatmap
+  vorbehalten, die davon unberührt sind.
+- Die Beschriftung führt eine Nachkommastelle nur, wo sie etwas
+  beiträgt: „+5 %" neben „+2,5 %".
+- Nachgezogen: Diagrammtitel und Bildunterschrift in allen vier
+  Sprachen, Abschnitt 14.2 der Rechenmodell-Dokumentation samt neu
+  gebautem PDF.
+
 ### v5.1.1 – Löschabfrage sichtbar, Wertkacheln untereinander
 
 - **Die Rückfrage vor dem Löschen stand am Seitenende.** Sie wurde erst

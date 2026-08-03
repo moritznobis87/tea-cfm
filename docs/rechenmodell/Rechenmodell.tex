@@ -226,7 +226,7 @@
       {\sffamily\fontsize{9.2}{13}\selectfont\color{InkSoft}
       Wirtschaftlichkeitsrechnung für PV-Projekte nach dem
       österreichischen EAG-Marktprämienmodell\\[4pt]
-      Stand: 01.08.2026 · erzeugt aus
+      Stand: 03.08.2026 · erzeugt aus
       \nolinkurl{docs/rechenmodell/rechenmodell.md}}
     \end{tcolorbox}
   \end{titlepage}
@@ -249,7 +249,7 @@
 \title{Dokumentation Cash-Flow-Model - Rechenmodell und
 Berechnungsvorschrift}
 \author{Valyze}
-\date{01.08.2026}
+\date{03.08.2026}
 
 \begin{document}
 \maketitle
@@ -2135,11 +2135,17 @@ EAG-Zuschlag-Sensitivität}\label{eag-zuschlag-sensitivituxe4t}}
 
 Fünf Varianten des gebotenen Zuschlagswertes:
 
-\[ z_k = z_{\mathrm{Gebot}} \cdot (1 + \Delta_k), \qquad \Delta_k \in \{+10\,\%,\ +5\,\%,\ 0,\ -5\,\%,\ -10\,\%\} \]
+\[ z_k = z_{\mathrm{Gebot}} \cdot (1 + \Delta_k), \qquad \Delta_k \in \{+5\,\%,\ +2{,}5\,\%,\ 0,\ -2{,}5\,\%,\ -5\,\%\} \]
 
 Für jede Variante wird die vollständige Bewertung neu gerechnet und IRR
 und NPV ausgewiesen. Der Konventionell-Abschlag wirkt weiterhin, da die
 Variante am gebotenen Wert ansetzt.
+
+Die Stufen sind bewusst eng gefasst: In einer Ausschreibungsrunde bewegt
+sich der Zuschlagswert um wenige Zehntel Cent je Kilowattstunde. Eine
+Variation um 10 \% beschreibt keine Entscheidung mehr, die tatsächlich
+zur Wahl steht; die weiteren Spannen bleiben der Tornado-Analyse
+(Abschnitt 14.3) und der Heatmap (Abschnitt 14.4) vorbehalten.
 
 \hypertarget{tornado-analyse}{%
 \subsection{14.3 Tornado-Analyse}\label{tornado-analyse}}
@@ -2954,6 +2960,9 @@ Test
 \nolinkurl{tests/test_auktion.py} \\
 16 & Portfolio, Wertbrücke & \nolinkurl{app/views/overview.py},
 \nolinkurl{app/components/charts.py} & \nolinkurl{tests/test_ui_smoke.py} \\
+-- & Seitensteuerung, Projektseite & \nolinkurl{app/router.py},
+\nolinkurl{app/views/project_page.py} &
+\nolinkurl{tests/test_navigation.py} \\
 \end{longtable}
 
 \hypertarget{teststrategie}{%

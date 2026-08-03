@@ -193,7 +193,7 @@ be_text_ohne_praemie: "Le rendement cible de {ziel} % est déjà atteint sans pr
 be_text_breakeven: "Offre au seuil de rentabilité : pour un rendement cible de {ziel} %, une valeur applicable d'au moins <b>{breakeven}</b> est nécessaire. Par rapport à la valeur d'attribution retenue de {angesetzt}, cela laisse une {label} de {differenz}."
 be_puffer: "marge"
 be_fehlbetrag: "déficit"
-abb_10_caption: "Fig. 10 : rendement des capitaux propres en cas de variation de la valeur d'attribution EAG de ±5 % / ±10 %. {be_text}"
+abb_10_caption: "Fig. 10 : rendement des capitaux propres en cas de variation de la valeur d'attribution EAG de ±2,5 % / ±5 %. {be_text}"
 sigma_produktion: "Rendement spécifique"
 sigma_marktwert: "Niveau de valeur de marché"
 sigma_capex: "Coûts d'investissement"
