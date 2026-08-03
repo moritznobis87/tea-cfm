@@ -173,7 +173,10 @@ def render_project_page() -> None:
     npv_satz_pct = st.session_state["npv_diskontsatz_pct"]
 
     # --- Arbeitsflaeche: Ergebnis links, Parameter rechts --------------------
-    col_ergebnis, col_parameter = st.columns([0.655, 0.345], gap="medium")
+    # Die Parameterspalte kommt mit rund einem Viertel der Breite aus -
+    # die Felder stehen ohnehin untereinander. Das Ergebnis gewinnt damit
+    # spuerbar Platz fuer die Diagramme.
+    col_ergebnis, col_parameter = st.columns([0.745, 0.255], gap="medium")
 
     with col_parameter, st.container(key="parameterbox"):
         st.markdown(

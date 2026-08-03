@@ -471,14 +471,14 @@ def _felder(
             # Moduswechsel), wird aber nicht zur Eingabe angeboten.
             direktvermarktungskosten_mwh = direktvermarktung_default
             col9.caption(
-                "Direktvermarktungskosten: "
+                "DV-Kosten: "
                 f"{global_assumptions.direktvermarktung_pct_marktwert * 100:.1f} % "
                 "vom nominalen Jahresmarktwert (Modus 'Relativ zum Marktwert', "
                 "siehe Globale Annahmen)."
             )
         else:
             direktvermarktungskosten_mwh = col9.number_input(
-                "Direktvermarktungskosten (€/MWh)", min_value=0.0,
+                "DV-Kosten (€/MWh)", min_value=0.0,
                 value=direktvermarktung_default, step=0.1,
                 key=f"{form_key}_direktvermarktung",
                 help=txt("oberflaeche.formular_direktvermarktung_hilfe"),

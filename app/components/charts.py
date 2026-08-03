@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from app.formatting import fmt_pct
-from app.theme import Colors
+from app.theme import Colors, mit_alpha
 from texte import txt
 
 _EUR_HOVER = "%{y:,.0f} €"
@@ -50,7 +50,7 @@ def tax_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(
         x=df["jahr"], y=df["steuer_eur"], name=txt("diagramme.serie_steuern"),
-        marker_color=Colors.NEGATIVE, hovertemplate=_EUR_HOVER + "<extra></extra>",
+        marker_color=Colors.INK_SOFT, hovertemplate=_EUR_HOVER + "<extra></extra>",
     )
     fig.update_layout(
         yaxis_title="€", xaxis_title=txt("diagramme.achse_betriebsjahr"),
@@ -113,11 +113,11 @@ def financing_cashflow_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(
         x=df["jahr"], y=kreditaufnahme, name=txt("diagramme.serie_kreditaufnahme"),
-        marker_color=Colors.POSITIVE, hovertemplate=_EUR_HOVER + "<extra></extra>",
+        marker_color=Colors.BRAND, hovertemplate=_EUR_HOVER + "<extra></extra>",
     )
     fig.add_bar(
         x=df["jahr"], y=-df["tilgung_eur"], name=txt("diagramme.serie_tilgung"),
-        marker_color=Colors.NEUTRAL, hovertemplate=_EUR_HOVER + "<extra></extra>",
+        marker_color=Colors.INK_SOFT, hovertemplate=_EUR_HOVER + "<extra></extra>",
     )
     fig.update_layout(
         barmode="relative", yaxis_title="€", xaxis_title="Jahr", height=420
@@ -151,16 +151,22 @@ def total_cashflow_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def dscr_chart(dscr_df: pd.DataFrame) -> go.Figure:
+    """Schuldendienstdeckung je Betriebsjahr.
+
+    Nur die Unterdeckung ist eingefaerbt: Ein Balkenfeld in Warnfarbe,
+    obwohl jedes Jahr die Deckung einhaelt, sagt nichts - die Ausnahme
+    soll auffallen, nicht der Normalfall.
+    """
     fig = go.Figure()
     fig.add_bar(
         x=dscr_df["jahr"], y=dscr_df["dscr"], name="DSCR",
         marker_color=[
-            Colors.NEGATIVE if v < 1.0 else Colors.POSITIVE for v in dscr_df["dscr"]
+            Colors.NEGATIVE if v < 1.0 else Colors.BRAND for v in dscr_df["dscr"]
         ],
         hovertemplate="%{y:,.2f}x<extra></extra>",
     )
     fig.add_hline(
-        y=1.0, line_dash="dot", line_color="gray",
+        y=1.0, line_dash="dot", line_color=Colors.MUTED,
         annotation_text=txt("diagramme.serie_dscr_grenze"),
     )
     fig.update_layout(
@@ -181,7 +187,7 @@ def npv_curve_chart(npv_df: pd.DataFrame, equity_irr: float | None) -> go.Figure
     if equity_irr is not None:
         # IRR ist per Definition die Nullstelle der NPV-Kurve.
         fig.add_vline(
-            x=equity_irr * 100, line_dash="dot", line_color=Colors.POSITIVE,
+            x=equity_irr * 100, line_dash="dot", line_color=Colors.BRAND,
             annotation_text="IRR",
         )
     fig.update_layout(
@@ -306,14 +312,14 @@ def verguetung_chart(
     fig.add_scatter(
         x=betrieb["jahr"], y=betrieb["marktwert_nominal_ct_kwh"],
         name="Marktwert Solar (nominal)", mode="lines",
-        line=dict(color=Colors.NEUTRAL, width=2),
+        line=dict(color=Colors.SOFT, width=2),
         hovertemplate="%{y:,.2f} ct/kWh<extra>Marktwert nominal</extra>",
     )
     fig.add_scatter(
         x=betrieb["jahr"], y=betrieb["verguetungssatz_ct_kwh"],
         name=txt("diagramme.serie_verguetungssatz"), mode="lines",
         line=dict(color=Colors.INK, width=2.5),
-        fill="tonexty", fillcolor="rgba(138, 151, 166, 0.25)",
+        fill="tonexty", fillcolor=mit_alpha(Colors.SOFT, 0.45),
         hovertemplate="%{y:,.2f} ct/kWh<extra>" + txt("diagramme.serie_verguetungssatz") + "</extra>",
     )
     fig.add_hline(
@@ -364,7 +370,7 @@ def debt_profile_chart(df: pd.DataFrame, fremdkapital_eur: float) -> go.Figure:
     fig.add_scatter(
         x=betrieb["jahr"], y=restschuld.clip(lower=0), name="Restschuld",
         mode="lines", line=dict(color=Colors.INK, width=2),
-        fill="tozeroy", fillcolor="rgba(20, 48, 79, 0.10)",
+        fill="tozeroy", fillcolor=mit_alpha(Colors.INK, 0.10),
         hovertemplate=_EUR_HOVER + "<extra>Restschuld</extra>",
     )
     fig.add_bar(
@@ -374,7 +380,7 @@ def debt_profile_chart(df: pd.DataFrame, fremdkapital_eur: float) -> go.Figure:
     )
     fig.add_bar(
         x=betrieb["jahr"], y=betrieb["tilgung_eur"], name=txt("diagramme.serie_tilgung"),
-        marker_color=Colors.NEUTRAL,
+        marker_color=Colors.INK_SOFT,
         hovertemplate=_EUR_HOVER + "<extra>Tilgung</extra>",
     )
     fig.update_layout(
@@ -392,7 +398,7 @@ def capex_donut_chart(posten: dict[str, float]) -> go.Figure:
             labels=list(aktiv.keys()),
             values=list(aktiv.values()),
             hole=0.55,
-            marker=dict(colors=Colors.SERIES + Colors.OPEX_SCALE),
+            marker=dict(colors=Colors.KATEGORIE + Colors.OPEX_SCALE),
             textinfo="percent",
             hovertemplate="%{label}: %{value:,.0f} € (%{percent})<extra></extra>",
         )
@@ -407,7 +413,7 @@ def kapitalstruktur_donut_chart(ek_eur: float, fk_eur: float) -> go.Figure:
             labels=[txt("diagramme.serie_eigenkapital"), txt("diagramme.serie_fremdkapital")],
             values=[max(ek_eur, 0), max(fk_eur, 0)],
             hole=0.55,
-            marker=dict(colors=[Colors.INK, Colors.NEUTRAL]),
+            marker=dict(colors=[Colors.INK, Colors.BRAND]),
             textinfo="label+percent",
             hovertemplate="%{label}: %{value:,.0f} €<extra></extra>",
         )
@@ -523,7 +529,7 @@ def mc_fan_chart(mc) -> go.Figure:
     )
     fig.add_scatter(
         x=jahre, y=mc.kum_p10, mode="lines", line=dict(width=0),
-        fill="tonexty", fillcolor="rgba(20, 48, 79, 0.10)",
+        fill="tonexty", fillcolor=mit_alpha(Colors.INK, 0.10),
         name="P10–P90", hovertemplate=_EUR_HOVER + "<extra>P10</extra>",
     )
     # Inneres Band (P25-P75)
@@ -533,7 +539,7 @@ def mc_fan_chart(mc) -> go.Figure:
     )
     fig.add_scatter(
         x=jahre, y=mc.kum_p25, mode="lines", line=dict(width=0),
-        fill="tonexty", fillcolor="rgba(20, 48, 79, 0.22)",
+        fill="tonexty", fillcolor=mit_alpha(Colors.INK, 0.22),
         name="P25–P75", hovertemplate=_EUR_HOVER + "<extra>P25</extra>",
     )
     fig.add_scatter(
@@ -555,7 +561,8 @@ def scenario_bar_chart(kennzahlen: pd.DataFrame) -> go.Figure:
     irr_pct = [(v or 0) * 100 for v in kennzahlen["equity_irr"]]
     fig.add_bar(
         x=kennzahlen["szenario"], y=irr_pct,
-        marker_color=[Colors.SERIES[i % len(Colors.SERIES)] for i in range(len(kennzahlen))],
+        marker_color=[Colors.KATEGORIE[i % len(Colors.KATEGORIE)]
+                      for i in range(len(kennzahlen))],
         text=[fmt_pct(v) for v in kennzahlen["equity_irr"]],
         textposition="outside",
         customdata=kennzahlen["npv_eur"],
@@ -574,7 +581,7 @@ def scenario_cum_chart(kum_df: pd.DataFrame) -> go.Figure:
     for i, spalte in enumerate([c for c in kum_df.columns if c != "jahr"]):
         fig.add_scatter(
             x=kum_df["jahr"], y=kum_df[spalte], name=spalte, mode="lines",
-            line=dict(color=Colors.SERIES[i % len(Colors.SERIES)], width=2),
+            line=dict(color=Colors.KATEGORIE[i % len(Colors.KATEGORIE)], width=2),
             hovertemplate=_EUR_HOVER + f"<extra>{spalte}</extra>",
         )
     fig.add_hline(y=0, line_dash="dot", line_color=Colors.MUTED)
@@ -677,11 +684,11 @@ def auktion_historie_chart(df: pd.DataFrame) -> go.Figure:
                     mode="lines+markers", line=dict(color=Colors.INK_SOFT, width=2),
                     hovertemplate="%{y:,.2f} ct/kWh<extra>Mittel</extra>")
     fig.add_scatter(x=x, y=df["zuschlag_min_ct"], name=txt("diagramme.serie_niedrigster_zuschlag"),
-                    mode="lines+markers", line=dict(color=Colors.NEUTRAL, width=1.5),
+                    mode="lines+markers", line=dict(color=Colors.SOFT, width=1.5),
                     hovertemplate="%{y:,.2f} ct/kWh<extra>Min</extra>")
     quote = df["bezuschlagt_mw"] / df["ausgeschrieben_mw"] * 100
     fig.add_bar(x=x, y=quote, name=txt("diagramme.serie_bezuschlagungsquote"), yaxis="y2",
-                marker_color="rgba(138, 151, 166, 0.35)",
+                marker_color=mit_alpha(Colors.SOFT, 0.55),
                 hovertemplate="%{y:,.0f} %<extra>Bezuschlagungsquote</extra>")
     fig.update_layout(
         height=460, hovermode="x unified",
@@ -705,7 +712,7 @@ def gebotsdichte_chart(prognose, empfohlen_ct: float | None = None) -> go.Figure
     fig.add_vrect(
         x0=float(np.percentile(prognose.pm_sample, 10)),
         x1=float(np.percentile(prognose.pm_sample, 90)),
-        fillcolor="rgba(138, 151, 166, 0.16)", line_width=0,
+        fillcolor=mit_alpha(Colors.SOFT, 0.30), line_width=0,
         annotation_text=txt("diagramme.annotation_grenzzuschlag_p10_p90"),
         annotation_position="top left",
         annotation_font=dict(size=10, color=Colors.MUTED),
@@ -719,7 +726,7 @@ def gebotsdichte_chart(prognose, empfohlen_ct: float | None = None) -> go.Figure
     fig.add_scatter(
         x=prognose.dichte_x, y=prognose.dichte_zuschlag_y, mode="lines",
         line=dict(color=Colors.INK, width=2.2), fill="tozeroy",
-        fillcolor="rgba(20, 48, 79, 0.14)", name=txt("diagramme.serie_zuschlagswerte"),
+        fillcolor=mit_alpha(Colors.INK, 0.14), name=txt("diagramme.serie_zuschlagswerte"),
         hovertemplate="%{x:,.2f} ct/kWh<extra>Zuschlagswerte</extra>",
     )
     fig.add_vline(x=prognose.preisobergrenze_ct, line_color=Colors.BRAND,
@@ -735,9 +742,9 @@ def gebotsdichte_chart(prognose, empfohlen_ct: float | None = None) -> go.Figure
         fig.add_vline(x=prognose.gebot_quantile[q], line_dash="dot",
                       line_color=Colors.LINE)
     if empfohlen_ct is not None:
-        fig.add_vline(x=empfohlen_ct, line_color=Colors.POSITIVE, line_width=2,
+        fig.add_vline(x=empfohlen_ct, line_color=Colors.BRAND, line_width=2,
                       annotation_text=txt("diagramme.annotation_empfohlenes_gebot"),
-                      annotation_font_color=Colors.POSITIVE,
+                      annotation_font_color=Colors.BRAND,
                       annotation_position="bottom right")
     fig.update_layout(height=420, xaxis_title=txt("diagramme.achse_gebotswert"),
                       yaxis_title=txt("diagramme.achse_wahrscheinlichkeitsdichte"),
@@ -791,7 +798,7 @@ def auktion_historische_verteilungen_chart(modell, art: str = "dichte") -> go.Fi
         x = np.linspace(0.02 * cap, cap * (1 - 1e-4), 300)
         d = familie.dist(f.mu_rel, f.kappa, cap)
         y = d.pdf(x) if art == "dichte" else d.cdf(x)
-        farbe = _mix(Colors.NEUTRAL, Colors.BRAND, i / max(len(fits) - 1, 1))
+        farbe = _mix(Colors.SOFT, Colors.INK, i / max(len(fits) - 1, 1))
         fig.add_scatter(
             x=x, y=y, mode="lines", name=f.ausschreibung.datum.strftime("%m/%Y")
             + (" (unterz.)" if f.ausschreibung.unterzeichnet else ""),

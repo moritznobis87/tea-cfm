@@ -81,7 +81,25 @@ WASH = "#F6F7F9"
 POSITIVE = "#2E7D32"
 NEGATIVE = "#C0392B"
 NEUTRAL = "#8A97A6"
-SERIES = [INK, BRAND, NEUTRAL, POSITIVE, INK_SOFT]
+#: Gedaempfter Warnton fuer den Bereich zwischen Cash Trap und Event of
+#: Default - auffaellig, aber nicht so hart wie die Unterdeckung.
+WARN = "#B4552F"
+SOFT = "#B9CFD2"
+SERIES = [INK, BRAND, INK_SOFT, SOFT, NEUTRAL]
+#: Kategoriale Palette fuer Aufteilungen mit vielen Segmenten - identisch
+#: zu app.theme.Colors.KATEGORIE.
+KATEGORIE = [
+    "#14304F", "#167B88", "#2B4F77", "#7FAEB7", "#3B7C8B",
+    "#A6C7CD", "#1E4C5C", "#5A95A1", "#CFE0E3", "#8A97A6",
+]
+
+
+def _aufhellen(hexfarbe: str, anteil: float) -> str:
+    """Mischt eine Farbe mit Weiss - Gegenstueck zu app.theme._aufhellen."""
+    r, g, b = (int(hexfarbe[i:i + 2], 16) for i in (1, 3, 5))
+    return "#" + "".join(
+        f"{round(k * anteil + 255 * (1 - anteil)):02X}" for k in (r, g, b)
+    )
 
 
 def wende_farben_an(farben: dict) -> None:
@@ -92,7 +110,7 @@ def wende_farben_an(farben: dict) -> None:
     auskommt. Von app.services vor jedem build_pdf_report()-Aufruf
     passend zur aktiven Marke aufgerufen; POSITIVE/NEGATIVE bleiben
     unveraendert (semantische Farben, keine Markenfarben)."""
-    global BRAND, INK, INK_SOFT, MUTED, NEUTRAL, LINE, WASH, SERIES
+    global BRAND, INK, INK_SOFT, MUTED, NEUTRAL, LINE, WASH, SERIES, SOFT
     BRAND = farben["BRAND"]
     INK = farben["INK"]
     INK_SOFT = farben["INK_SOFT"]
@@ -100,7 +118,14 @@ def wende_farben_an(farben: dict) -> None:
     NEUTRAL = farben["NEUTRAL"]
     LINE = farben["LINE"]
     WASH = farben["WASH"]
-    SERIES = [INK, BRAND, NEUTRAL, POSITIVE, INK_SOFT]
+    SOFT = "#B9CFD2"
+SERIES = [INK, BRAND, INK_SOFT, SOFT, NEUTRAL]
+#: Kategoriale Palette fuer Aufteilungen mit vielen Segmenten - identisch
+#: zu app.theme.Colors.KATEGORIE.
+KATEGORIE = [
+    "#14304F", "#167B88", "#2B4F77", "#7FAEB7", "#3B7C8B",
+    "#A6C7CD", "#1E4C5C", "#5A95A1", "#CFE0E3", "#8A97A6",
+]
 
 _SEITE_B, _SEITE_H = A4
 _RAND_L, _RAND_R, _RAND_O, _RAND_U = 2.0 * cm, 2.0 * cm, 2.3 * cm, 2.0 * cm
@@ -240,13 +265,13 @@ def _chart_wertbruecke(df: pd.DataFrame) -> Image:
 def _chart_verguetung(df: pd.DataFrame, zuschlag_ct: float, dauer: int) -> Image:
     betrieb = df[df["jahr"] >= 1]
     fig, ax = _fig()
-    ax.plot(betrieb["jahr"], betrieb["marktwert_nominal_ct_kwh"], color=NEUTRAL,
+    ax.plot(betrieb["jahr"], betrieb["marktwert_nominal_ct_kwh"], color=SOFT,
             linewidth=1.4, label=txt("bericht.chart_marktwert_solar_nominal"))
     ax.plot(betrieb["jahr"], betrieb["verguetungssatz_ct_kwh"], color=INK,
             linewidth=1.8, label=txt("diagramme.serie_verguetungssatz"))
     ax.fill_between(
         betrieb["jahr"], betrieb["marktwert_nominal_ct_kwh"],
-        betrieb["verguetungssatz_ct_kwh"], color=NEUTRAL, alpha=0.25,
+        betrieb["verguetungssatz_ct_kwh"], color=SOFT, alpha=0.40,
         label=txt("diagramme.serie_marktpraemie"),
     )
     ax.axhline(zuschlag_ct, color=BRAND, linewidth=1.1, linestyle="--",
@@ -265,10 +290,10 @@ def _chart_erloes_split(df: pd.DataFrame) -> Image:
     betrieb = df[df["jahr"] >= 1]
     fig, ax = _fig()
     fmt, einheit = _eur_achse(betrieb["erloes_eur"].max())
-    ax.bar(betrieb["jahr"], betrieb["erloes_markt_eur"], color=POSITIVE,
+    ax.bar(betrieb["jahr"], betrieb["erloes_markt_eur"], color=BRAND,
            width=0.72, label=txt("diagramme.serie_markterloes"))
     ax.bar(betrieb["jahr"], betrieb["erloes_praemie_eur"],
-           bottom=betrieb["erloes_markt_eur"], color=NEUTRAL, width=0.72,
+           bottom=betrieb["erloes_markt_eur"], color=INK_SOFT, width=0.72,
            label=txt("bericht.chart_marktpraemie_eag"))
     ax.yaxis.set_major_formatter(fmt)
     ax.set_ylabel(f"{txt('bericht.chart_erloese_label')} ({einheit})")
@@ -291,7 +316,7 @@ def _chart_dscr(
     dscr = df.dropna(subset=["dscr"])
     fig, ax = _fig(5.8)
     farben = [
-        NEGATIVE if v < schwelle_eod else (NEUTRAL if v < schwelle_trap else POSITIVE)
+        NEGATIVE if v < schwelle_eod else (WARN if v < schwelle_trap else BRAND)
         for v in dscr["dscr"]
     ]
     ax.bar(dscr["jahr"], dscr["dscr"], color=farben, width=0.7)
@@ -327,7 +352,7 @@ def _chart_schuldenprofil(df: pd.DataFrame, fremdkapital: float) -> Image:
     ax.bar(betrieb["jahr"], betrieb["zinsen_eur"], color=BRAND, width=0.7,
            label="Zinsen")
     ax.bar(betrieb["jahr"], betrieb["tilgung_eur"],
-           bottom=betrieb["zinsen_eur"], color=NEUTRAL, width=0.7,
+           bottom=betrieb["zinsen_eur"], color=INK_SOFT, width=0.7,
            label="Tilgung")
     ax.yaxis.set_major_formatter(fmt)
     ax.set_ylabel(einheit)
@@ -342,13 +367,13 @@ def _chart_strukturen(ek: float, fk: float, capex_posten: dict[str, float]) -> I
     )
     ax1.pie(
         [max(ek, 0), max(fk, 0)], labels=["Eigenkapital", "Fremdkapital"],
-        colors=[INK, NEUTRAL], autopct=lambda p: f"{_de(p, 0)} %",
+        colors=[INK, BRAND], autopct=lambda p: f"{_de(p, 0)} %",
         textprops={"fontsize": 8, "color": INK},
         wedgeprops={"width": 0.42, "edgecolor": "white"}, startangle=90,
     )
     ax1.set_title("Kapitalstruktur", color=INK)
     aktiv = {k: v for k, v in capex_posten.items() if v > 0}
-    palette = (SERIES + [MUTED, "#6C3483", "#B9770E"])[: len(aktiv)]
+    palette = (KATEGORIE * 3)[: len(aktiv)]
     ax2.pie(
         list(aktiv.values()), labels=list(aktiv.keys()), colors=palette,
         autopct=lambda p: f"{_de(p, 0)} %" if p >= 4 else "",
@@ -383,8 +408,8 @@ def _chart_tornado(tornado_df: pd.DataFrame) -> Image:
     for i, (_, zeile) in enumerate(tornado_df.iterrows()):
         runter = (zeile["irr_runter"] or 0) * 100
         rauf = (zeile["irr_rauf"] or 0) * 100
-        ax.barh(i, runter - basis, left=basis, color=NEGATIVE, height=0.55)
-        ax.barh(i, rauf - basis, left=basis, color=POSITIVE, height=0.55)
+        ax.barh(i, runter - basis, left=basis, color=INK_SOFT, height=0.55)
+        ax.barh(i, rauf - basis, left=basis, color=BRAND, height=0.55)
     ax.axvline(basis, color=INK, linewidth=1.4)
     ax.set_yticks(y)
     ax.set_yticklabels(tornado_df["name"], fontsize=8)
@@ -398,7 +423,7 @@ def _chart_tornado(tornado_df: pd.DataFrame) -> Image:
 def _chart_eag_varianten(sens_df: pd.DataFrame) -> Image:
     fig, ax = _fig(5.6)
     irr = [(v or 0) * 100 for v in sens_df["equity_irr"]]
-    farben = [BRAND if v == "Basis" else NEUTRAL for v in sens_df["variante"]]
+    farben = [INK if v == "Basis" else SOFT for v in sens_df["variante"]]
     ax.bar(sens_df["variante"], irr, color=farben, width=0.6)
     for i, wert in enumerate(irr):
         ax.annotate(f"{_de(wert, 2)} %", (i, wert), textcoords="offset points",
@@ -411,10 +436,10 @@ def _chart_eag_varianten(sens_df: pd.DataFrame) -> Image:
 def _chart_mc_histogramm(mc: MonteCarloResult, p10: float, p50: float,
                          p90: float) -> Image:
     fig, ax = _fig(5.8)
-    ax.hist(mc.irr_gueltig * 100, bins=32, color=NEUTRAL,
+    ax.hist(mc.irr_gueltig * 100, bins=32, color=BRAND,
             edgecolor="white", linewidth=0.4)
-    for wert, name, farbe in [(p10, "P10", NEGATIVE), (p50, "P50", INK),
-                              (p90, "P90", POSITIVE)]:
+    for wert, name, farbe in [(p10, "P10", INK_SOFT), (p50, "P50", INK),
+                              (p90, "P90", BRAND)]:
         ax.axvline(wert * 100, color=farbe, linewidth=1.1, linestyle="--")
         ax.annotate(f"{name} {fmt_pct(wert)}", (wert * 100, ax.get_ylim()[1]),
                     textcoords="offset points", xytext=(2, -10), color=farbe,
@@ -447,7 +472,7 @@ def _chart_szenarien(vergleich: SzenarioVergleich) -> Image:
     )
     kz = vergleich.kennzahlen
     irr = [(v or 0) * 100 for v in kz["equity_irr"]]
-    ax1.bar(range(len(kz)), irr, color=SERIES[: len(kz)], width=0.6)
+    ax1.bar(range(len(kz)), irr, color=KATEGORIE[: len(kz)], width=0.6)
     ax1.set_xticks(range(len(kz)))
     ax1.set_xticklabels(kz["szenario"], rotation=30, ha="right", fontsize=7)
     ax1.set_ylabel("EK-Rendite (%)")
@@ -458,7 +483,7 @@ def _chart_szenarien(vergleich: SzenarioVergleich) -> Image:
     kum = vergleich.kum_cashflows
     fmt, einheit = _eur_achse(kum.drop(columns="jahr").abs().max().max())
     for i, spalte in enumerate([c for c in kum.columns if c != "jahr"]):
-        ax2.plot(kum["jahr"], kum[spalte], color=SERIES[i % len(SERIES)],
+        ax2.plot(kum["jahr"], kum[spalte], color=KATEGORIE[i % len(KATEGORIE)],
                  linewidth=1.4, label=spalte)
     ax2.axhline(0, color=MUTED, linewidth=0.8, linestyle=":")
     ax2.yaxis.set_major_formatter(fmt)
@@ -488,7 +513,7 @@ def _chart_auktion_fits(modell) -> Image:
         cap = f.ausschreibung.preisobergrenze_ct
         x = np.linspace(0.02 * cap, cap * (1 - 1e-4), 300)
         d = familie.dist(f.mu_rel, f.kappa, cap)
-        farbe = _mix(NEUTRAL, BRAND, i / max(len(fits) - 1, 1))
+        farbe = _mix(SOFT, INK, i / max(len(fits) - 1, 1))
         ax.plot(
             x, d.pdf(x), color=farbe, linewidth=1.4,
             linestyle=":" if f.ausschreibung.unterzeichnet else "-",
@@ -533,7 +558,7 @@ def _chart_auktion_historie(df) -> Image:
             markersize=3, label=txt("diagramme.serie_hoechster_zuschlag"))
     ax.plot(x, df["zuschlag_mittel_ct"], color=INK_SOFT, linewidth=1.6,
             marker="o", markersize=3, label="Ø Zuschlag (gewichtet)")
-    ax.plot(x, df["zuschlag_min_ct"], color=NEUTRAL, linewidth=1.2,
+    ax.plot(x, df["zuschlag_min_ct"], color=SOFT, linewidth=1.2,
             marker="o", markersize=3, label="Niedrigster Zuschlag")
     wett = df[~df["unterzeichnet"]]
     if not wett.empty:
@@ -557,15 +582,15 @@ def _chart_auktion_dichte(prognose, projekt_wert_ct: float) -> Image:
     if len(prognose.pm_sample) > 1:
         ax.axvspan(float(np.percentile(prognose.pm_sample, 10)),
                    float(np.percentile(prognose.pm_sample, 90)),
-                   color=NEUTRAL, alpha=0.18)
+                   color=SOFT, alpha=0.30)
     ax.axvline(prognose.preisobergrenze_ct, color=BRAND, linewidth=1.2,
                linestyle="--")
     ax.annotate("Obergrenze", (prognose.preisobergrenze_ct, ax.get_ylim()[1]),
                 textcoords="offset points", xytext=(-4, -10), ha="right",
                 color=BRAND, fontsize=7.5)
-    ax.axvline(projekt_wert_ct, color=POSITIVE, linewidth=1.4)
+    ax.axvline(projekt_wert_ct, color=BRAND, linewidth=1.4)
     ax.annotate("Projektwert", (projekt_wert_ct, ax.get_ylim()[1] * 0.85),
-                textcoords="offset points", xytext=(4, 0), color=POSITIVE,
+                textcoords="offset points", xytext=(4, 0), color=BRAND,
                 fontsize=7.5)
     ax.set_xlabel("Gebotswert (ct/kWh)")
     ax.set_ylabel("Wahrscheinlichkeitsdichte")

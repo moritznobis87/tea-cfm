@@ -62,8 +62,20 @@ class Colors:
         "#2A6373", "#1E4C5C", "#89B4BC",
     ]
 
-    #: Serienfarben fuer Szenario-/Mehrlinienvergleiche.
-    SERIES = ["#14304F", "#167B88", "#8A97A6", "#2E7D32", "#2B4F77"]
+    #: Serienfarben fuer Mehrlinienvergleiche - ausschliesslich aus der
+    #: Markenfamilie. Frueher lag hier ein Gruen mit drin; als Serienfarbe
+    #: einer beliebigen Variante legte es eine Bewertung nahe, die der
+    #: Vergleich nicht trifft.
+    SERIES = ["#14304F", "#167B88", "#2B4F77", "#B9CFD2", "#8A97A6"]
+
+    #: Kategoriale Palette fuer Aufteilungen mit vielen Segmenten
+    #: (Investitionsstruktur, Szenarienvergleich). Abwechselnd dunkel und
+    #: hell, damit benachbarte Segmente auch bei kleinen Flaechen
+    #: auseinanderzuhalten sind.
+    KATEGORIE = [
+        "#14304F", "#167B88", "#2B4F77", "#7FAEB7", "#3B7C8B",
+        "#A6C7CD", "#1E4C5C", "#5A95A1", "#CFE0E3", "#8A97A6",
+    ]
 
     #: Aufgehellte Markenfarbe fuer Auswahlflaechen (aktiver
     #: Navigationseintrag, aktive Sicht, Kopf der Parameterspalte).
@@ -76,6 +88,17 @@ class Colors:
     HEAT_SCALE = [
         [0.0, "#C0392B"], [0.5, "#F2F1ED"], [1.0, "#2E7D32"],
     ]
+
+
+def mit_alpha(hexfarbe: str, alpha: float) -> str:
+    """Farbe als rgba-Zeichenkette - fuer halbtransparente Flaechen.
+
+    Damit stehen auch Fuellungen im Tokensystem: Vorher waren sie als
+    rgba-Literale in charts.py eingetragen und blieben bei einer
+    Farbumstellung stehen.
+    """
+    r, g, b = (int(hexfarbe[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {alpha})"
 
 
 def _aufhellen(hexfarbe: str, anteil: float) -> str:
@@ -102,8 +125,14 @@ def wende_farben_an(farben: dict) -> None:
     Colors.WASH = farben["WASH"]
     Colors.SELECT = _aufhellen(Colors.BRAND, 0.13)
     Colors.SOFT = _aufhellen(Colors.BRAND, 0.32)
-    Colors.SERIES = [Colors.INK, Colors.BRAND, Colors.NEUTRAL,
-                     Colors.POSITIVE, Colors.INK_SOFT]
+    Colors.SERIES = [Colors.INK, Colors.BRAND, Colors.INK_SOFT,
+                     Colors.SOFT, Colors.NEUTRAL]
+    Colors.KATEGORIE = [
+        Colors.INK, Colors.BRAND, Colors.INK_SOFT,
+        _aufhellen(Colors.BRAND, 0.55), _aufhellen(Colors.BRAND, 0.8),
+        _aufhellen(Colors.INK, 0.45), _aufhellen(Colors.BRAND, 1.0),
+        _aufhellen(Colors.INK_SOFT, 0.6), Colors.SOFT, Colors.NEUTRAL,
+    ]
 
 
 # ---------------------------------------------------------------------------
