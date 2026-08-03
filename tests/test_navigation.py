@@ -154,11 +154,18 @@ class TestParameterspalte:
 
 
 class TestVierAnsichten:
-    def test_segmentwahl_bietet_genau_vier_sichten(self, at: AppTest):
+    def test_segmentwahl_bietet_die_gleichrangigen_sichten(self, at: AppTest):
+        """Vier Sichten auf das Projekt, dazu der Variantenvergleich.
+
+        Der Vergleich ist die fuenfte gleichrangige Sicht: Er zeigt
+        denselben Standort, nur alle seine Rechnungen nebeneinander.
+        """
         keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
         at = _klick(at, keys[0])
         wahl = at.get("button_group")[0]
-        assert wahl.options == ["Ergebnis", "Finanzierung", "Risiko", "Annahmen"]
+        assert wahl.options == [
+            "Ergebnis", "Finanzierung", "Risiko", "Annahmen", "Vergleich",
+        ]
         assert wahl.value == "Ergebnis"
 
     @pytest.mark.parametrize(
@@ -309,7 +316,7 @@ class TestKachelraster:
             encoding="utf-8"
         )
         block = quelle[quelle.index("# --- Projektkarten"):]
-        assert "for reihe in range(0, len(zeilen), _KARTEN_JE_REIHE)" in block
+        assert "for reihe in range(0, len(karten), _KARTEN_JE_REIHE)" in block
         # Der alte Modulo-Griff darf nicht zurueckkehren.
         assert "i % len(cols)" not in block
 

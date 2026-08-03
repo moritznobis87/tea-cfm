@@ -87,3 +87,7 @@ annotation_eag_zuschlagswert_fix: "EAG-Zuschlagswert (nominal fix)"
 achse_jahr_kurz: "Jahr"
 achse_kumulierter_cf: "Kumulierter Equity-Cashflow (€)"
 achse_irr_kurz: "EK-Rendite"
+
+# --- Variantenvergleich ------------------------------------------------------
+serie_cash_trap: "Cash Trap {wert}x"
+serie_event_of_default: "Event of Default {wert}x"

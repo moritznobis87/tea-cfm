@@ -1,5 +1,51 @@
 # Changelog
 
+## v5.2 – Blick über alle Varianten (2026-08)
+
+Sensitivitäten ließen sich anlegen und ansteuern, aber nicht vergleichen:
+Wer wissen wollte, welche Rechnung gewinnt und woran das liegt, musste
+zwischen den Reitern hin- und herspringen und sich die Zahlen merken. Die
+Rechenregeln sind unverändert.
+
+- **Leitvariante je Standort.** Eine Rechnung trägt die Entscheidung; nur
+  sie geht in die Portfolio-Kennzahlen und die Pipeline ein. Damit ist
+  eine falsche Zahl behoben: Bisher zählte jede Sensitivität mit, ein
+  Standort mit drei Varianten also dreifach — Portfolio-Leistung,
+  Investitionsvolumen und Eigenkapital waren entsprechend zu hoch (im
+  Beispielbestand 30,3 MWp statt 15,3 MWp). Ist keine Variante markiert,
+  gilt die erste; ein nie angefasster Bestand ist damit sofort richtig.
+- **Neue Sicht „Vergleich"** als fünfter Reiter der Projektseite, dazu
+  ein Chip am Ende der Variantenreihe. Vier Blöcke, von der Entscheidung
+  zur Begründung:
+  - **Entscheidungstabelle** — je Variante Equity IRR mit Zielbalken, Δ
+    zur wählbaren Referenz, NPV, Equity Value, Min. DSCR mit
+    Kovenantenmarkierung, CAPEX und Payback. Die beste Rendite ist
+    hervorgehoben.
+  - **„Was unterscheidet die Varianten"** — nur die Felder, die
+    tatsächlich abweichen, aus den Projektdaten abgeleitet. Die Frage
+    „was hatte ich hier eigentlich geändert?" beantwortet damit das
+    Programm statt der Erinnerung.
+  - **DSCR je Betriebsjahr** als Linienvergleich mit beiden
+    Kovenantenschwellen — der Minimalwert allein verrät nicht, ob eine
+    Unterdeckung Ausreißer oder Dauerzustand ist.
+  - **Kumulierter Cashflow** je Variante; die Nulllinie ist der Payback.
+  - Die Parameterspalte entfällt in dieser Sicht: Sie bearbeitet eine
+    Variante, der Vergleich zeigt alle. Der Vergleich bekommt die volle
+    Breite.
+- **Portfolio mit Sichtwahl „Standorte | Alle Varianten".** Standorte
+  zeigt je Feld eine Karte mit der Spanne der Varianten („3 Varianten ·
+  6,46 % – 13,50 %") und dem Leitfall; alle Kennzahlen beziehen sich dann
+  auf die Leitvarianten. Alle Varianten zeigt jede Rechnung einzeln, und
+  in der Rendite-Risiko-Landkarte verbindet eine Linie die Rechnungen
+  desselben Standorts.
+- **Neuer Analytik-Reiter „Varianten"**: alle Rechnungen der Pipeline,
+  nach Standort gruppiert, mit Leitfall-Marke und einer Ampel, die
+  Zielrendite und Kovenanten gemeinsam prüft.
+- **Excel-Sicherung**: neue optionale Spalte `leitvariante` hinter
+  `variante`; ältere Dateien bleiben lesbar.
+- 13 neue Tests (Leitvariante inkl. Exklusivität und Excel-Rundlauf,
+  Unterschiedsableitung, Vergleichssicht); Suite: 337.
+
 ## v5.1 – Standort und Variante (2026-08)
 
 ### v5.1.2 – Engere Stufen der EAG-Zuschlag-Sensitivität

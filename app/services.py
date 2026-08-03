@@ -172,6 +172,46 @@ def varianten_von(projekt: PVProject) -> list[PVProject]:
     return gruppiere_nach_standort().get(projekt.name, [projekt])
 
 
+def leitvariante_von(varianten: list[PVProject]) -> PVProject:
+    """Die Rechnung, die fuer diesen Standort die Entscheidung traegt.
+
+    Faellt auf die erste Variante zurueck, wenn keine gesetzt ist - so
+    ist auch ein nie angefasster Bestand eindeutig, und die
+    Portfoliozahlen stimmen von Anfang an.
+    """
+    return next((v for v in varianten if v.leitvariante), varianten[0])
+
+
+def leitvarianten() -> list[PVProject]:
+    """Je Standort genau eine Rechnung - die Basis aller
+    Portfolio-Kennzahlen.
+
+    Ohne diese Auswahl zaehlt ein Standort mit drei Sensitivitaeten
+    dreifach: Leistung, Investitionsvolumen und Eigenkapital des
+    Portfolios waeren um ein Vielfaches zu hoch.
+    """
+    return [leitvariante_von(v) for v in gruppiere_nach_standort().values()]
+
+
+def setze_leitvariante(project_id: str) -> PVProject | None:
+    """Macht eine Variante zur Leitvariante ihres Standorts.
+
+    Die Marke ist je Standort exklusiv: Die uebrigen Varianten werden
+    mitgeschrieben, sonst gaebe es zwei Leitfaelle und die
+    Portfoliozahlen haetten zwei moegliche Werte.
+    """
+    projekt = get_project(project_id)
+    if projekt is None:
+        return None
+    for variante in varianten_von(projekt):
+        soll = variante.id == project_id
+        if variante.leitvariante != soll:
+            variante.leitvariante = soll
+            save_project(variante)
+    projekt.leitvariante = True
+    return projekt
+
+
 def get_project(project_id: str) -> PVProject | None:
     path = PROJECTS_DIR / f"{project_id}.yaml"
     if not path.exists():

@@ -17,11 +17,17 @@ def _de(zahl_str: str) -> str:
     return zahl_str.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
 
 
-def fmt_number(value: float | int | None, digits: int = 0) -> str:
-    """Zahl mit Tausenderpunkt und Dezimalkomma, z.B. 1.234.567,89."""
+def fmt_number(value: float | int | None, digits: int = 0, *,
+               mit_vorzeichen: bool = False) -> str:
+    """Zahl mit Tausenderpunkt und Dezimalkomma, z.B. 1.234.567,89.
+
+    mit_vorzeichen setzt auch bei positiven Werten ein "+" - fuer
+    Abweichungen, bei denen die Richtung die eigentliche Aussage ist.
+    """
     if value is None:
         return "n/a"
-    return _de(f"{value:,.{digits}f}")
+    format_ = f"{value:+,.{digits}f}" if mit_vorzeichen else f"{value:,.{digits}f}"
+    return _de(format_)
 
 
 def fmt_eur(value: float | None, digits: int = 0) -> str:

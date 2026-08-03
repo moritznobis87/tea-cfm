@@ -314,7 +314,7 @@ PROJEKT_SPALTEN = [
     # "name" ist der Standort, "variante" die Sensitivitaet an diesem
     # Standort (leer = Grundfall). Zwei Zeilen mit gleichem Namen und
     # verschiedener Variante sind zwei Rechnungen desselben Projekts.
-    "id", "name", "variante",
+    "id", "name", "variante", "leitvariante",
     "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
     "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
@@ -354,6 +354,9 @@ OPTIONALE_PROJEKT_SPALTEN = frozenset(
         # seit v5.1 (Standort + Variante); fehlt sie, ist jede Zeile der
         # Grundfall ihres Standorts
         "variante",
+        # seit v5.2 (Leitvariante je Standort); fehlt sie, gilt je
+        # Standort die erste Variante als Leitfall
+        "leitvariante",
     }
 )
 
@@ -388,6 +391,22 @@ def _text(reihe, spalte: str, standard: str = "") -> str:
     return str(wert).strip()
 
 
+def _wahrheitswert(reihe, spalte: str, standard: bool = False) -> bool:
+    """Ja/Nein-Zelle, tolerant gegen fehlende Spalte und Leerzelle.
+
+    Excel liefert je nach Herkunft True/False, 1/0 oder Text ("WAHR",
+    "ja", "x"). bool("FALSCH") waere wahr - deshalb die Textliste.
+    """
+    if spalte not in reihe:
+        return standard
+    wert = reihe[spalte]
+    if wert is None or pd.isna(wert):
+        return standard
+    if isinstance(wert, str):
+        return wert.strip().lower() in {"wahr", "true", "ja", "yes", "x", "1"}
+    return bool(wert)
+
+
 def _json_liste(wert) -> list[dict]:
     """Liest eine als JSON-Text gespeicherte Positionsliste.
 
@@ -414,6 +433,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "id": p.id,
             "name": p.name,
             "variante": p.variante,
+            "leitvariante": p.leitvariante,
             "aktiv": p.aktiv,
             "inbetriebnahme_jahr": p.inbetriebnahme_jahr,
             "inbetriebnahme_monat": p.inbetriebnahme_monat,
@@ -481,6 +501,7 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 id=str(r["id"]),
                 name=str(r["name"]),
                 variante=_text(r, "variante"),
+                leitvariante=_wahrheitswert(r, "leitvariante"),
                 aktiv=bool(r.get("aktiv", True))
                 if not pd.isna(r.get("aktiv", True)) else True,
                 inbetriebnahme_jahr=int(r["inbetriebnahme_jahr"]),

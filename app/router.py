@@ -31,7 +31,8 @@ SEITEN = ("portfolio", "projekt", "neu", "ausschreibung", "annahmen")
 STANDARD_SEITE = "portfolio"
 
 #: Analyse-Tabs der Projektseite (siehe app/views/project_detail.py).
-PROJEKT_TABS = ("ergebnis", "finanzierung", "risiko", "annahmen")
+PROJEKT_TABS = ("ergebnis", "finanzierung", "risiko", "annahmen",
+                "vergleich")
 STANDARD_TAB = "ergebnis"
 
 _STATE_SEITE = "route_seite"

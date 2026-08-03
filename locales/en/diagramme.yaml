@@ -85,3 +85,7 @@ annotation_eag_zuschlagswert_fix: "EAG award value (fixed nominal)"
 achse_jahr_kurz: "Year"
 achse_kumulierter_cf: "Cumulative equity cashflow (€)"
 achse_irr_kurz: "Equity return"
+
+# --- Variantenvergleich ------------------------------------------------------
+serie_cash_trap: "Cash trap {wert}x"
+serie_event_of_default: "Event of default {wert}x"

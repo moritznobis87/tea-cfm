@@ -79,6 +79,111 @@ def _projektkarte(z: dict, selected: str | None) -> None:
         router.gehe_zu("projekt", projekt_id=z["id"])
 
 
+def _standortkarte(gruppe: dict, selected: str | None) -> None:
+    """Eine Karte je Standort - mit der Spanne der Varianten statt einer
+    einzelnen Zahl.
+
+    Die Spanne ist die eigentliche Aussage: "9,84 %" verschweigt, dass
+    dieselbe Flaeche unter anderen Annahmen 6,46 % oder 13,50 % bringt.
+    """
+    leit, varianten = gruppe["leit"], gruppe["varianten"]
+    kpis = gruppe["leit_kpis"]
+    ist_agri = leit.anlagentyp == AnlagenTyp.AGRI_PV
+    typ_badge = (badge(txt("oberflaeche.badge_agri"), "agri") if ist_agri
+                 else badge(txt("oberflaeche.badge_konventionell"), "konv"))
+    klassen = "project-card"
+    if leit.id == selected:
+        klassen += " selected"
+
+    irr_werte = [z["kpis"].equity_irr for z in varianten
+                 if z["kpis"].equity_irr is not None]
+    if len(varianten) > 1 and irr_werte:
+        spanne = (
+            f'<div class="card-variante">{len(varianten)} Varianten · '
+            f"{fmt_pct(min(irr_werte))} – {fmt_pct(max(irr_werte))}</div>"
+        )
+    else:
+        spanne = ""
+
+    st.markdown(
+        f'''<div class="{klassen}" title="{html.escape(leit.name)}">
+        <div class="card-kopf">
+          <span class="card-title">{html.escape(leit.name)}</span>
+          <span class="card-badges">{typ_badge}</span>
+        </div>{spanne}
+        <span class="card-sub">{fmt_kwp(leit.nennleistung_kwp)} · IBN {leit.inbetriebnahme_jahr}</span>
+        <div class="card-kpi-zeile">
+          <span class="card-kpi">{fmt_pct(kpis.equity_irr)}</span>
+          <span class="card-kpi-label">Equity IRR</span>
+        </div>
+        <span class="card-sub">{html.escape(txt("oberflaeche.portfolio_leitfall", name=leit.variantenlabel))}</span>
+        </div>''',
+        unsafe_allow_html=True,
+    )
+    if st.button(txt("oberflaeche.btn_oeffnen"), key=f"open_{leit.id}",
+                 width="stretch"):
+        st.session_state[STATE_SELECTED_PROJECT] = leit.id
+        router.gehe_zu("projekt", projekt_id=leit.id)
+
+
+def _variantentabelle(gruppen: list[dict], ziel_pct: float,
+                      dscr_grenze: float) -> None:
+    """Alle Rechnungen der Pipeline, nach Standort gruppiert.
+
+    Die Ampel beantwortet die Frage, die eine Sortierung nach Rendite
+    nicht beantwortet: Welche Varianten halten Ziel UND Kovenanten ein?
+    """
+    zeilen = []
+    for gruppe in gruppen:
+        for z in gruppe["varianten"]:
+            projekt, kpis = z["projekt"], z["kpis"]
+            erfuellt = (
+                kpis.equity_irr is not None and kpis.equity_irr >= ziel_pct
+                and kpis.dscr_min is not None and kpis.dscr_min >= dscr_grenze
+            )
+            zeilen.append(
+                {
+                    txt("oberflaeche.vergleich_spalte_standort"): projekt.name,
+                    txt("oberflaeche.vergleich_spalte_variante"):
+                        projekt.variantenlabel,
+                    txt("oberflaeche.portfolio_spalte_leitfall"):
+                        projekt.id == gruppe["leit"].id,
+                    txt("oberflaeche.vergleich_spalte_irr") + " (%)": (
+                        round(kpis.equity_irr * 100, 2)
+                        if kpis.equity_irr is not None else None
+                    ),
+                    txt("oberflaeche.vergleich_spalte_dscr") + " (x)": (
+                        round(kpis.dscr_min, 2)
+                        if kpis.dscr_min is not None else None
+                    ),
+                    "€/kWp": (
+                        round(kpis.capex_total_eur / projekt.nennleistung_kwp)
+                        if projekt.nennleistung_kwp else None
+                    ),
+                    txt("oberflaeche.portfolio_spalte_ziel"): erfuellt,
+                }
+            )
+    st.dataframe(
+        pd.DataFrame(zeilen), width="stretch", hide_index=True,
+        column_config={
+            # Ohne Formatangabe zeigt die Tabelle "18.07" und "1.1" - im
+            # Rest der App steht "18,07 %" und "1,10x".
+            txt("oberflaeche.vergleich_spalte_irr") + " (%)":
+                st.column_config.NumberColumn(format="%.2f"),
+            txt("oberflaeche.vergleich_spalte_dscr") + " (x)":
+                st.column_config.NumberColumn(format="%.2f"),
+            "€/kWp": st.column_config.NumberColumn(format="%d"),
+            txt("oberflaeche.portfolio_spalte_leitfall"):
+                st.column_config.CheckboxColumn(disabled=True),
+            txt("oberflaeche.portfolio_spalte_ziel"):
+                st.column_config.CheckboxColumn(
+                    disabled=True,
+                    help=txt("oberflaeche.portfolio_spalte_ziel_hilfe"),
+                ),
+        },
+    )
+
+
 def render_overview() -> None:
     projects = services.list_project_files()
     if not projects:
@@ -99,9 +204,51 @@ def render_overview() -> None:
             }
         )
 
+    # Nach Standort buendeln und je Standort die Leitvariante bestimmen -
+    # die Rechnung, die fuer dieses Feld gilt.
+    gruppen = []
+    for standort, varianten in services.gruppiere_nach_standort(
+        [z["projekt"] for z in zeilen]
+    ).items():
+        leit = services.leitvariante_von(varianten)
+        teil = [z for z in zeilen if z["projekt"].name == standort]
+        gruppen.append(
+            {
+                "standort": standort,
+                "leit": leit,
+                "leit_kpis": next(z["kpis"] for z in teil if z["id"] == leit.id),
+                "varianten": teil,
+            }
+        )
+
+    # --- Sichtwahl -----------------------------------------------------------
+    # Standorte: je Feld die Leitvariante. Alle Varianten: jede Rechnung
+    # einzeln. Der Unterschied ist keine Darstellungsfrage - er entscheidet,
+    # ob ein Standort mit drei Sensitivitaeten in Leistung, Investitions-
+    # volumen und Eigenkapital dreifach zaehlt.
+    hat_varianten = any(len(g["varianten"]) > 1 for g in gruppen)
+    sicht = "standorte"
+    if hat_varianten:
+        wahl = st.segmented_control(
+            txt("oberflaeche.portfolio_sicht_label"),
+            [txt("oberflaeche.portfolio_sicht_standorte"),
+             txt("oberflaeche.portfolio_sicht_varianten")],
+            default=txt("oberflaeche.portfolio_sicht_standorte"),
+            key="portfolio_sicht", label_visibility="collapsed",
+            help=txt("oberflaeche.portfolio_sicht_hilfe"),
+        )
+        if wahl == txt("oberflaeche.portfolio_sicht_varianten"):
+            sicht = "varianten"
+
+    if sicht == "standorte":
+        leit_ids = {g["leit"].id for g in gruppen}
+        basis = [z for z in zeilen if z["id"] in leit_ids]
+    else:
+        basis = zeilen
+
     # --- Portfolio-KPIs ------------------------------------------------------
-    aktive = [z for z in zeilen if z["projekt"].aktiv]
-    inaktive_anzahl = len(zeilen) - len(aktive)
+    aktive = [z for z in basis if z["projekt"].aktiv]
+    inaktive_anzahl = len(basis) - len(aktive)
     if inaktive_anzahl:
         mit_inaktiven = st.toggle(
             txt("oberflaeche.portfolio_toggle_inaktive", anzahl=inaktive_anzahl),
@@ -110,7 +257,7 @@ def render_overview() -> None:
         )
     else:
         mit_inaktiven = False
-    kpi_basis = zeilen if mit_inaktiven else aktive
+    kpi_basis = basis if mit_inaktiven else aktive
 
     gesamt_kwp = sum(z["projekt"].nennleistung_kwp for z in kpi_basis)
     gesamt_capex = sum(z["kpis"].capex_total_eur for z in kpi_basis)
@@ -122,6 +269,7 @@ def render_overview() -> None:
     # Leitkennzahl statt fuenf gleichrangiger Kacheln: Der mittlere Equity
     # IRR ist die Zahl, an der das Portfolio gemessen wird; Anzahl, MWp und
     # die beiden Summen ordnen ihn nur ein.
+    ga = services.get_global_assumptions()
     ziel_pct = 0.08
     ziel = None
     if mittlere_irr is not None:
@@ -158,6 +306,9 @@ def render_overview() -> None:
             {
                 "id": z["id"],
                 "name": z["projekt"].anzeigename,
+                # Traegt die Variantenpfade der Landkarte: Rechnungen
+                # desselben Standorts werden verbunden.
+                "standort": z["projekt"].name,
                 "typ": "Agri-PV"
                 if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
                 else "Konventionell",
@@ -194,10 +345,11 @@ def render_overview() -> None:
     # denselben Gegenstand, Klappfelder optionales Detail INNERHALB einer
     # Sicht - und nie ineinander (dieselbe Regel gilt auf der Projektseite).
     st.subheader(txt("oberflaeche.portfolio_analytik_titel"))
-    tab_karte, tab_ranking, tab_tabelle = st.tabs([
+    tab_karte, tab_ranking, tab_tabelle, tab_varianten = st.tabs([
         txt("oberflaeche.portfolio_tab_karte"),
         txt("oberflaeche.portfolio_tab_ranking"),
         txt("oberflaeche.portfolio_tab_tabelle"),
+        txt("oberflaeche.portfolio_tab_varianten"),
     ])
     with tab_karte:
         st.caption(txt("oberflaeche.overview_bubble_hilfe"))
@@ -240,6 +392,9 @@ def render_overview() -> None:
             width="stretch",
             hide_index=True,
         )
+    with tab_varianten:
+        st.caption(txt("oberflaeche.portfolio_varianten_hilfe"))
+        _variantentabelle(gruppen, ziel_pct, ga.dscr_cash_trap)
 
     # --- Projektkarten ------------------------------------------------------
     # Je Reihe ein eigener Spaltensatz: Ein einziger Satz mit
@@ -249,8 +404,14 @@ def render_overview() -> None:
     # aus; die feste Kartenhoehe (app/theme.py) sorgt fuer eine gerade
     # Unterkante, auch wenn ein Projektname laenger ist als der andere.
     st.subheader(txt("oberflaeche.overview_projekte_titel"))
-    for reihe in range(0, len(zeilen), _KARTEN_JE_REIHE):
+    if sicht == "standorte":
+        karten = [(g, _standortkarte) for g in gruppen]
+    else:
+        karten = [(z, _projektkarte) for z in zeilen]
+    for reihe in range(0, len(karten), _KARTEN_JE_REIHE):
         cols = st.columns(_KARTEN_JE_REIHE)
-        for spalte, z in enumerate(zeilen[reihe:reihe + _KARTEN_JE_REIHE]):
+        for spalte, (eintrag, zeichne) in enumerate(
+            karten[reihe:reihe + _KARTEN_JE_REIHE]
+        ):
             with cols[spalte]:
-                _projektkarte(z, selected)
+                zeichne(eintrag, selected)

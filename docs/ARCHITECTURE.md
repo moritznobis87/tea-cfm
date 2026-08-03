@@ -121,6 +121,21 @@ Seitenleiste führt Standorte, die Variantenreihe im Projektfenster
 wechselt zwischen ihnen. In der Excel-Sicherung ist `variante` eine
 optionale Spalte, ältere Dateien bleiben lesbar.
 
+**Leitvariante:** Je Standort trägt genau eine Variante das Flag
+`leitvariante`. Nur sie geht in die Portfolio-Kennzahlen und die
+Pipeline ein (`services.leitvarianten()`) – ohne diese Auswahl zählte
+ein Standort mit drei Sensitivitäten dreifach. Ist keine gesetzt, gilt
+die erste Variante (`services.leitvariante_von`); ein nie angefasster
+Bestand ist damit ohne Migration korrekt. `services.setze_leitvariante`
+schreibt die übrigen Varianten des Standorts mit – zwei Leitfälle
+ergäben zwei mögliche Portfoliozahlen.
+
+**Variantenvergleich:** `app/components/varianten.py` leitet die
+Unterschiede zwischen Varianten aus den Projektmodellen ab (kein
+gepflegter Änderungsverlauf). `geprueft_alle_felder()` ist der
+Regressionsschutz dafür: Ein neu hinzugekommenes Projektfeld fällt im
+Test auf, statt still aus der Unterschiedstabelle zu verschwinden.
+
 ## Teststrategie
 
 | Ebene | Dateien | Ansatz |

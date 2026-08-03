@@ -86,3 +86,7 @@ annotation_eag_zuschlagswert_fix: "Valor de adjudicación EAG (fijo, nominal)"
 achse_jahr_kurz: "Año"
 achse_kumulierter_cf: "Flujo de caja acumulado del capital propio (€)"
 achse_irr_kurz: "Rentabilidad del capital propio"
+
+# --- Variantenvergleich ------------------------------------------------------
+serie_cash_trap: "Cash trap {wert}x"
+serie_event_of_default: "Incumplimiento {wert}x"

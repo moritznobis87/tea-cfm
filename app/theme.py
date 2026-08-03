@@ -514,6 +514,84 @@ def _baue_css() -> str:
             color: {Colors.MUTED} !important;
         }}
 
+        /* --- Vergleichstabellen ----------------------------------------------- */
+        /* Handgebaute Tabellen statt st.dataframe: Der Zielbalken, die
+           Kovenantenmarkierung und die Hervorhebung abweichender Zellen
+           sind die eigentliche Aussage - ein Datenraster koennte sie
+           nicht zeigen. */
+        .vgl-tabelle {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: 2px 0 6px 0;
+        }}
+        .vgl-tabelle th {{
+            text-align: left;
+            font-size: 0.68rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: {Colors.MUTED};
+            font-weight: 700;
+            padding: 0 10px 6px 10px;
+            border-bottom: 1px solid {Colors.LINE};
+            white-space: nowrap;
+        }}
+        .vgl-tabelle td {{
+            padding: 9px 10px;
+            border-bottom: 1px solid {Colors.LINE};
+            color: {Colors.INK};
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }}
+        .vgl-tabelle th.num, .vgl-tabelle td.num {{ text-align: right; }}
+        .vgl-tabelle td.name {{ font-weight: 600; white-space: normal; }}
+        .vgl-tabelle tr.best td {{ background: {Colors.SELECT}; }}
+        .vgl-tabelle tr.referenz td.name {{
+            box-shadow: inset 3px 0 0 {Colors.BRAND};
+        }}
+        .vgl-tabelle td.unter {{ color: {Colors.NEGATIVE}; font-weight: 600; }}
+        .vgl-leit {{
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 7px;
+            border-radius: 999px;
+            background: {Colors.BRAND};
+            color: {Colors.PAPER};
+            font-size: 0.68rem;
+            font-weight: 700;
+            vertical-align: middle;
+        }}
+        /* Zielbalken: Die Prozentzahl allein sagt nicht, ob sie reicht. */
+        .vgl-balken {{
+            position: relative;
+            display: inline-block;
+            width: 96px;
+            height: 5px;
+            margin-right: 10px;
+            border-radius: 3px;
+            background: {Colors.LINE};
+            vertical-align: middle;
+        }}
+        .vgl-balken-fuell {{
+            position: absolute; left: 0; top: 0; bottom: 0;
+            border-radius: 3px;
+        }}
+        .vgl-balken-ziel {{
+            position: absolute; top: -4px; bottom: -4px;
+            width: 2px;
+            background: {Colors.INK};
+        }}
+        /* Unterschiedstabelle: Die abweichende Zelle ist die Aussage. */
+        .vgl-tabelle.diff td.abw {{
+            font-weight: 700;
+            color: {Colors.BRAND};
+        }}
+        .vgl-tabelle.diff td.abw::before {{
+            content: "";
+            display: inline-block;
+            width: 0;
+        }}
+
         /* --- Projektkarten ---------------------------------------------------- */
         /* Feste Hoehe: Ohne sie richtet sich jede Karte nach der Laenge
            ihres Projektnamens, und die Oeffnen-Knoepfe einer Reihe stehen

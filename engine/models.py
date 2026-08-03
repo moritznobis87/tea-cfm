@@ -283,6 +283,13 @@ class PVProject(BaseModel):
     #: sind zwei Anlagentypen, keine Sensitivitaeten - das kann nur der
     #: Nutzer entscheiden.
     variante: str = ""
+    #: Traegt diese Variante die Entscheidung fuer ihren Standort?
+    #: Nur die Leitvariante geht in die Portfolio-Kennzahlen und in die
+    #: Pipeline ein - ohne sie zaehlte ein Standort mit drei
+    #: Sensitivitaeten dreifach (Leistung, Investitionsvolumen,
+    #: Eigenkapital). Ist an einem Standort keine gesetzt, gilt die
+    #: erste Variante (siehe services.leitvariante_von).
+    leitvariante: bool = False
     # Inaktive Projekte bleiben erhalten, werden aber aus der Portfolio-
     # Analytik ausgeblendet und koennen aus den kumulierten KPIs
     # herausgerechnet werden - Pipeline-Bereinigung ohne Loeschen.
