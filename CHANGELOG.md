@@ -60,6 +60,21 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 - 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
   vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
 
+### v5.0.6 – Projektkacheln fluchten
+
+- **Je Reihe ein eigener Spaltensatz.** Bisher gab es einen Satz und die
+  Karten wurden per Modulo verteilt – Streamlit stapelt sie dann
+  spaltenweise, und eine hohe Karte verschiebt alles darunter in ihrer
+  Spalte. Nichts richtete sich mehr aneinander aus.
+- **Feste Kartenhöhe**, damit auch die „Öffnen"-Knöpfe einer Reihe auf
+  einer Linie stehen. Lange Projektnamen werden auf eine Zeile gekürzt;
+  der vollständige Name steht im Tooltip der Karte.
+- Name und Anlagentyp-Kennzeichen stehen in einer Kopfzeile, der Rest
+  darunter – die Karte hat damit eine feste Struktur statt einer Kette
+  aus Zeilenumbrüchen.
+- Die letzte Reihe wird nicht gestreckt: Die Karten behalten ihre Breite,
+  die Übersicht bleibt ein Raster.
+
 ### v5.0.5 – Projektname wieder auffindbar
 
 - **Der Projektname steht an erster Stelle der Parameterspalte.** Er war

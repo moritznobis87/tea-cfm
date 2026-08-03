@@ -478,16 +478,39 @@ def _baue_css() -> str:
         .brotkrume b {{ color: {Colors.BRAND}; font-weight: 600; }}
 
         /* --- Projektkarten ---------------------------------------------------- */
+        /* Feste Hoehe: Ohne sie richtet sich jede Karte nach der Laenge
+           ihres Projektnamens, und die Oeffnen-Knoepfe einer Reihe stehen
+           auf verschiedenen Hoehen. */
         .project-card {{
             position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            height: 152px;
             border: 1px solid {Colors.LINE};
             border-radius: 12px;
-            padding: 14px 16px 10px 16px;
+            padding: 12px 16px 10px 16px;
             margin-bottom: 8px;
             background: {Colors.PAPER};
             overflow: hidden;
             transition: transform 140ms ease, box-shadow 140ms ease,
                         border-color 140ms ease;
+        }}
+        /* Name und Kennzeichen in einer Zeile; der Name wird bei Bedarf
+           gekuerzt, der vollstaendige steht im Tooltip der Karte. */
+        .project-card .card-kopf {{
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            min-width: 0;
+        }}
+        .project-card .card-badges {{ flex: 0 0 auto; }}
+        .project-card .card-kpi-zeile {{
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            margin-top: 4px;
         }}
         .project-card.inaktiv {{
             background: #f1f3f2;
@@ -510,8 +533,18 @@ def _baue_css() -> str:
         }}
         .project-card .card-title {{
             font-weight: 600; color: {Colors.INK}; font-size: 1.02rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
         }}
-        .project-card .card-sub {{ color: {Colors.MUTED}; font-size: 0.84em; }}
+        .project-card .card-sub {{
+            color: {Colors.MUTED};
+            font-size: 0.84em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
         .project-card .card-kpi {{
             font-variant-numeric: tabular-nums;
             font-size: 1.55em; font-weight: 700; color: {Colors.INK};

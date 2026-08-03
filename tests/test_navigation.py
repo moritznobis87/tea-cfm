@@ -293,3 +293,35 @@ class TestProjektUmbenennen:
                 datei.unlink()
             for datei in sicherung.glob("*.yaml"):
                 shutil.copy(datei, PROJECTS_DIR / datei.name)
+
+
+class TestKachelraster:
+    """Gemeldet: Die Projektkacheln fluchteten nicht.
+
+    Ursache war ein einziger Spaltensatz mit Modulo-Verteilung: Streamlit
+    stapelt die Karten dann SPALTENWEISE, und eine hohe Karte verschiebt
+    alles darunter in ihrer Spalte. Jetzt ein Spaltensatz je Reihe, dazu
+    eine feste Kartenhoehe.
+    """
+
+    def test_je_reihe_ein_eigener_spaltensatz(self):
+        quelle = (ROOT / "app" / "views" / "overview.py").read_text(
+            encoding="utf-8"
+        )
+        block = quelle[quelle.index("# --- Projektkarten"):]
+        assert "for reihe in range(0, len(zeilen), _KARTEN_JE_REIHE)" in block
+        # Der alte Modulo-Griff darf nicht zurueckkehren.
+        assert "i % len(cols)" not in block
+
+    def test_karten_haben_eine_feste_hoehe(self):
+        css = (ROOT / "app" / "theme.py").read_text(encoding="utf-8")
+        block = css[css.index(".project-card {{"):]
+        block = block[: block.index("}}")]
+        assert "height:" in block, "ohne feste Hoehe fluchten die Knoepfe nicht"
+
+    def test_lange_projektnamen_brechen_die_karte_nicht(self):
+        css = (ROOT / "app" / "theme.py").read_text(encoding="utf-8")
+        block = css[css.index(".project-card .card-title {{"):]
+        block = block[: block.index("}}")]
+        assert "text-overflow: ellipsis" in block
+        assert "white-space: nowrap" in block

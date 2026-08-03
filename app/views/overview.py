@@ -26,6 +26,45 @@ from engine import AnlagenTyp
 from engine.io_yaml import load_project_yaml
 from texte import txt
 
+#: Karten je Reihe. Die letzte Reihe wird nicht gestreckt - die Karten
+#: behalten ihre Breite, damit die Uebersicht ein Raster bleibt.
+_KARTEN_JE_REIHE = 4
+
+
+def _projektkarte(z: dict, selected: str | None) -> None:
+    """Eine Projektkarte samt Oeffnen-Knopf."""
+    project = z["projekt"]
+    kpis = z["kpis"]
+    ist_agri = project.anlagentyp == AnlagenTyp.AGRI_PV
+    typ_badge = (badge(txt("oberflaeche.badge_agri"), "agri") if ist_agri
+                 else badge(txt("oberflaeche.badge_konventionell"), "konv"))
+    if not project.aktiv:
+        typ_badge += " " + badge(txt("oberflaeche.badge_inaktiv"), "inaktiv")
+    klassen = "project-card"
+    if z["id"] == selected:
+        klassen += " selected"
+    if not project.aktiv:
+        klassen += " inaktiv"
+    st.markdown(
+        f'''<div class="{klassen}" title="{html.escape(project.name)}">
+        <div class="card-kopf">
+          <span class="card-title">{html.escape(project.name)}</span>
+          <span class="card-badges">{typ_badge}</span>
+        </div>
+        <span class="card-sub">{fmt_kwp(project.nennleistung_kwp)} · IBN {project.inbetriebnahme_jahr}</span>
+        <div class="card-kpi-zeile">
+          <span class="card-kpi">{fmt_pct(kpis.equity_irr)}</span>
+          <span class="card-kpi-label">Equity IRR</span>
+        </div>
+        <span class="card-sub">Equity {fmt_eur(kpis.eigenkapital_eur)}</span>
+        </div>''',
+        unsafe_allow_html=True,
+    )
+    if st.button(txt("oberflaeche.btn_oeffnen"), key=f"open_{z['id']}",
+                 width="stretch"):
+        st.session_state[STATE_SELECTED_PROJECT] = z["id"]
+        router.gehe_zu("projekt", projekt_id=z["id"])
+
 
 def render_overview() -> None:
     projects = services.list_project_files()
@@ -190,29 +229,15 @@ def render_overview() -> None:
         )
 
     # --- Projektkarten ------------------------------------------------------
+    # Je Reihe ein eigener Spaltensatz: Ein einziger Satz mit
+    # Modulo-Verteilung stapelt die Karten SPALTENWEISE - eine hohe Karte
+    # verschiebt dann alles darunter in ihrer Spalte, und nichts fluchtet
+    # mehr. Mit einem Satz je Reihe richten sich die Karten zeilenweise
+    # aus; die feste Kartenhoehe (app/theme.py) sorgt fuer eine gerade
+    # Unterkante, auch wenn ein Projektname laenger ist als der andere.
     st.subheader(txt("oberflaeche.overview_projekte_titel"))
-    cols = st.columns(min(len(zeilen), 4))
-    for i, z in enumerate(zeilen):
-        project = z["projekt"]
-        kpis = z["kpis"]
-        ist_agri = project.anlagentyp == AnlagenTyp.AGRI_PV
-        typ_badge = badge(txt("oberflaeche.badge_agri"), "agri") if ist_agri else badge(txt("oberflaeche.badge_konventionell"), "konv")
-        if not project.aktiv:
-            typ_badge += " " + badge(txt("oberflaeche.badge_inaktiv"), "inaktiv")
-        selected_cls = " selected" if z["id"] == selected else ""
-        if not project.aktiv:
-            selected_cls += " inaktiv"
-        with cols[i % len(cols)]:
-            st.markdown(
-                f"""<div class="project-card{selected_cls}">
-                <span class="card-title">{html.escape(project.name)}</span> {typ_badge}<br/>
-                <span class="card-sub">{fmt_kwp(project.nennleistung_kwp)} · IBN {project.inbetriebnahme_jahr}</span><br/>
-                <span class="card-kpi">{fmt_pct(kpis.equity_irr)}</span>
-                <span class="card-kpi-label"> Equity IRR</span><br/>
-                <span class="card-sub">Equity {fmt_eur(kpis.eigenkapital_eur)}</span>
-                </div>""",
-                unsafe_allow_html=True,
-            )
-            if st.button(txt("oberflaeche.btn_oeffnen"), key=f"open_{z['id']}", width="stretch"):
-                st.session_state[STATE_SELECTED_PROJECT] = z["id"]
-                router.gehe_zu("projekt", projekt_id=z["id"])
+    for reihe in range(0, len(zeilen), _KARTEN_JE_REIHE):
+        cols = st.columns(_KARTEN_JE_REIHE)
+        for spalte, z in enumerate(zeilen[reihe:reihe + _KARTEN_JE_REIHE]):
+            with cols[spalte]:
+                _projektkarte(z, selected)
