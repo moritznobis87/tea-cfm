@@ -37,6 +37,7 @@ from app.formatting import (
     fmt_pct,
 )
 from app.theme import Colors
+from app.views.vergleich import render_vergleich
 from app.views.project_detail import (
     render_assumptions_tab,
     render_cashflow_tab,
@@ -59,7 +60,15 @@ _TABS = (
     ("finanzierung", "oberflaeche.projekt_tab_finanzierung"),
     ("risiko", "oberflaeche.projekt_tab_risiko"),
     ("annahmen", "oberflaeche.projekt_tab_annahmen"),
+    ("vergleich", "oberflaeche.projekt_tab_vergleich"),
 )
+
+
+def _ziel_equity_irr() -> float:
+    """Zielrendite, an der die Kennzahlenleiste und der Variantenvergleich
+    dieselbe Marke setzen."""
+    ga = services.get_global_assumptions()
+    return getattr(ga, "ziel_equity_irr_pct", None) or 0.08
 
 
 def _typ_label(project: PVProject) -> str:
@@ -192,19 +201,30 @@ def render_project_page() -> None:
     # Die Parameterspalte kommt mit rund einem Viertel der Breite aus -
     # die Felder stehen ohnehin untereinander. Das Ergebnis gewinnt damit
     # spuerbar Platz fuer die Diagramme.
-    col_ergebnis, col_parameter = st.columns([0.745, 0.255], gap="medium")
+    #
+    # Ausnahme Vergleichssicht: Sie stellt ALLE Varianten gegenueber, die
+    # Parameterspalte bearbeitet aber nur die eine geoeffnete. Nebeneinander
+    # gestellt naehme sie ein Viertel der Breite fuer eine Eingabe, die zur
+    # gezeigten Frage nichts beitraegt - und legte nahe, man bearbeite den
+    # Vergleich.
+    ist_vergleich = router.aktueller_tab() == "vergleich"
+    if ist_vergleich:
+        col_ergebnis = st.container()
+        entwurf = None
+    else:
+        col_ergebnis, col_parameter = st.columns([0.745, 0.255], gap="medium")
 
-    with col_parameter, st.container(key="parameterbox"):
-        st.markdown(
-            f'<div class="parameter-kopf">'
-            f'{html.escape(txt("oberflaeche.parameter_titel"))}</div>',
-            unsafe_allow_html=True,
-        )
-        entwurf = render_parameter_spalte(gespeichert, form_key)
-        # Platzhalter fuer die Speicherleiste: Sie braucht die Zahl der
-        # Aenderungen, die erst nach dem Aufbau der Felder feststeht, soll
-        # aber innerhalb des Rahmens stehen.
-        fussbereich = st.container()
+        with col_parameter, st.container(key="parameterbox"):
+            st.markdown(
+                f'<div class="parameter-kopf">'
+                f'{html.escape(txt("oberflaeche.parameter_titel"))}</div>',
+                unsafe_allow_html=True,
+            )
+            entwurf = render_parameter_spalte(gespeichert, form_key)
+            # Platzhalter fuer die Speicherleiste: Sie braucht die Zahl der
+            # Aenderungen, die erst nach dem Aufbau der Felder feststeht,
+            # soll aber innerhalb des Rahmens stehen.
+            fussbereich = st.container()
 
     # Faellt die Maske aus (z.B. leerer Name), bleibt der gespeicherte
     # Stand die Rechengrundlage - die Seite soll nicht leer werden.
@@ -212,8 +232,9 @@ def render_project_page() -> None:
     result = services.get_valuation_fuer(aktiv)
     aenderungen = _zaehle_aenderungen(aktiv, gespeichert) if entwurf else 0
 
-    with fussbereich:
-        _speicherleiste(aktiv, gespeichert, pfad, form_key, aenderungen)
+    if not ist_vergleich:
+        with fussbereich:
+            _speicherleiste(aktiv, gespeichert, pfad, form_key, aenderungen)
 
     with col_kontext:
         _kontextzeile(aktiv, result, global_assumptions, npv_satz_pct)
@@ -271,6 +292,14 @@ def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
             neue = services.duplicate_project(projekt_id)
             if neue is not None:
                 router.gehe_zu("projekt", projekt_id=neue.id)
+        # Der Vergleich ist keine weitere Variante, sondern die Sicht auf
+        # alle - deshalb am Ende der Reihe und in die Sicht verlinkt,
+        # nicht als eigener Reiter daneben.
+        if len(varianten) > 1 and st.button(
+            txt("oberflaeche.btn_vergleich"), key="variante_vergleich",
+            type="tertiary", help=txt("oberflaeche.btn_vergleich_hilfe"),
+        ):
+            router.gehe_zu("projekt", projekt_id=projekt_id, tab="vergleich")
     st.markdown(
         f"<style>.st-key-variante_{projekt_id} button {{"
         f"background: {Colors.SELECT} !important;"
@@ -323,7 +352,7 @@ def _kennzahlen(result, npv_satz_pct: float, aenderungen: int,
     fremdkapital = kpis.capex_total_eur - kpis.eigenkapital_eur
     enterprise_value = equity_value + fremdkapital
 
-    ziel_pct = getattr(global_assumptions, "ziel_equity_irr_pct", None) or 0.08
+    ziel_pct = _ziel_equity_irr()
     ziel = None
     if kpis.equity_irr is not None:
         # Bezugsgroesse der Balkenbreite: das 1,5-fache der Zielrendite -
@@ -524,5 +553,10 @@ def _analyse_tabs(result, project: PVProject, projekt_id: str,
         render_monte_carlo_tab(projekt_id, npv_satz_pct / 100)
         st.divider()
         render_scenario_tab(result, projekt_id, npv_satz_pct / 100)
+    elif gewaehlt == "vergleich":
+        render_vergleich(
+            services.varianten_von(project), projekt_id,
+            _ziel_equity_irr(), npv_satz_pct,
+        )
     else:
         render_assumptions_tab(result)

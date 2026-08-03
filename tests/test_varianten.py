@@ -331,3 +331,164 @@ class TestLoeschen:
             for datei in sicherung.glob("*.yaml"):
                 shutil.copy(datei, PROJECTS_DIR / datei.name)
 
+
+
+class TestLeitvariante:
+    """Die Leitvariante ist die Rechnung, die fuer einen Standort gilt.
+
+    Ohne sie zaehlt ein Standort mit drei Sensitivitaeten dreifach: In
+    Leistung, Investitionsvolumen und Eigenkapital des Portfolios stuende
+    dieselbe Flaeche mehrfach.
+    """
+
+    def test_ohne_marke_gilt_die_erste_variante(self, projektordner):
+        from app import services
+
+        gruppe = services.gruppiere_nach_standort()["Buchkirchen"]
+        assert services.leitvariante_von(gruppe).id == "b1"
+
+    def test_marke_ist_je_standort_exklusiv(self, projektordner):
+        from app import services
+
+        services.setze_leitvariante("b3")
+        gesetzt = [p.id for p in services.gruppiere_nach_standort()["Buchkirchen"]
+                   if p.leitvariante]
+        assert gesetzt == ["b3"]
+        services.setze_leitvariante("b2")
+        gesetzt = [p.id for p in services.gruppiere_nach_standort()["Buchkirchen"]
+                   if p.leitvariante]
+        assert gesetzt == ["b2"], "zwei Leitfaelle ergaeben zwei Portfoliozahlen"
+
+    def test_je_standort_genau_eine(self, projektordner):
+        from app import services
+
+        leit = services.leitvarianten()
+        assert len(leit) == len(services.gruppiere_nach_standort())
+        assert [p.id for p in leit] == ["a1", "b1", "z1"]
+
+    def test_portfolio_zaehlt_den_standort_einmal(self, projektordner):
+        """Die Zahl, um die es geht: drei Buchkirchen-Rechnungen sind ein
+        Feld, nicht drei."""
+        from app import services
+
+        alle = sum(p.nennleistung_kwp for p in services.list_projects())
+        leit = sum(p.nennleistung_kwp for p in services.leitvarianten())
+        assert leit < alle
+        assert leit == sum(
+            services.leitvariante_von(v).nennleistung_kwp
+            for v in services.gruppiere_nach_standort().values()
+        )
+
+    def test_marke_ueberlebt_den_excel_rundlauf(self):
+        p1 = _projekt("Sonnenfeld", "", "a")
+        p2 = _projekt("Sonnenfeld", "Netz high", "b")
+        p2.leitvariante = True
+        gelesen = excel_to_projects(projects_to_excel([p1, p2]))
+        assert [p.leitvariante for p in gelesen] == [False, True]
+
+    def test_datei_ohne_spalte_bleibt_lesbar(self):
+        """Abwaertskompatibilitaet: Fuer alle frueher gesicherten Dateien
+        gilt je Standort die erste Variante."""
+        import io
+
+        import pandas as pd
+
+        from app.services import leitvariante_von
+
+        assert "leitvariante" in OPTIONALE_PROJEKT_SPALTEN
+        tabelle = pd.read_excel(
+            io.BytesIO(projects_to_excel(
+                [_projekt("Sonnenfeld", "", "a"),
+                 _projekt("Sonnenfeld", "Netz high", "b")]
+            )),
+            sheet_name="Projekte",
+        ).drop(columns=["leitvariante"])
+        puffer = io.BytesIO()
+        with pd.ExcelWriter(puffer, engine="openpyxl") as writer:
+            tabelle.to_excel(writer, sheet_name="Projekte", index=False)
+
+        gelesen = excel_to_projects(puffer.getvalue())
+        assert not any(p.leitvariante for p in gelesen)
+        assert leitvariante_von(gelesen).id == "a"
+
+
+class TestUnterschiede:
+    """Die Unterschiedstabelle wird aus den Projektdaten abgeleitet - sie
+    ist die Antwort auf "was hatte ich hier eigentlich geaendert?"."""
+
+    def test_nur_abweichende_felder(self):
+        from app.components.varianten import unterschiede
+
+        a = _projekt("Sonnenfeld", "Basis", "a")
+        b = _projekt("Sonnenfeld", "Netz high", "b")
+        b.capex.netzanschluss_eur = a.capex.netzanschluss_eur + 50_000
+        b.pacht_eur_kwp_jahr = a.pacht_eur_kwp_jahr + 2
+
+        felder = {u.feld for u in unterschiede([a, b], a)}
+        assert felder == {"capex.netzanschluss_eur", "pacht_eur_kwp_jahr"}
+
+    def test_abweichung_bezieht_sich_auf_die_referenz(self):
+        from app.components.varianten import unterschiede
+
+        a = _projekt("Sonnenfeld", "Basis", "a")
+        b = _projekt("Sonnenfeld", "Hoch", "b")
+        b.eag_zuschlagswert_ct_kwh = a.eag_zuschlagswert_ct_kwh + 1
+
+        gegen_a = unterschiede([a, b], a)[0]
+        assert gegen_a.abweichend == [False, True]
+        gegen_b = unterschiede([a, b], b)[0]
+        assert gegen_b.abweichend == [True, False]
+
+    def test_identische_varianten_ergeben_keine_zeile(self):
+        from app.components.varianten import unterschiede
+
+        a = _projekt("Sonnenfeld", "Basis", "a")
+        b = _projekt("Sonnenfeld", "Kopie", "b")
+        assert unterschiede([a, b], a) == []
+
+    def test_alle_projektfelder_sind_abgedeckt(self):
+        """Regressionsschutz: Ein spaeter ergaenztes Projektfeld darf
+        nicht still aus dem Vergleich fallen."""
+        from app.components.varianten import geprueft_alle_felder
+
+        assert geprueft_alle_felder([_projekt("Sonnenfeld")]) == set()
+
+    def test_freie_positionen_als_summe(self):
+        """Frei benannte Positionen haben je Projekt andere Namen - ein
+        Feldvergleich ergaebe eine Tabelle ohne gemeinsame Zeilen."""
+        from app.components.varianten import unterschiede
+        from engine import CapexPosition
+
+        a = _projekt("Sonnenfeld", "Basis", "a")
+        b = _projekt("Sonnenfeld", "Mit Zusatz", "b")
+        b.capex.zusatzpositionen = [
+            CapexPosition(name="Kampfmittelräumung", betrag_eur=25_000)
+        ]
+        zeile = [u for u in unterschiede([a, b], a)
+                 if u.feld == "capex.zusatzpositionen"]
+        assert len(zeile) == 1
+        assert zeile[0].abweichend == [False, True]
+
+
+class TestVergleichssicht:
+    """Die fuenfte Sicht der Projektseite."""
+
+    def test_vergleich_ist_eine_eigene_adresse(self):
+        from app import router
+        from app.views.project_page import _TABS
+
+        assert "vergleich" in router.PROJEKT_TABS
+        assert tuple(code for code, _ in _TABS) == router.PROJEKT_TABS
+
+    def test_parameterspalte_entfaellt_im_vergleich(self):
+        """Der Vergleich zeigt alle Varianten, die Parameterspalte
+        bearbeitet nur die eine geoeffnete - nebeneinander naehme sie ein
+        Viertel der Breite fuer eine Eingabe, die nichts beitraegt."""
+        quelle = (ROOT / "app" / "views" / "project_page.py").read_text(
+            encoding="utf-8"
+        )
+        rumpf = quelle[quelle.index("def render_project_page("):]
+        assert 'ist_vergleich = router.aktueller_tab() == "vergleich"' in rumpf
+        assert rumpf.index("if ist_vergleich:") < rumpf.index(
+            "render_parameter_spalte("
+        )

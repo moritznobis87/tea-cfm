@@ -13,7 +13,7 @@ from __future__ import annotations
 import pandas as pd
 import plotly.graph_objects as go
 
-from app.formatting import fmt_pct
+from app.formatting import fmt_number, fmt_pct
 from app.theme import Colors, mit_alpha
 from texte import txt
 
@@ -595,6 +595,68 @@ def scenario_cum_chart(kum_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def varianten_dscr_chart(
+    reihen: list[tuple[str, pd.DataFrame]],
+    cash_trap: float,
+    event_of_default: float,
+) -> go.Figure:
+    """DSCR je Betriebsjahr, eine Linie je Variante.
+
+    Die Kennzahl, an der Sensitivitaeten am deutlichsten auseinander
+    laufen - und die einzige, bei der eine einzelne Zahl (der Minimalwert)
+    verschweigt, ob die Unterdeckung ein Ausreisser oder ein Dauerzustand
+    ist. Die beiden Kovenantenschwellen stehen als waagrechte Linien.
+    """
+    fig = go.Figure()
+    for i, (label, df) in enumerate(reihen):
+        gueltig = df[df["dscr"].notna()]
+        fig.add_scatter(
+            x=gueltig["jahr"], y=gueltig["dscr"], mode="lines", name=label,
+            line=dict(color=Colors.SERIES[i % len(Colors.SERIES)], width=2.2),
+            hovertemplate=f"{label}<br>Jahr %{{x}}: %{{y:,.2f}}x<extra></extra>",
+        )
+    # Die Schwellen kommen aus den Globalen Annahmen, nicht aus dem
+    # Diagramm - sonst zeigte das Bild eine andere Grenze als die
+    # Kovenantenpruefung darueber.
+    for wert, farbe, schluessel in [
+        (cash_trap, Colors.MUTED, "diagramme.serie_cash_trap"),
+        (event_of_default, Colors.NEGATIVE, "diagramme.serie_event_of_default"),
+    ]:
+        fig.add_hline(
+            y=wert, line=dict(color=farbe, width=1.2, dash="dash"),
+            annotation_text=txt(schluessel, wert=fmt_number(wert, 2)),
+            annotation_position="top right",
+            annotation_font=dict(size=10, color=farbe),
+        )
+    fig.update_layout(
+        height=340, xaxis_title=txt("diagramme.achse_betriebsjahr"),
+        yaxis=dict(title=txt("diagramme.achse_dscr"), ticksuffix="x"),
+    )
+    return fig
+
+
+def varianten_kumuliert_chart(reihen: list[tuple[str, pd.DataFrame]]) -> go.Figure:
+    """Kumulierter Cashflow je Variante.
+
+    Der Schnittpunkt mit der Nulllinie ist der Payback, der Endwert das
+    Gesamtergebnis - zwei Aussagen in einem Bild, und beide in derselben
+    Einheit.
+    """
+    fig = go.Figure()
+    for i, (label, df) in enumerate(reihen):
+        fig.add_scatter(
+            x=df["jahr"], y=df["cf_kumuliert_eur"], mode="lines", name=label,
+            line=dict(color=Colors.SERIES[i % len(Colors.SERIES)], width=2.4),
+            hovertemplate=f"{label}<br>Jahr %{{x}}: %{{y:,.0f}} €<extra></extra>",
+        )
+    fig.add_hline(y=0, line=dict(color=Colors.INK, width=1.2))
+    fig.update_layout(
+        height=340, xaxis_title=txt("diagramme.achse_betriebsjahr"),
+        yaxis=dict(title=txt("diagramme.achse_kumulierter_cf")),
+    )
+    return fig
+
+
 def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figure:
     """Rendite-Risiko-Landkarte des Portfolios: spezifisches Invest
     (€/kWp) gegen EK-Rendite, Blasengröße = Anlagenleistung, Farbe =
@@ -607,6 +669,20 @@ def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figu
     if df.empty:
         fig.update_layout(height=420)
         return fig
+    # Variantenpfade zuerst, damit die Blasen darueber liegen: Eine duenne
+    # Linie verbindet die Rechnungen desselben Standorts. Ohne sie sind
+    # zwoelf Punkte zwoelf Projekte - mit ihr sieht man, dass drei davon
+    # dasselbe Feld unter anderen Annahmen sind.
+    if "standort" in df.columns:
+        for _, gruppe in df.groupby("standort"):
+            if len(gruppe) < 2:
+                continue
+            geordnet = gruppe.sort_values("invest_eur_kwp")
+            fig.add_scatter(
+                x=geordnet["invest_eur_kwp"], y=geordnet["irr_pct"],
+                mode="lines", line=dict(color=Colors.SOFT, width=1.6),
+                hoverinfo="skip", showlegend=False,
+            )
     for typ, farbe in [("Agri-PV", Colors.BRAND), ("Konventionell", Colors.INK_SOFT)]:
         teil = df[df["typ"] == typ]
         if teil.empty:
