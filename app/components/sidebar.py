@@ -119,28 +119,44 @@ def render_sidebar() -> None:
             router.gehe_zu(code)
 
     # --- Projekte -----------------------------------------------------------
+    # Ein Eintrag je STANDORT, nicht je Variante: Sonst waechst die Liste
+    # mit jeder Sensitivitaet, und man sieht ihr nicht an, welche
+    # Eintraege dasselbe Feld meinen. Die Varianten waehlt man im
+    # Projektfenster (siehe app/views/project_page.py).
     projekte = services.list_project_files()
+    standorte = services.gruppiere_nach_standort()
     _gruppentitel(txt("oberflaeche.nav_gruppe_projekte"))
     if not projekte:
         st.sidebar.caption(txt("oberflaeche.sidebar_keine_projekte"))
     inaktiv_keys: list[str] = []
-    for pid, pfad in projekte.items():
-        projekt = load_project_yaml(pfad)
-        key = f"projektwahl_{pid}"
-        if seite == "projekt" and offenes_projekt == pid:
+    for standort, varianten in standorte.items():
+        # Ist eine Variante dieses Standorts offen, zeigt der Eintrag auf
+        # genau sie; sonst auf die erste. Andernfalls wuerde ein Klick auf
+        # den ohnehin aktiven Eintrag die offene Variante wechseln.
+        ziel = next(
+            (v for v in varianten if v.id == offenes_projekt), varianten[0]
+        )
+        key = f"projektwahl_{ziel.id}"
+        if seite == "projekt" and offenes_projekt in {v.id for v in varianten}:
             aktiv_keys.append(key)
-        if not projekt.aktiv:
+        if all(not v.aktiv for v in varianten):
             inaktiv_keys.append(key)
         # Der vollstaendige Name steht im Tooltip - in der Leiste wird er
         # auf eine Zeile gekuerzt (siehe app/theme.py).
-        hilfe = projekt.name
-        if not projekt.aktiv:
-            hilfe = f"{projekt.name} — {txt('oberflaeche.badge_inaktiv')}"
+        beschriftung = standort
+        hilfe = standort
+        if len(varianten) > 1:
+            beschriftung = f"{standort}  ·{len(varianten)}"
+            hilfe = txt("oberflaeche.sidebar_standort_hilfe",
+                        name=standort,
+                        varianten=", ".join(v.variantenlabel for v in varianten))
+        if all(not v.aktiv for v in varianten):
+            hilfe = f"{hilfe} — {txt('oberflaeche.badge_inaktiv')}"
         if st.sidebar.button(
-            projekt.name, key=key, width="stretch", type="tertiary",
+            beschriftung, key=key, width="stretch", type="tertiary",
             help=hilfe,
         ):
-            router.gehe_zu("projekt", projekt_id=pid)
+            router.gehe_zu("projekt", projekt_id=ziel.id)
     _ausgrauen(inaktiv_keys)
 
     if st.sidebar.button(

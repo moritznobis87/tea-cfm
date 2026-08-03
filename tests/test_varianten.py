@@ -197,3 +197,75 @@ class TestKopieren:
         unveraendert = original.model_dump(exclude={"id", "variante"})
         assert kopie.model_dump(exclude={"id", "variante"}) == unveraendert
 
+
+
+class TestOberflaeche:
+    """Die Seitenleiste fuehrt Standorte, das Projektfenster die
+    Varianten. Der Test laeuft gegen den echten Projektordner und legt
+    ihn danach wieder her - AppTest kennt keinen eigenen Datenpfad."""
+
+    @pytest.fixture
+    def app_mit_zweiter_variante(self, tmp_path):
+        import shutil
+
+        from streamlit.testing.v1 import AppTest
+
+        from app.config import PROJECTS_DIR
+
+        sicherung = tmp_path / "projects"
+        shutil.copytree(PROJECTS_DIR, sicherung)
+        vorlage = load_project_yaml(PROJECTS_DIR / "template-agri.yaml")
+        zweite = vorlage.model_copy(deep=True)
+        zweite.id, zweite.variante = "template-agri-netz-high", "Netz high"
+        save_project_yaml(zweite, PROJECTS_DIR / f"{zweite.id}.yaml")
+        try:
+            app = AppTest.from_file(
+                str(ROOT / "streamlit_app.py"), default_timeout=90
+            )
+            app.run()
+            assert not app.exception
+            yield app, vorlage, zweite
+        finally:
+            for datei in PROJECTS_DIR.glob("*.yaml"):
+                datei.unlink()
+            for datei in sicherung.glob("*.yaml"):
+                shutil.copy(datei, PROJECTS_DIR / datei.name)
+
+    def test_seitenleiste_fuehrt_standorte_nicht_varianten(
+        self, app_mit_zweiter_variante
+    ):
+        from app import services
+
+        at, vorlage, zweite = app_mit_zweiter_variante
+        eintraege = [b for b in at.button
+                     if b.key and b.key.startswith("projektwahl_")]
+        assert len(eintraege) == len(services.gruppiere_nach_standort())
+        # Beide Varianten stecken hinter EINEM Eintrag, dessen
+        # Beschriftung ihre Zahl nennt.
+        beschriftung = [b.label for b in eintraege if vorlage.name in b.label][0]
+        assert beschriftung.endswith("·2")
+
+    def test_variantenleiste_zeigt_alle_varianten_des_standorts(
+        self, app_mit_zweiter_variante
+    ):
+        at, vorlage, zweite = app_mit_zweiter_variante
+        [b for b in at.button if b.key == f"open_{vorlage.id}"][0].click()
+        at.run()
+        assert not at.exception
+
+        reiter = {b.key: b.label for b in at.button
+                  if b.key and b.key.startswith("variante_")}
+        assert reiter[f"variante_{vorlage.id}"] == "Basis"
+        assert reiter[f"variante_{zweite.id}"] == "Netz high"
+        assert "variante_neu" in reiter
+
+    def test_reiter_wechselt_die_offene_variante(self, app_mit_zweiter_variante):
+        from app.router import _STATE_ID
+
+        at, vorlage, zweite = app_mit_zweiter_variante
+        [b for b in at.button if b.key == f"open_{vorlage.id}"][0].click()
+        at.run()
+        [b for b in at.button if b.key == f"variante_{zweite.id}"][0].click()
+        at.run()
+        assert not at.exception
+        assert at.session_state[_STATE_ID] == zweite.id

@@ -1,5 +1,44 @@
 # Changelog
 
+## v5.1 – Standort und Variante (2026-08)
+
+Sensitivitäten waren bisher Kopien mit eigenem Namen („… (Kopie)",
+„… (Netz high)"). Technisch waren sie eigenständige Projekte, und die
+Projektliste wuchs mit jeder Rechnung, ohne dass ihr anzusehen war,
+welche Einträge denselben Standort meinen. Die Rechenregeln sind
+unverändert – die Variante ist ein reines Ordnungsmerkmal.
+
+- **Ein Projekt trägt zwei Namen**: `name` ist der Standort, `variante`
+  die Sensitivität an diesem Standort. Die Variante darf leer bleiben;
+  das ist der Grundfall, die Oberfläche nennt ihn „Basis". Beide Felder
+  stehen oben in der Parameterspalte.
+- **Keine Ableitung aus Namensmustern.** Ob „Lödersdorf Agri" und
+  „Lödersdorf konventionell" zwei Sensitivitäten eines Standorts oder
+  zwei Anlagen sind, kann kein Parser entscheiden – die Zuordnung wird
+  eingegeben.
+- **Die Seitenleiste führt Standorte**, nicht Varianten: Ein Eintrag je
+  Standort, die Zahl der Varianten steht dahinter. Aus zwölf
+  gleichrangigen Einträgen werden damit vier.
+- **Variantenreihe im Projektfenster.** Direkt unter dem Titel stehen die
+  Sensitivitäten des Standorts als flache Reiterreihe; ein Klick wechselt
+  die Rechnung, während Standort, Sicht und Parameterspalte stehen
+  bleiben. „+ Variante" legt eine weitere an.
+- **Duplizieren erzeugt eine Variante**, keinen zweiten Standort mehr:
+  Die Kopie behält den Standortnamen und bekommt einen freien
+  Variantennamen („Variante", „Variante 2", …).
+- **Excel-Sicherung**: neue Spalte `variante` direkt hinter `name`. Sie
+  ist optional – jede früher gesicherte Datei bleibt lesbar, ihre Zeilen
+  gelten als Grundfall ihres Standorts.
+- Titel und Dateinamen von PDF-Bericht, Cashflow-Export,
+  Pipeline-Ergebnisbericht, Portfoliotabelle und Auktionsmodul nennen den
+  Anzeigenamen („Standort · Variante"), sonst wären zwei Sensitivitäten
+  in der Ausgabe nicht auseinanderzuhalten.
+- Nebenbei behoben: Speichern aus der Parameterspalte setzte ein
+  stillgelegtes Projekt wieder auf „aktiv" – der Aktiv-Schalter liegt im
+  Überlaufmenü und war im Formular nicht abgebildet.
+- 19 neue Tests (Modell, Excel-Rundlauf und Abwärtskompatibilität,
+  Gruppierung, Duplizieren, Seitenleiste und Variantenreihe); Suite: 321.
+
 ## v5.0 – Neue Seitenstruktur (2026-08)
 
 Umbau der Oberfläche in fünf Schritten. Die Rechenregeln sind unverändert;

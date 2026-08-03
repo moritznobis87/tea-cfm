@@ -477,6 +477,43 @@ def _baue_css() -> str:
         }}
         .brotkrume b {{ color: {Colors.BRAND}; font-weight: 600; }}
 
+        /* --- Variantenleiste --------------------------------------------------- */
+        /* Die Sensitivitaeten eines Standorts als flache Reiterreihe direkt
+           unter dem Titel. Bewusst leiser als die Analyse-Tabs darunter:
+           Sie wechseln die RECHNUNG, die Tabs die SICHT auf sie - stuenden
+           beide gleich stark da, saehe die Seite nach zwei konkurrierenden
+           Navigationen aus. */
+        .st-key-variantenleiste {{
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin: -6px 0 6px 0;
+        }}
+        .varianten-label {{
+            color: {Colors.MUTED};
+            font-size: 0.78rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-right: 4px;
+            white-space: nowrap;
+        }}
+        .st-key-variantenleiste button {{
+            border: 1px solid {Colors.LINE} !important;
+            border-radius: 999px !important;
+            padding: 1px 12px !important;
+            min-height: 0 !important;
+            color: {Colors.INK_SOFT} !important;
+            font-size: 0.84rem !important;
+        }}
+        .st-key-variantenleiste button:hover {{
+            border-color: {Colors.BRAND} !important;
+            color: {Colors.BRAND} !important;
+        }}
+        .st-key-variante_neu button {{
+            border-style: dashed !important;
+            color: {Colors.MUTED} !important;
+        }}
+
         /* --- Projektkarten ---------------------------------------------------- */
         /* Feste Hoehe: Ohne sie richtet sich jede Karte nach der Laenge
            ihres Projektnamens, und die Oeffnen-Knoepfe einer Reihe stehen
@@ -486,7 +523,7 @@ def _baue_css() -> str:
             display: flex;
             flex-direction: column;
             gap: 3px;
-            height: 152px;
+            height: 168px;
             border: 1px solid {Colors.LINE};
             border-radius: 12px;
             padding: 12px 16px 10px 16px;
@@ -541,6 +578,21 @@ def _baue_css() -> str:
         .project-card .card-sub {{
             color: {Colors.MUTED};
             font-size: 0.84em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        /* Der Variantenname steht als Marke in der Unterzeile - so bleibt
+           der Standortname im Titel und die Karte trotzdem eindeutig. */
+        .project-card .card-variante {{
+            align-self: flex-start;
+            max-width: 100%;
+            padding: 0 8px;
+            border-radius: 999px;
+            background: {Colors.SELECT};
+            color: {Colors.BRAND};
+            font-size: 0.78em;
+            font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
