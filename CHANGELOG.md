@@ -60,6 +60,23 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 - 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
   vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
 
+### v5.0.1 – Darstellung nachgezogen
+
+- **Auswahl durchgängig in Markenfarbe**: aktiver Navigationseintrag und
+  aktive Sicht türkis hinterlegt, mit dunklerem Strich links bzw.
+  darunter. Die Aufhellung wird aus der Markenfarbe berechnet
+  (`Colors.SELECT`), damit der verdeckte Markenschalter sie mitnimmt.
+- **Parameterspalte als eigene Fläche** mit Markenrand und türkis
+  hinterlegtem Kopf; die Speicherleiste steht innerhalb des Rahmens.
+- **Seitenleiste bei echten Projektnamen brauchbar**: Beschriftungen
+  linksbündig, eine Zeile je Eintrag mit Auslassungspunkten statt
+  Umbruch mitten im Wort, vollständiger Name im Tooltip. Inaktive
+  Projekte werden blasser dargestellt statt mit einem angehängten Zeichen.
+- Ursache der zuvor zentrierten und umbrechenden Beschriftungen: Knöpfe
+  mit Hilfetext hängen bei Streamlit unter einem Tooltip-Träger und sind
+  dann kein direktes Kind von `.stButton` mehr – die Auswahl kommt jetzt
+  ohne Kindkombinator aus.
+
 ## v4.29 – Excel-Import älterer Dateien, Zusatzblöcke einklappbar (2026-08)
 
 - **Gespeicherte Projekte lassen sich wieder einlesen.** Die

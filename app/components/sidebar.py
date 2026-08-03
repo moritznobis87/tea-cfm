@@ -63,12 +63,24 @@ def _hervorhebung(keys: list[str]) -> None:
     st.markdown(
         f"""<style>
         {wahl} {{
-            background: {Colors.WASH} !important;
+            background: {Colors.SELECT} !important;
             color: {Colors.INK} !important;
             font-weight: 600 !important;
             box-shadow: inset 3px 0 0 {Colors.BRAND} !important;
         }}
         </style>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _ausgrauen(keys: list[str]) -> None:
+    """Inaktive Projekte blasser darstellen - dieselbe Aussage wie die
+    ausgegraute Projektkarte im Portfolio, ohne Zusatzzeichen im Namen."""
+    if not keys:
+        return
+    wahl = ", ".join(f".st-key-{k} button" for k in keys)
+    st.markdown(
+        f"<style>{wahl} {{ opacity: 0.55; font-style: italic; }}</style>",
         unsafe_allow_html=True,
     )
 
@@ -111,17 +123,25 @@ def render_sidebar() -> None:
     _gruppentitel(txt("oberflaeche.nav_gruppe_projekte"))
     if not projekte:
         st.sidebar.caption(txt("oberflaeche.sidebar_keine_projekte"))
+    inaktiv_keys: list[str] = []
     for pid, pfad in projekte.items():
         projekt = load_project_yaml(pfad)
         key = f"projektwahl_{pid}"
         if seite == "projekt" and offenes_projekt == pid:
             aktiv_keys.append(key)
-        beschriftung = projekt.name if projekt.aktiv else f"{projekt.name} ·"
+        if not projekt.aktiv:
+            inaktiv_keys.append(key)
+        # Der vollstaendige Name steht im Tooltip - in der Leiste wird er
+        # auf eine Zeile gekuerzt (siehe app/theme.py).
+        hilfe = projekt.name
+        if not projekt.aktiv:
+            hilfe = f"{projekt.name} — {txt('oberflaeche.badge_inaktiv')}"
         if st.sidebar.button(
-            beschriftung, key=key, width="stretch", type="tertiary",
-            help=None if projekt.aktiv else txt("oberflaeche.badge_inaktiv"),
+            projekt.name, key=key, width="stretch", type="tertiary",
+            help=hilfe,
         ):
             router.gehe_zu("projekt", projekt_id=pid)
+    _ausgrauen(inaktiv_keys)
 
     if st.sidebar.button(
         txt("oberflaeche.nav_neues_projekt_knopf"), key="nav_neu",

@@ -175,9 +175,17 @@ def render_project_page() -> None:
     # --- Arbeitsflaeche: Ergebnis links, Parameter rechts --------------------
     col_ergebnis, col_parameter = st.columns([0.655, 0.345], gap="medium")
 
-    with col_parameter:
-        st.markdown(f"**{txt('oberflaeche.parameter_titel')}**")
+    with col_parameter, st.container(key="parameterbox"):
+        st.markdown(
+            f'<div class="parameter-kopf">'
+            f'{html.escape(txt("oberflaeche.parameter_titel"))}</div>',
+            unsafe_allow_html=True,
+        )
         entwurf = render_parameter_spalte(gespeichert, form_key)
+        # Platzhalter fuer die Speicherleiste: Sie braucht die Zahl der
+        # Aenderungen, die erst nach dem Aufbau der Felder feststeht, soll
+        # aber innerhalb des Rahmens stehen.
+        fussbereich = st.container()
 
     # Faellt die Maske aus (z.B. leerer Name), bleibt der gespeicherte
     # Stand die Rechengrundlage - die Seite soll nicht leer werden.
@@ -185,7 +193,7 @@ def render_project_page() -> None:
     result = services.get_valuation_fuer(aktiv)
     aenderungen = _zaehle_aenderungen(aktiv, gespeichert) if entwurf else 0
 
-    with col_parameter:
+    with fussbereich:
         _speicherleiste(aktiv, gespeichert, pfad, form_key, aenderungen)
 
     with col_kontext:

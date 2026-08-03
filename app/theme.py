@@ -53,11 +53,24 @@ class Colors:
     #: Serienfarben fuer Szenario-/Mehrlinienvergleiche.
     SERIES = ["#14304F", "#167B88", "#8A97A6", "#2E7D32", "#2B4F77"]
 
+    #: Aufgehellte Markenfarbe fuer Auswahlflaechen (aktiver
+    #: Navigationseintrag, aktive Sicht, Kopf der Parameterspalte).
+    #: Wird in wende_farben_an() aus BRAND neu berechnet, damit der
+    #: Markenschalter auch die Auswahlflaeche mitnimmt.
+    SELECT = "#E4F0F1"
+
     #: Divergierende Skala fuer die IRR-Heatmap (rot = unter Ziel,
     #: gruen = ueber Ziel - semantisch, kein Dekor).
     HEAT_SCALE = [
         [0.0, "#C0392B"], [0.5, "#F2F1ED"], [1.0, "#2E7D32"],
     ]
+
+
+def _aufhellen(hexfarbe: str, anteil: float) -> str:
+    """Mischt eine Farbe mit Weiss (anteil = Restanteil der Farbe)."""
+    r, g, b = (int(hexfarbe[i:i + 2], 16) for i in (1, 3, 5))
+    misch = lambda k: round(k * anteil + 255 * (1 - anteil))  # noqa: E731
+    return f"#{misch(r):02X}{misch(g):02X}{misch(b):02X}"
 
 
 def wende_farben_an(farben: dict) -> None:
@@ -75,6 +88,7 @@ def wende_farben_an(farben: dict) -> None:
     Colors.NEUTRAL = farben["NEUTRAL"]
     Colors.LINE = farben["LINE"]
     Colors.WASH = farben["WASH"]
+    Colors.SELECT = _aufhellen(Colors.BRAND, 0.13)
     Colors.SERIES = [Colors.INK, Colors.BRAND, Colors.NEUTRAL,
                      Colors.POSITIVE, Colors.INK_SOFT]
 
@@ -349,6 +363,55 @@ def _baue_css() -> str:
             padding-top: 10px;
         }}
 
+        /* --- Sichtenauswahl (Ergebnis | Finanzierung | Risiko | Annahmen) ----
+           Streamlits Segmentwahl bringt je Segment einen eigenen Rahmen mit;
+           das liest sich als Knopfreihe, nicht als Sichtenwechsel. Hier:
+           eine gemeinsame Grundlinie, die aktive Sicht tuerkis hinterlegt
+           mit dunklerem Strich darunter - dieselbe Sprache wie der aktive
+           Eintrag in der Seitenleiste. */
+        div[data-testid="stButtonGroup"] {{
+            border-bottom: 1px solid {Colors.LINE};
+            gap: 0 !important;
+        }}
+        div[data-testid="stButtonGroup"] button {{
+            border: none !important;
+            border-radius: 6px 6px 0 0 !important;
+            background: transparent !important;
+            color: {Colors.MUTED} !important;
+            font-weight: 500 !important;
+            box-shadow: none !important;
+        }}
+        div[data-testid="stButtonGroup"] button:hover {{
+            background: {Colors.WASH} !important;
+            color: {Colors.INK} !important;
+        }}
+        div[data-testid="stButtonGroup"] button[aria-checked="true"] {{
+            background: {Colors.SELECT} !important;
+            color: {Colors.INK} !important;
+            font-weight: 600 !important;
+            box-shadow: inset 0 -2px 0 {Colors.BRAND} !important;
+        }}
+
+        /* --- Parameterspalte --------------------------------------------------
+           Eigene Flaeche mit Markenrand: Die Spalte ist Eingabebereich, das
+           uebrige Blatt zeigt Ergebnisse. Ohne Rahmen verschwimmt beides. */
+        .st-key-parameterbox {{
+            border: 1.5px solid {Colors.BRAND};
+            border-radius: 12px;
+            padding: 0 16px 14px 16px;
+            background: {Colors.PAPER};
+        }}
+        .parameter-kopf {{
+            margin: 0 -16px 12px -16px;
+            padding: 10px 16px;
+            background: {Colors.SELECT};
+            border-radius: 10px 10px 0 0;
+            color: {Colors.INK};
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.01em;
+        }}
+
         /* --- Kontextzeile ------------------------------------------------------ */
         /* Marktsystem, Szenario und Diskontsatz gelten app-weit. Sie stehen
            hier sichtbar, statt als kleines Eingabefeld irgendwo auf der
@@ -427,8 +490,20 @@ def _baue_css() -> str:
         .badge-agri {{ background: #E7F2EA; color: {Colors.POSITIVE}; }}
         .badge-konv {{ background: #EEF1F0; color: {Colors.MUTED}; }}
 
-        /* --- Tabs (Streamlit-Standard, Akzent = primaryColor) ------------------- */
-        .stTabs [data-baseweb="tab"] {{ font-weight: 500; }}
+        /* --- Tabs (Portfolio-Analytik, Auktionsmodul) --------------------------
+           Gleiche Sprache wie die Sichtenauswahl der Projektseite: aktive
+           Sicht tuerkis hinterlegt, dunklerer Strich darunter. */
+        .stTabs [data-baseweb="tab"] {{
+            font-weight: 500;
+            color: {Colors.MUTED};
+            border-radius: 6px 6px 0 0;
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{ background: {Colors.WASH}; }}
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+            background: {Colors.SELECT};
+            color: {Colors.INK};
+            font-weight: 600;
+        }}
 
         /* --- Sidebar ------------------------------------------------------------ */
         section[data-testid="stSidebar"] {{
@@ -448,7 +523,15 @@ def _baue_css() -> str:
             text-transform: uppercase;
             margin: 1.1rem 0 0.3rem 0.15rem;
         }}
-        section[data-testid="stSidebar"] .stButton > button[kind="tertiary"] {{
+        /* Knoepfe mit Hilfetext haengen bei Streamlit unter einem
+           Tooltip-Traeger - der Knopf ist dann KEIN direktes Kind von
+           .stButton mehr. Die Auswahl kommt deshalb ohne Kindkombinator
+           aus, sonst greift die Gestaltung genau bei den Eintraegen nicht,
+           die einen Hilfetext haben. */
+        section[data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"] {{
+            width: 100%;
+        }}
+        section[data-testid="stSidebar"] button[kind="tertiary"] {{
             justify-content: flex-start;
             text-align: left;
             border: none;
@@ -460,10 +543,30 @@ def _baue_css() -> str:
                wuerde von einer Rundung zu einem Bogen beschnitten. */
             border-radius: 0 8px 8px 0;
             min-height: 0;
+            width: 100%;
         }}
-        section[data-testid="stSidebar"] .stButton > button[kind="tertiary"]:hover {{
+        section[data-testid="stSidebar"] button[kind="tertiary"]:hover {{
             background: {Colors.WASH} !important;
             color: {Colors.INK} !important;
+        }}
+        /* Streamlit zentriert den Beschriftungstext im Knopf. Fuer eine
+           Navigationsliste muss er linksbuendig stehen, sonst wandert er
+           mit der Laenge des Projektnamens hin und her. */
+        section[data-testid="stSidebar"] button[kind="tertiary"] div,
+        section[data-testid="stSidebar"] button[kind="tertiary"] span,
+        section[data-testid="stSidebar"] button[kind="tertiary"] p {{
+            width: 100%;
+            min-width: 0;
+            justify-content: flex-start;
+            text-align: left;
+        }}
+        /* Eine Zeile je Eintrag: Lange Projektnamen brechen sonst mitten
+           im Wort um und machen aus der Liste unterschiedlich hohe
+           Bloecke. Der vollstaendige Name steht im Tooltip. */
+        section[data-testid="stSidebar"] button[kind="tertiary"] p {{
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
 
         /* --- Markenfarbe erzwingen (Fallback, falls kein Theme greift) -------- */
