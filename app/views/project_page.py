@@ -318,16 +318,17 @@ def _speicherleiste(entwurf: PVProject, gespeichert: PVProject, pfad,
     """Fusszeile der Parameterspalte: Aenderungen zaehlen, sichern oder
     verwerfen. Ohne offene Aenderungen bleibt sie unauffaellig."""
     st.divider()
-    col_status, col_verwerfen, col_speichern = st.columns(
-        [1.5, 1, 1], vertical_alignment="center"
-    )
+    # Statuszeile ueber statt neben den Knoepfen: In der schmalen Spalte
+    # blieb sonst so wenig Platz, dass "Speichern" und "Verwerfen" in den
+    # Knoepfen umbrachen.
     if aenderungen:
-        col_status.markdown(
+        st.markdown(
             f":orange[{txt('oberflaeche.parameter_aenderungen', anzahl=aenderungen)}]"
         )
     else:
-        col_status.caption(txt("oberflaeche.parameter_keine_aenderungen"))
+        st.caption(txt("oberflaeche.parameter_keine_aenderungen"))
 
+    col_verwerfen, col_speichern = st.columns(2, vertical_alignment="center")
     if col_verwerfen.button(
         txt("oberflaeche.btn_verwerfen"), key=f"{form_key}__verwerfen",
         width="stretch", disabled=not aenderungen,

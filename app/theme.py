@@ -44,10 +44,22 @@ class Colors:
     NEGATIVE = "#C0392B"       # Abfluesse, Unterdeckung
     NEUTRAL = "#8A97A6"        # Sekundaere Serien (z.B. Tilgung, Varianten)
 
-    #: Gestufte Warmtoene fuer gestapelte Kostenpositionen.
+    #: Ruhiger Zwischenton der Markenfamilie - Vergleichswerte, die weder
+    #: Leitgroesse noch Warnung sind (Randbereiche einer Verteilung,
+    #: Nebenvarianten eines Szenarienvergleichs).
+    SOFT = "#B9CFD2"
+
+    #: Gestufte Blau-Tuerkis-Toene fuer gestapelte Kostenpositionen.
+    #: Frueher Warmtoene (Rot/Orange) - die lasen sich neben Navy und
+    #: Tuerkis wie eine Warnung, obwohl Betriebskosten nichts Kritisches
+    #: sind. Die Stufen laufen von hell nach dunkel, damit auch viele
+    #: Positionen im Stapel unterscheidbar bleiben. Der dunkelste Ton
+    #: haelt bewusst Abstand zu INK/INK_SOFT - Gemeindeabgabe und
+    #: Direktvermarktung schliessen im Stapel direkt an und muessen
+    #: unterscheidbar bleiben.
     OPEX_SCALE = [
-        "#C0392B", "#E67E22", "#D68910", "#B9770E", "#A04000",
-        "#873600", "#6E2C00", "#943126",
+        "#CFE0E3", "#A6C7CD", "#7FAEB7", "#5A95A1", "#3B7C8B",
+        "#2A6373", "#1E4C5C", "#89B4BC",
     ]
 
     #: Serienfarben fuer Szenario-/Mehrlinienvergleiche.
@@ -89,6 +101,7 @@ def wende_farben_an(farben: dict) -> None:
     Colors.LINE = farben["LINE"]
     Colors.WASH = farben["WASH"]
     Colors.SELECT = _aufhellen(Colors.BRAND, 0.13)
+    Colors.SOFT = _aufhellen(Colors.BRAND, 0.32)
     Colors.SERIES = [Colors.INK, Colors.BRAND, Colors.NEUTRAL,
                      Colors.POSITIVE, Colors.INK_SOFT]
 
@@ -580,6 +593,16 @@ def _baue_css() -> str:
         button[data-testid="stBaseButton-primary"]:hover {{
             background-color: #12646E !important;
             border-color: #12646E !important;
+        }}
+        /* Die Markenfarbe oben wird mit !important gesetzt und wuerde sonst
+           auch fuer gesperrte Knoepfe gelten - "Speichern" saehe dann
+           anklickbar aus, obwohl es nichts zu speichern gibt. */
+        button[kind="primary"]:disabled,
+        button[data-testid="stBaseButton-primary"]:disabled {{
+            background-color: {Colors.SOFT} !important;
+            border-color: {Colors.SOFT} !important;
+            color: {Colors.PAPER} !important;
+            opacity: 0.7;
         }}
         .stButton > button:hover, .stButton > button:focus:not(:active),
         .stDownloadButton > button:hover,

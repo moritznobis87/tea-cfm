@@ -60,6 +60,23 @@ alle Änderungen betreffen Navigation, Anordnung und Darstellung.
 - 18 neue Tests (Wegsteuerung, Parameterspalte mit Entwurf und Verwerfen,
   vier Sichten, Kennzahlenleiste, Zahlenformat); Suite: 294.
 
+### v5.0.2 – Farbschema und zwei Beschriftungen
+
+- **Diagramme in der Blau-Türkis-Familie.** Die gestapelten
+  Betriebskosten liefen bisher in Warmtönen (Rot/Orange) – neben Navy und
+  Türkis las sich das wie eine Warnung, obwohl Betriebskosten nichts
+  Kritisches sind. Ebenfalls umgestellt: Tornado (Navy für die
+  Abwärts-, Türkis für die Aufwärtsvariante), Monte-Carlo-Verteilung mit
+  Quantilen in Abstufungen derselben Familie, Szenarienvergleich,
+  Erlösaufteilung und die Anlagentypen im Portfolio.
+- Bewusst **außerhalb** der Familie bleibt, was eine Aussage trifft:
+  Grün/Rot für Zu- und Abflüsse, die DSCR-Ampel und die IRR-Heatmap.
+- „Cashflow als Excel" heißt jetzt schlicht **Excel**.
+- Statuszeile der Parameterspalte über statt neben den Knöpfen – in der
+  schmalen Spalte brachen „Speichern" und „Verwerfen" sonst um.
+- Gesperrte Primärknöpfe werden wieder gedämpft dargestellt; die
+  Markenfarbe war mit `!important` gesetzt und galt auch für sie.
+
 ### v5.0.1 – Darstellung nachgezogen
 
 - **Auswahl durchgängig in Markenfarbe**: aktiver Navigationseintrag und

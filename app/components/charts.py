@@ -22,7 +22,13 @@ _EUR_HOVER = "%{y:,.0f} €"
 
 def _signed_colors(values: pd.Series) -> list[str]:
     """Gruen fuer Zufluesse, Rot fuer Abfluesse - einheitlich in allen
-    Cashflow-Darstellungen."""
+    Cashflow-Darstellungen.
+
+    Diese Faerbung bleibt bewusst ausserhalb der Blau-Tuerkis-Familie:
+    Sie trifft eine Aussage (Geld kommt herein oder geht hinaus). Rein
+    kategoriale Reihen - Anlagentyp, Erloesbestandteile, Kostenpositionen,
+    Quantile - sind dagegen auf die Markenfamilie umgestellt, weil dort
+    ein Gruen oder Rot eine Wertung nahelegte, die es nicht gibt."""
     return [Colors.POSITIVE if v >= 0 else Colors.NEGATIVE for v in values]
 
 
@@ -30,7 +36,7 @@ def revenue_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(
         x=df["jahr"], y=df["erloes_eur"], name=txt("diagramme.serie_umsatzerloese"),
-        marker_color=Colors.POSITIVE, hovertemplate=_EUR_HOVER + "<extra></extra>",
+        marker_color=Colors.BRAND, hovertemplate=_EUR_HOVER + "<extra></extra>",
     )
     fig.update_layout(
         yaxis_title="€", xaxis_title=txt("diagramme.achse_betriebsjahr"), height=360, showlegend=False
@@ -206,7 +212,7 @@ def eag_sensitivity_chart(sens_df: pd.DataFrame) -> go.Figure:
         y=irr_pct,
         width=0.15,
         marker_color=[
-            Colors.POSITIVE if v == "Basis" else Colors.NEUTRAL for v in varianten
+            Colors.INK if v == "Basis" else Colors.SOFT for v in varianten
         ],
         customdata=varianten,
         hovertemplate="%{customdata}: %{x:,.2f} ct/kWh → %{text}<extra></extra>",
@@ -334,12 +340,12 @@ def revenue_split_chart(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(
         x=betrieb["jahr"], y=betrieb["erloes_markt_eur"], name=txt("diagramme.serie_markterloes"),
-        marker_color=Colors.POSITIVE,
+        marker_color=Colors.BRAND,
         hovertemplate=_EUR_HOVER + f"<extra>{txt('diagramme.serie_markterloes')}</extra>",
     )
     fig.add_bar(
         x=betrieb["jahr"], y=betrieb["erloes_praemie_eur"], name=txt("diagramme.serie_marktpraemie") + " (EAG)",
-        marker_color=Colors.NEUTRAL,
+        marker_color=Colors.INK_SOFT,
         hovertemplate=_EUR_HOVER + f"<extra>{txt('diagramme.serie_marktpraemie')}</extra>",
     )
     fig.update_layout(
@@ -424,13 +430,13 @@ def tornado_chart(tornado_df: pd.DataFrame) -> go.Figure:
         # Balken vom Basiswert zu beiden Varianten.
         fig.add_bar(
             y=[zeile["name"]], x=[runter - basis_pct], base=basis_pct,
-            orientation="h", marker_color=Colors.NEGATIVE, width=0.55,
+            orientation="h", marker_color=Colors.INK_SOFT, width=0.55,
             hovertemplate=f"−10 %: {runter:,.2f} % IRR<extra>{zeile['name']}</extra>".replace(",", "X").replace(".", ",").replace("X", "."),
             showlegend=False,
         )
         fig.add_bar(
             y=[zeile["name"]], x=[rauf - basis_pct], base=basis_pct,
-            orientation="h", marker_color=Colors.POSITIVE, width=0.55,
+            orientation="h", marker_color=Colors.BRAND, width=0.55,
             hovertemplate=f"+10 %: {rauf:,.2f} % IRR<extra>{zeile['name']}</extra>".replace(",", "X").replace(".", ",").replace("X", "."),
             showlegend=False,
         )
@@ -484,13 +490,15 @@ def mc_irr_histogram(irr_werte, p10: float, p50: float, p90: float) -> go.Figure
     fig = go.Figure()
     fig.add_histogram(
         x=[v * 100 for v in irr_werte], nbinsx=40,
-        marker=dict(color=Colors.NEUTRAL, line=dict(color=Colors.PAPER, width=1)),
+        marker=dict(color=Colors.BRAND, line=dict(color=Colors.PAPER, width=1)),
         hovertemplate="%{x} %: %{y} " + txt("diagramme.achse_anzahl_laeufe") + "<extra></extra>",
     )
     for wert, name, farbe in [
-        (p10, "P10", Colors.NEGATIVE),
+        # Quantile sind Lagemasse, keine Bewertung - deshalb Abstufungen
+        # derselben Familie statt Rot/Gruen.
+        (p10, "P10", Colors.INK_SOFT),
         (p50, "P50", Colors.INK),
-        (p90, "P90", Colors.POSITIVE),
+        (p90, "P90", Colors.BRAND),
     ]:
         fig.add_vline(
             x=wert * 100, line_dash="dash", line_color=farbe,
@@ -589,7 +597,7 @@ def portfolio_bubble_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figu
     if df.empty:
         fig.update_layout(height=420)
         return fig
-    for typ, farbe in [("Agri-PV", Colors.POSITIVE), ("Konventionell", Colors.NEUTRAL)]:
+    for typ, farbe in [("Agri-PV", Colors.BRAND), ("Konventionell", Colors.INK_SOFT)]:
         teil = df[df["typ"] == typ]
         if teil.empty:
             continue
