@@ -403,7 +403,10 @@ def _chart_npv_kurve(npv_curve: pd.DataFrame, irr: float | None) -> Image:
 
 def _chart_tornado(tornado_df: pd.DataFrame) -> Image:
     basis = (tornado_df["irr_basis"].iloc[0] or 0) * 100
-    fig, ax = _fig(6.4)
+    # Hoehe waechst mit der Zahl der Treiber - bei fester Hoehe ruecken
+    # die Balken mit jedem weiteren Treiber enger zusammen, bis sich die
+    # Beschriftungen beruehren.
+    fig, ax = _fig(max(6.4, 0.8 * len(tornado_df)))
     y = np.arange(len(tornado_df))
     for i, (_, zeile) in enumerate(tornado_df.iterrows()):
         runter = (zeile["irr_runter"] or 0) * 100

@@ -86,6 +86,21 @@ def _mutiere(ea: EffectiveAssumptions, treiber: str, faktor: float) -> Effective
         return ea.model_copy(
             update={"fremdkapitalzins_pct": ea.fremdkapitalzins_pct * faktor}
         )
+    if treiber == "pacht":
+        # Alle drei Pachtfelder werden skaliert, unabhaengig vom Modus -
+        # engine.opex verwendet je nach PachtModus nur die passenden.
+        # Bei UMSATZBETEILIGUNG muessen Beteiligung UND Mindestpacht
+        # mitwandern: Die Zahlung ist ihr Maximum, eine Skalierung nur
+        # eines Terms bliebe wirkungslos, sobald der andere fuehrt.
+        return ea.model_copy(
+            update={
+                "pacht_eur_kwp_jahr": ea.pacht_eur_kwp_jahr * faktor,
+                "pacht_umsatzbeteiligung_pct": ea.pacht_umsatzbeteiligung_pct
+                * faktor,
+                "pacht_mindestpacht_eur_ha_jahr":
+                    ea.pacht_mindestpacht_eur_ha_jahr * faktor,
+            }
+        )
     if treiber == "negative_stunden":
         return ea.model_copy(
             update={
@@ -114,6 +129,10 @@ TORNADO_TREIBER: list[tuple[str, str]] = [
     ("eag_zuschlag", "EAG-Zuschlagswert"),
     ("capex", "Investitionskosten"),
     ("opex", "Betriebskosten"),
+    # Die Pacht wird in engine.opex getrennt von den Standardpositionen
+    # gerechnet (modusabhaengig) und steckt deshalb NICHT im Treiber
+    # "Betriebskosten" - die beiden ueberschneiden sich nicht.
+    ("pacht", "Pacht"),
     ("fk_zins", "Fremdkapitalzins"),
     ("negative_stunden", "Erzeugungsmenge neg. Stunden"),
 ]
