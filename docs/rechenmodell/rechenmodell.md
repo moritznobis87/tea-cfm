@@ -1401,8 +1401,17 @@ Ein Treiber $\theta$ wird multiplikativ um den Faktor $\lambda$ variiert:
 | Spezifischer Ertrag | $h \rightarrow h \cdot \lambda$ |
 | Investitionskosten | $I \rightarrow I \cdot \lambda$ |
 | Betriebskosten | $w_j \rightarrow w_j \cdot \lambda$ für alle Standardpositionen |
+| Pacht | $p \rightarrow p \cdot \lambda$; bei Umsatzbeteiligung werden Beteiligungssatz und Mindestpacht gemeinsam skaliert |
 | Fremdkapitalzins | $i \rightarrow i \cdot \lambda$ |
 | Negativmengen | $\nu^{\mathrm{roh}}_y \rightarrow \nu^{\mathrm{roh}}_y \cdot \lambda$ |
+
+Die Pacht wird in `engine/opex.py` getrennt von den Standardpositionen
+geführt (die Berechnung hängt vom Pachtmodus ab); der Treiber
+„Betriebskosten" enthält sie deshalb nicht, die beiden Treiber
+überschneiden sich nicht. Bei Umsatzbeteiligung ist die Zahlung das
+Maximum aus Beteiligung und Mindestpacht – beide Terme werden gemeinsam
+skaliert, da eine Variation nur eines Terms wirkungslos bliebe, sobald
+der andere führt.
 
 Die Parametervariation setzt auf Ebene der **Eingangskurve** und nicht auf
 Ebene des bereits berechneten Ergebnisses an:
@@ -1430,7 +1439,7 @@ vorbehalten.
 
 ## 14.3 Tornado-Analyse
 
-Für jeden der sieben Treiber wird die EK-Rendite bei $\lambda = 1 - \delta$
+Für jeden der acht Treiber wird die EK-Rendite bei $\lambda = 1 - \delta$
 und $\lambda = 1 + \delta$ berechnet (Vorbelegung $\delta = 10\,\%$):
 
 $$ \mathrm{Spanne}(\theta) = \left|\,\mathrm{IRR}(\theta \cdot (1+\delta)) - \mathrm{IRR}(\theta \cdot (1-\delta))\,\right| $$

@@ -226,7 +226,7 @@
       {\sffamily\fontsize{9.2}{13}\selectfont\color{InkSoft}
       Wirtschaftlichkeitsrechnung für PV-Projekte nach dem
       österreichischen EAG-Marktprämienmodell\\[4pt]
-      Stand: 03.08.2026 · erzeugt aus
+      Stand: 11.08.2026 · erzeugt aus
       \nolinkurl{docs/rechenmodell/rechenmodell.md}}
     \end{tcolorbox}
   \end{titlepage}
@@ -249,7 +249,7 @@
 \title{Dokumentation Cash-Flow-Model - Rechenmodell und
 Berechnungsvorschrift}
 \author{Valyze}
-\date{03.08.2026}
+\date{11.08.2026}
 
 \begin{document}
 \maketitle
@@ -2117,10 +2117,20 @@ Spezifischer Ertrag & \(h \rightarrow h \cdot \lambda\) \\
 Investitionskosten & \(I \rightarrow I \cdot \lambda\) \\
 Betriebskosten & \(w_j \rightarrow w_j \cdot \lambda\) für alle
 Standardpositionen \\
+Pacht & \(p \rightarrow p \cdot \lambda\); bei Umsatzbeteiligung werden
+Beteiligungssatz und Mindestpacht gemeinsam skaliert \\
 Fremdkapitalzins & \(i \rightarrow i \cdot \lambda\) \\
 Negativmengen &
 \(\nu^{\mathrm{roh}}_y \rightarrow \nu^{\mathrm{roh}}_y \cdot \lambda\) \\
 \end{longtable}
+
+Die Pacht wird in \nolinkurl{engine/opex.py} getrennt von den
+Standardpositionen geführt (die Berechnung hängt vom Pachtmodus ab); der
+Treiber „Betriebskosten'' enthält sie deshalb nicht, die beiden Treiber
+überschneiden sich nicht. Bei Umsatzbeteiligung ist die Zahlung das
+Maximum aus Beteiligung und Mindestpacht -- beide Terme werden gemeinsam
+skaliert, da eine Variation nur eines Terms wirkungslos bliebe, sobald
+der andere führt.
 
 Die Parametervariation setzt auf Ebene der \textbf{Eingangskurve} und
 nicht auf Ebene des bereits berechneten Ergebnisses an: Eine Skalierung
@@ -2150,7 +2160,7 @@ zur Wahl steht; die weiteren Spannen bleiben der Tornado-Analyse
 \hypertarget{tornado-analyse}{%
 \subsection{14.3 Tornado-Analyse}\label{tornado-analyse}}
 
-Für jeden der sieben Treiber wird die EK-Rendite bei
+Für jeden der acht Treiber wird die EK-Rendite bei
 \(\lambda = 1 - \delta\) und \(\lambda = 1 + \delta\) berechnet
 (Vorbelegung \(\delta = 10\,\%\)):
 

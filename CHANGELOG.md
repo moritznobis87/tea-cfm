@@ -2,6 +2,21 @@
 
 ## v5.2 – Blick über alle Varianten (2026-08)
 
+### v5.2.2 – Pacht als Treiber der Tornado-Analyse
+
+- **Achter Treiber „Pacht".** Sie wird in `engine/opex.py` getrennt von
+  den Standardpositionen geführt (die Berechnung hängt vom Pachtmodus
+  ab) und steckte deshalb in keinem der bisherigen Balken — der Treiber
+  „Betriebskosten" enthält sie nicht, die beiden überschneiden sich
+  nicht.
+- Bei Umsatzbeteiligung werden Beteiligungssatz und Mindestpacht
+  gemeinsam skaliert: Die Zahlung ist ihr Maximum, eine Variation nur
+  eines Terms bliebe wirkungslos, sobald der andere führt.
+- Die Höhe des Tornado-Bildes im PDF-Bericht wächst mit der Zahl der
+  Treiber — bei fester Höhe rückten die Beschriftungen zusammen.
+- Nachgezogen: Abschnitt 14.1 und 14.3 der Rechenmodell-Dokumentation
+  samt neu gebautem PDF. 3 neue Tests; Suite: 343.
+
 ### v5.2.1 – Variantenpfade auch in der Sicht „Standorte"
 
 - **Die Rendite-Risiko-Landkarte zeigt jetzt immer alle Rechnungen.**

@@ -41,8 +41,10 @@ class TestErloesSplit:
 
 class TestTornado:
     def test_liefert_alle_treiber_sortiert(self, project, global_assumptions):
+        from engine.analytics import TORNADO_TREIBER
+
         df = run_tornado(project, global_assumptions)
-        assert len(df) == 7
+        assert len(df) == len(TORNADO_TREIBER) == 8
         # Aufsteigend nach Spanne sortiert.
         assert df["spanne"].is_monotonic_increasing
         # Basis-IRR ueberall identisch.
@@ -57,6 +59,57 @@ class TestTornado:
         df = run_tornado(project, global_assumptions)
         zeile = df[df["treiber"] == "capex"].iloc[0]
         assert zeile["irr_rauf"] < zeile["irr_basis"] < zeile["irr_runter"]
+
+
+class TestPachtTreiber:
+    """Die Pacht als eigener Treiber.
+
+    Sie wird in engine.opex getrennt von den Standardpositionen
+    gerechnet (die Formel haengt vom Pachtmodus ab) und steckt deshalb
+    NICHT im Treiber "Betriebskosten" - beide ueberschneiden sich nicht.
+    """
+
+    def test_hoehere_pacht_verschlechtert_die_rendite(
+        self, project, global_assumptions
+    ):
+        df = run_tornado(project, global_assumptions)
+        zeile = df[df["treiber"] == "pacht"].iloc[0]
+        assert zeile["irr_rauf"] < zeile["irr_basis"] < zeile["irr_runter"]
+        assert zeile["spanne"] > 0
+
+    def test_wirkt_auch_bei_umsatzbeteiligung(self, project, global_assumptions):
+        """Die Zahlung ist das Maximum aus Beteiligung und Mindestpacht -
+        eine Skalierung nur eines Terms bliebe wirkungslos, sobald der
+        andere fuehrt."""
+        from engine import PachtModus
+
+        for mindestpacht in (0.0, 3000.0):
+            variante = project.model_copy(deep=True)
+            variante.pacht_modus = PachtModus.UMSATZBETEILIGUNG
+            variante.pacht_umsatzbeteiligung_pct = 0.055
+            variante.pacht_mindestpacht_eur_ha_jahr = mindestpacht
+            variante.projektflaeche_ha = 4.0
+
+            zeile = run_tornado(variante, global_assumptions)
+            zeile = zeile[zeile["treiber"] == "pacht"].iloc[0]
+            assert zeile["spanne"] > 0, (
+                f"Pacht ohne Wirkung bei Mindestpacht {mindestpacht}"
+            )
+            assert zeile["irr_rauf"] < zeile["irr_runter"]
+
+    def test_betriebskosten_enthalten_die_pacht_nicht(
+        self, project, global_assumptions
+    ):
+        """Sonst zaehlte dieselbe Kostenposition in zwei Balken."""
+        from engine.analytics import _mutiere
+        from engine.pipeline import resolve_assumptions
+
+        ea = resolve_assumptions(project, global_assumptions)
+        mutiert = _mutiere(ea, "opex", 2.0)
+        assert mutiert.pacht_eur_kwp_jahr == ea.pacht_eur_kwp_jahr
+        assert not any(
+            item.name.lower() == "pacht" for item in ea.opex_items
+        ), "Pacht steht nicht in den Standardpositionen"
 
 
 class TestHeatmap:
