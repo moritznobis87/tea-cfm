@@ -255,9 +255,44 @@ class TestOberflaeche:
 
         reiter = {b.key: b.label for b in at.button
                   if b.key and b.key.startswith("variante_")}
-        assert reiter[f"variante_{vorlage.id}"] == "Basis"
+        # Der Stern markiert den Leitfall - ohne gesetzte Marke gilt die
+        # erste Variante.
+        assert reiter[f"variante_{vorlage.id}"] == "★ Basis"
         assert reiter[f"variante_{zweite.id}"] == "Netz high"
         assert "variante_neu" in reiter
+
+    def test_leitfall_laesst_sich_in_der_variantenleiste_setzen(
+        self, app_mit_zweiter_variante
+    ):
+        """Gemeldet: "in den Projekten selber kann man nicht einstellen,
+        dass eine Variante der Leitfall ist."
+
+        Die Wahl gab es nur in der Vergleichssicht - dort sucht sie
+        niemand. Sie gehoert in die Reiterreihe, die sie betrifft.
+        """
+        from app import services
+
+        at, vorlage, zweite = app_mit_zweiter_variante
+        [b for b in at.button if b.key == f"open_{vorlage.id}"][0].click()
+        at.run()
+        # Der offene Reiter IST der Leitfall - dann gibt es nichts zu
+        # waehlen.
+        assert not [b for b in at.button if b.key == "variante_leitfall"]
+
+        [b for b in at.button if b.key == f"variante_{zweite.id}"][0].click()
+        at.run()
+        knopf = [b for b in at.button if b.key == "variante_leitfall"]
+        assert knopf, "Bei der Nebenvariante fehlt die Wahl"
+        knopf[0].click()
+        at.run()
+        assert not at.exception
+
+        varianten = services.varianten_von(services.get_project(zweite.id))
+        assert services.leitvariante_von(varianten).id == zweite.id
+        reiter = {b.key: b.label for b in at.button
+                  if b.key and b.key.startswith("variante_")}
+        assert reiter[f"variante_{zweite.id}"] == "★ Netz high"
+        assert reiter[f"variante_{vorlage.id}"] == "Basis"
 
     def test_reiter_wechselt_die_offene_variante(self, app_mit_zweiter_variante):
         from app.router import _STATE_ID
@@ -584,15 +619,15 @@ class TestLandkarteUndRangliste:
                 {"id": "b1", "name": "Buchkirchen", "kennung": "OÖ_Buchkirchen",
                  "variante": "Basis", "leitfall": True, "varianten": "<br>…",
                  "typ": "Agri-PV", "kwp": 2800, "irr_pct": 9.8,
-                 "invest_eur_kwp": 596},
+                 "invest_eur_kwp": 596, "npv_eur": 900_000.0},
                 {"id": "b2", "name": "Buchkirchen", "kennung": "OÖ_Buchkirchen",
                  "variante": "Netz high", "leitfall": False, "varianten": "",
                  "typ": "Agri-PV", "kwp": 2800, "irr_pct": 6.5,
-                 "invest_eur_kwp": 640},
+                 "invest_eur_kwp": 640, "npv_eur": -150_000.0},
                 {"id": "a1", "name": "Amstetten", "kennung": "NÖ_Amstetten",
                  "variante": "Basis", "leitfall": True, "varianten": "",
                  "typ": "Agri-PV", "kwp": 2000, "irr_pct": 12.0,
-                 "invest_eur_kwp": 540},
+                 "invest_eur_kwp": 540, "npv_eur": 480_000.0},
             ]
         )
 
@@ -637,3 +672,142 @@ class TestLandkarteUndRangliste:
         assert list(fig.layout.yaxis.categoryarray) == ["Buchkirchen", "Amstetten"]
         spannen = [s for s in fig.data if s.mode == "lines"]
         assert len(spannen) == 1 and list(spannen[0].x) == [6.5, 9.8]
+
+    def test_x_achse_laesst_sich_auf_den_deckungsbeitrag_stellen(self):
+        """Rendite ueber Betrag statt ueber Effizienz.
+
+        Zwei Fragen, zwei Antworten: Beim spezifischen Invest liegt
+        Amstetten vorn (540 €/kWp), beim Deckungsbeitrag Buchkirchen
+        (900 T€) - genau deshalb der Umschalter.
+        """
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(
+            self._tabelle(), None, x_feld="npv_eur"
+        )
+        punkte = next(s for s in fig.data if s.mode == "markers+text")
+        assert sorted(punkte.x) == [480_000.0, 900_000.0]
+        assert "NPV" in fig.layout.xaxis.title.text
+
+    def test_nulllinie_nur_bei_negativem_deckungsbeitrag(self):
+        """Die Null trennt Wertschaffung von Wertvernichtung - aber nur,
+        wenn ueberhaupt ein sichtbarer Punkt links davon liegt."""
+        from app.components import charts
+
+        ohne = charts.portfolio_bubble_chart(
+            self._tabelle(), None, x_feld="npv_eur"
+        )
+        assert not ohne.layout.shapes
+
+        mit = charts.portfolio_bubble_chart(
+            self._tabelle(), None, fokus="OÖ_Buchkirchen", x_feld="npv_eur"
+        )
+        assert len(mit.layout.shapes) == 1
+
+    def test_unbekannte_achse_faellt_auf_die_voreinstellung_zurueck(self):
+        """Der Wunsch kommt aus einem Widget - ein abgewaehltes Segment
+        liefert None und darf die Karte nicht zerlegen."""
+        from app.components import charts
+
+        fig = charts.portfolio_bubble_chart(
+            self._tabelle(), None, x_feld="gibt_es_nicht"
+        )
+        punkte = next(s for s in fig.data if s.mode == "markers+text")
+        assert sorted(punkte.x) == [540, 596]
+
+    def test_achse_ohne_spalte_bricht_nicht(self):
+        """Aeltere Aufrufer liefern die NPV-Spalte nicht mit."""
+        from app.components import charts
+
+        tabelle = self._tabelle().drop(columns=["npv_eur"])
+        fig = charts.portfolio_bubble_chart(tabelle, None, x_feld="npv_eur")
+        assert [s for s in fig.data if s.mode == "markers+text"]
+
+
+class TestBeschriftungsplaetze:
+    """Namen weichen einander aus, statt uebereinander zu liegen.
+
+    Plotly kennt kein Ausweichen: Eine Textposition sitzt starr an ihrem
+    Punkt. Bei eng beieinanderliegenden Projekten schoben sich die Namen
+    deshalb ineinander ("LivingBrick" ueber "Schäffern").
+    """
+
+    def _kaesten(self, punkte, plaetze):
+        """Die belegten Rechtecke zu einer Platzierung - dieselbe
+        Rechnung wie im Modul, hier als unabhaengige Gegenprobe."""
+        from app.components import charts
+
+        kaesten = []
+        for p in punkte:
+            lage = plaetze[p["id"]]
+            if not lage:
+                continue
+            dx, dy = next(
+                (x, y) for pos, x, y in charts._LABEL_PLAETZE if pos == lage
+            )
+            hb = charts._LABEL_ZEICHENBREITE * len(p["text"]) / 2
+            kaesten.append((
+                p["nx"] + dx * (hb + charts._BLASE_BREITE / 2),
+                p["ny"] + dy * (charts._LABEL_HOEHE / 2 + charts._BLASE_HOEHE / 2),
+                hb, charts._LABEL_HOEHE / 2,
+            ))
+        return kaesten
+
+    def test_dicht_beieinander_und_trotzdem_lesbar(self):
+        from app.components import charts
+
+        punkte = [
+            {"id": "a", "text": "Schäffern", "nx": 0.05, "ny": 0.83},
+            {"id": "b", "text": "LivingBrick", "nx": 0.01, "ny": 0.85},
+            {"id": "c", "text": "St. Agatha", "nx": 0.34, "ny": 0.86},
+            {"id": "d", "text": "Ziprein", "nx": 0.34, "ny": 0.88},
+        ]
+        plaetze = charts.beschriftungsplaetze(punkte)
+        assert all(plaetze[p["id"]] for p in punkte), "kein Name faellt weg"
+        kaesten = self._kaesten(punkte, plaetze)
+        for i, a in enumerate(kaesten):
+            for b in kaesten[i + 1:]:
+                assert not charts._ueberlappt(a, b)
+
+    def test_kein_name_ragt_aus_der_zeichenflaeche(self):
+        """Plotly schneidet am Rand ab - aus "LivingBrick" wurde
+        "...gBricx"."""
+        from app.components import charts
+
+        punkte = [
+            {"id": "links", "text": "Waldneukirchen", "nx": 0.0, "ny": 0.5},
+            {"id": "rechts", "text": "Waldneukirchen", "nx": 1.0, "ny": 0.1},
+        ]
+        plaetze = charts.beschriftungsplaetze(punkte)
+        for kasten in self._kaesten(punkte, plaetze):
+            assert charts._im_bild(kasten)
+
+    def test_ohne_freien_platz_bleibt_der_name_weg(self):
+        """Ein unlesbarer Textklumpen hilft niemandem; der Name steht im
+        Hover."""
+        from app.components import charts
+
+        punkte = [
+            {"id": f"p{i}", "text": "Sankt Georgen an der Gusen",
+             "nx": 0.5 + i * 0.004, "ny": 0.5 + i * 0.004}
+            for i in range(8)
+        ]
+        plaetze = charts.beschriftungsplaetze(punkte)
+        assert plaetze["p0"], "der erste Punkt bekommt den besten Platz"
+        assert any(not lage for lage in plaetze.values())
+        kaesten = self._kaesten(punkte, plaetze)
+        for i, a in enumerate(kaesten):
+            for b in kaesten[i + 1:]:
+                assert not charts._ueberlappt(a, b)
+
+    def test_leerer_text_wird_nicht_platziert(self):
+        """Ausserhalb des Fokus tragen die Punkte keinen Namen - sie
+        duerfen den Platz auch nicht belegen."""
+        from app.components import charts
+
+        plaetze = charts.beschriftungsplaetze([
+            {"id": "a", "text": "", "nx": 0.5, "ny": 0.5},
+            {"id": "b", "text": "Buchkirchen", "nx": 0.5, "ny": 0.55},
+        ])
+        assert plaetze["a"] == ""
+        assert plaetze["b"]

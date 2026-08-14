@@ -657,13 +657,155 @@ def varianten_kumuliert_chart(reihen: list[tuple[str, pd.DataFrame]]) -> go.Figu
     return fig
 
 
+#: Geschaetzte Groesse einer Punktbeschriftung in Achsenanteilen. Die
+#: Schrift ist 11 px hoch, ein Zeichen rund 6 px breit; die Zeichenflaeche
+#: misst etwa 900 x 380 px. Genauer geht es nicht: Wo der Text am Ende
+#: steht, weiss erst der Browser - Plotly rechnet in Pixeln, wir hier in
+#: Datenkoordinaten.
+_LABEL_ZEICHENBREITE = 0.007
+_LABEL_HOEHE = 0.04
+#: Platz, den die GROESSTE Blase belegt - dort soll kein fremdes Label
+#: liegen. Rund 46 px im Durchmesser.
+_BLASE_BREITE, _BLASE_HOEHE = 0.05, 0.12
+#: Kleinste Blase (sizemin=8 px) im Verhaeltnis zur groessten. Zwischen
+#: beiden skaliert der Radius mit der Wurzel der Leistung - Plotly
+#: bemisst die FLAECHE nach dem Wert (sizemode="area").
+_BLASE_MINDESTANTEIL = 8.0 / 46.0
+
+#: Ausweichplaetze in der Reihenfolge, in der sie probiert werden.
+#: (Plotly-Position, Versatz in x, Versatz in y, Ausrichtung)
+_LABEL_PLAETZE = [
+    ("top center", 0.0, 1.0), ("bottom center", 0.0, -1.0),
+    ("middle right", 1.0, 0.0), ("middle left", -1.0, 0.0),
+    ("top right", 0.8, 0.8), ("bottom left", -0.8, -0.8),
+    ("top left", -0.8, 0.8), ("bottom right", 0.8, -0.8),
+]
+
+
+#: Wie weit ein Label ueber die Zeichenflaeche hinausragen darf. Plotly
+#: schneidet daran ab, ein wenig Ueberstand vertraegt der Rand aber.
+_RAND = 0.04
+
+
+def _im_bild(kasten: tuple) -> bool:
+    x, y, hb, hh = kasten
+    return (x - hb >= -_RAND and x + hb <= 1 + _RAND
+            and y - hh >= -_RAND and y + hh <= 1 + _RAND)
+
+
+def _ueberlappt(a: tuple, b: tuple) -> bool:
+    """Zwei Rechtecke (x, y, halbe Breite, halbe Hoehe)."""
+    return (abs(a[0] - b[0]) < a[2] + b[2]) and (abs(a[1] - b[1]) < a[3] + b[3])
+
+
+def _ueberdeckung(a: tuple, b: tuple) -> float:
+    """Gemeinsame Flaeche zweier Rechtecke - das Mass, nach dem der
+    Notplatz gewaehlt wird, wenn gar kein freier Platz bleibt."""
+    breite = min(a[0] + a[2], b[0] + b[2]) - max(a[0] - a[2], b[0] - b[2])
+    hoehe = min(a[1] + a[3], b[1] + b[3]) - max(a[1] - a[3], b[1] - b[3])
+    return max(breite, 0.0) * max(hoehe, 0.0)
+
+
+def beschriftungsplaetze(punkte: list[dict]) -> dict[str, str]:
+    """Weist jedem Punkt eine kollisionsfreie Textposition zu.
+
+    Plotly kennt kein Ausweichen: Jede Beschriftung sitzt starr an ihrer
+    Position, und bei eng beieinanderliegenden Projekten schieben sich
+    die Namen uebereinander. Hier wird deshalb der Reihe nach der erste
+    Platz gesucht, der weder eine andere Beschriftung noch eine fremde
+    Blase trifft - und wenn keiner frei ist, bleibt der Name weg. Er
+    steht ohnehin im Hover; ein unlesbarer Textklumpen hilft niemandem.
+
+    punkte: {id, text, nx, ny} mit nx/ny als Anteil der Achsenlaenge
+    (0-1), dazu optional hx/hy = halbe Ausdehnung der eigenen Blase.
+    Diese Angabe ist wichtiger, als sie aussieht: Plotly setzt den Text
+    unmittelbar an den Rand des MARKERS, nicht in festem Abstand zum
+    Datenpunkt. Rechnet man mit einer Einheitsblase, sitzt das Label
+    einer grossen Blase in Wahrheit viel hoeher als angenommen - und
+    genau dort, wo das Label der kleinen Nachbarblase liegt.
+
+    Wichtigster Punkt zuerst - er bekommt den besten Platz.
+
+    Rueckgabe: {id: Plotly-Textposition}; "" bedeutet: nicht beschriften.
+    """
+    def _halb(p) -> tuple[float, float]:
+        return (p.get("hx", _BLASE_BREITE / 2), p.get("hy", _BLASE_HOEHE / 2))
+
+    blasen = [(p["nx"], p["ny"], *_halb(p)) for p in punkte]
+    labels: list[tuple] = []
+    plaetze: dict[str, str] = {}
+    for punkt in punkte:
+        if not punkt["text"]:
+            plaetze[punkt["id"]] = ""
+            continue
+        halbe_breite = _LABEL_ZEICHENBREITE * len(punkt["text"]) / 2
+        hx, hy = _halb(punkt)
+
+        def kasten_fuer(dx, dy, hb=halbe_breite, p=punkt, hx=hx, hy=hy):
+            return (
+                p["nx"] + dx * (hb + hx),
+                p["ny"] + dy * (_LABEL_HOEHE / 2 + hy),
+                hb, _LABEL_HOEHE / 2,
+            )
+
+        # Gesucht ist ein Platz, der weder Text noch fremde Blase trifft.
+        # Ein Platz auf einer fremden Blase ist der Notbehelf - dann aber
+        # der am wenigsten verdeckte, sonst frisst die Nachbarblase die
+        # letzten Buchstaben ("LivingBricx"). Schrift auf Schrift bleibt
+        # ausgeschlossen: Sie ist gar nicht mehr lesbar. In jedem Fall
+        # muss der Text INNERHALB der Zeichenflaeche bleiben - am Rand
+        # schneidet Plotly ihn ab.
+        gewaehlt, gewaehlter_kasten = "", None
+        notbehelf = None
+        for position, dx, dy in _LABEL_PLAETZE:
+            kasten = kasten_fuer(dx, dy)
+            if not _im_bild(kasten):
+                continue
+            if any(_ueberlappt(kasten, h) for h in labels):
+                continue
+            verdeckt = sum(_ueberdeckung(kasten, b) for b in blasen)
+            if verdeckt == 0.0:
+                gewaehlt, gewaehlter_kasten = position, kasten
+                break
+            if notbehelf is None or verdeckt < notbehelf[0]:
+                notbehelf = (verdeckt, position, kasten)
+        if not gewaehlt and notbehelf is not None:
+            _, gewaehlt, gewaehlter_kasten = notbehelf
+        if gewaehlt:
+            labels.append(gewaehlter_kasten)
+        plaetze[punkt["id"]] = gewaehlt
+    return plaetze
+
+
+#: Waehlbare x-Achsen der Landkarte: Spalte -> (Titelschluessel,
+#: Hover-Format). Beide Achsen beantworten verschiedene Fragen und
+#: widersprechen einander regelmaessig: Das spezifische Invest sagt, wie
+#: teuer eine Kilowattstunde Leistung eingekauft wird - eine Frage der
+#: Effizienz, unabhaengig von der Projektgroesse. Der Deckungsbeitrag
+#: (NPV) sagt, wie viel Geld am Ende uebrig bleibt - da liegt ein grosses
+#: mittelmaessiges Projekt vor einem kleinen exzellenten. Wer knappes
+#: Kapital verteilt, schaut auf das erste; wer den Portfoliowert
+#: maximiert, auf das zweite.
+LANDKARTE_ACHSEN: dict[str, tuple[str, str]] = {
+    "invest_eur_kwp": ("diagramme.achse_spezifisches_invest", "%{x:,.0f} €/kWp"),
+    "npv_eur": ("diagramme.achse_deckungsbeitrag", "%{x:,.0f} €"),
+}
+
+#: Voreinstellung der x-Achse - die Sicht, mit der die Karte immer
+#: begonnen hat.
+LANDKARTE_X_STANDARD = "invest_eur_kwp"
+
+
 def portfolio_bubble_chart(
     df: pd.DataFrame,
     selected_id: str | None,
     fokus: str | None = None,
+    x_feld: str = LANDKARTE_X_STANDARD,
 ) -> go.Figure:
-    """Rendite-Risiko-Landkarte: spezifisches Invest (€/kWp) gegen
-    EK-Rendite, Blasengroesse = Anlagenleistung, Farbe = Anlagentyp.
+    """Rendite-Risiko-Landkarte: EK-Rendite ueber einer waehlbaren
+    x-Achse (spezifisches Invest oder Deckungsbeitrag, siehe
+    `LANDKARTE_ACHSEN`), Blasengroesse = Anlagenleistung, Farbe =
+    Anlagentyp.
 
     Gezeigt wird je Projekt nur die LEITVARIANTE. Die uebrigen Rechnungen
     stehen im Hover - zwoelf Blasen mit sechs Verbindungslinien waren mit
@@ -676,11 +818,18 @@ def portfolio_bubble_chart(
     Hintergrund liegen, aendert an der Lesbarkeit nichts.
 
     Erwartete Spalten: id, name (Beschriftung), kennung, typ, kwp,
-    irr_pct, invest_eur_kwp, leitfall (bool), varianten (Hover-Text).
+    irr_pct, invest_eur_kwp, npv_eur, leitfall (bool), varianten
+    (Hover-Text).
 
     Robust gegenueber einem leeren DataFrame - eine leere Figure ohne
     Fehler statt eines KeyError beim Spaltenzugriff."""
     fig = go.Figure()
+    # Eine unbekannte Achse faellt auf die Voreinstellung zurueck: Der
+    # Wunsch kommt aus einem Widget, und ein leerer Wert (abgewaehltes
+    # Segment) darf die Karte nicht zerlegen.
+    if x_feld not in LANDKARTE_ACHSEN or x_feld not in df.columns:
+        x_feld = LANDKARTE_X_STANDARD
+    x_titel, x_hover = LANDKARTE_ACHSEN[x_feld]
     if df.empty:
         fig.update_layout(height=420)
         return fig
@@ -690,34 +839,66 @@ def portfolio_bubble_chart(
 
     # Pfad nur fuer den fokussierten Standort - eine Linie statt sechs.
     if fokus and im_fokus.sum() > 1:
-        geordnet = df[im_fokus].sort_values("invest_eur_kwp")
+        geordnet = df[im_fokus].sort_values(x_feld)
         fig.add_scatter(
-            x=geordnet["invest_eur_kwp"], y=geordnet["irr_pct"], mode="lines",
+            x=geordnet[x_feld], y=geordnet["irr_pct"], mode="lines",
             line=dict(color=Colors.BRAND, width=1.8),
             hoverinfo="skip", showlegend=False,
         )
+
+    # Beschriftungen einmal ueber ALLE sichtbaren Punkte planen - die
+    # Aufteilung nach Anlagentyp weiter unten ist eine Frage der Farbe,
+    # nicht der Platzierung. Der groesste Punkt kommt zuerst dran.
+    def _spanne(spalte):
+        werte = sichtbar[spalte]
+        weite = float(werte.max() - werte.min())
+        return float(werte.min()), (weite or 1.0)
+
+    x0, xw = _spanne(x_feld)
+    y0, yw = _spanne("irr_pct")
+    groesste = float(df["kwp"].max()) or 1.0
+
+    def _blasenanteil(kwp: float) -> float:
+        """Radius dieser Blase im Verhaeltnis zur groessten - dieselbe
+        Wurzelskala, die Plotly aus sizemode="area" ableitet."""
+        return max((float(kwp) / groesste) ** 0.5, _BLASE_MINDESTANTEIL)
+
+    geplant = [
+        {
+            "id": z["id"],
+            "text": (
+                (z["variante"] if (fokus and z["kennung"] == fokus) else z["name"])
+                if (not fokus) or z["kennung"] == fokus else ""
+            ),
+            "nx": (z[x_feld] - x0) / xw,
+            "ny": (z["irr_pct"] - y0) / yw,
+            "hx": _BLASE_BREITE / 2 * _blasenanteil(z["kwp"]),
+            "hy": _BLASE_HOEHE / 2 * _blasenanteil(z["kwp"]),
+        }
+        for _, z in sichtbar.sort_values("kwp", ascending=False).iterrows()
+    ]
+    positionen = beschriftungsplaetze(geplant)
+    texte = {p["id"]: p["text"] for p in geplant}
 
     for typ, farbe in [("Agri-PV", Colors.BRAND), ("Konventionell", Colors.INK_SOFT)]:
         teil = sichtbar[sichtbar["typ"] == typ]
         if teil.empty:
             continue
         gedimmt = bool(fokus)
-        beschriftung, deckkraft, textfarben = [], [], []
+        beschriftung, deckkraft, textfarben, textlagen = [], [], [], []
         for _, z in teil.iterrows():
             aktiv = (not gedimmt) or z["kennung"] == fokus
-            # Im Fokusmodus traegt die aufgeklappte Rechnung ihren
-            # Variantennamen - die Standortbeschriftung staende sonst
-            # mehrfach uebereinander.
-            beschriftung.append(
-                (z["variante"] if (fokus and z["kennung"] == fokus)
-                 else z["name"]) if aktiv else ""
-            )
+            lage = positionen.get(z["id"], "")
+            # Ohne freien Platz bleibt der Name weg - er steht im Hover,
+            # ein Textklumpen hilft niemandem.
+            beschriftung.append(texte.get(z["id"], "") if lage else "")
+            textlagen.append(lage or "top center")
             deckkraft.append(0.75 if aktiv else 0.18)
             textfarben.append(Colors.BRAND if (fokus and aktiv) else Colors.MUTED)
         fig.add_scatter(
-            x=teil["invest_eur_kwp"], y=teil["irr_pct"],
+            x=teil[x_feld], y=teil["irr_pct"],
             mode="markers+text", name=typ,
-            text=beschriftung, textposition="top center",
+            text=beschriftung, textposition=textlagen,
             textfont=dict(size=11, color=textfarben),
             customdata=teil[["kwp", "kennung", "varianten"]],
             marker=dict(
@@ -733,15 +914,21 @@ def portfolio_bubble_chart(
                 ),
             ),
             hovertemplate=(
-                "<b>%{customdata[1]}</b><br>%{x:,.0f} €/kWp · %{y:,.2f} % IRR · "
+                f"<b>%{{customdata[1]}}</b><br>{x_hover} · %{{y:,.2f}} % IRR · "
                 "%{customdata[0]:,.0f} kWp%{customdata[2]}<extra></extra>"
             ),
         )
     fig.update_layout(
         height=460,
-        xaxis_title="Spezifisches Invest (€/kWp)",
-        yaxis=dict(title="EK-Rendite", ticksuffix=" %"),
+        xaxis_title=txt(x_titel),
+        yaxis=dict(title=txt("diagramme.achse_ek_rendite"), ticksuffix=" %"),
     )
+    # Beim Deckungsbeitrag markiert die Null die Schwelle, ab der ein
+    # Projekt seine Kapitalkosten verdient - links davon vernichtet es
+    # Wert. Beim spezifischen Invest gibt es keine solche Grenze.
+    if x_feld == "npv_eur" and float(sichtbar[x_feld].min()) < 0:
+        fig.add_vline(x=0, line=dict(color=Colors.NEGATIVE, width=1.2,
+                                     dash="dot"))
     return fig
 
 

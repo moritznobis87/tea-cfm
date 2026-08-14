@@ -90,3 +90,8 @@ achse_irr_kurz: "Rentabilidad del capital propio"
 # --- Variantenvergleich ------------------------------------------------------
 serie_cash_trap: "Cash trap {wert}x"
 serie_event_of_default: "Incumplimiento {wert}x"
+
+# --- Rendite-Risiko-Landkarte ------------------------------------------------
+achse_ek_rendite: "Rentabilidad del capital propio"
+achse_spezifisches_invest: "Inversión específica (€/kWp)"
+achse_deckungsbeitrag: "Margen de contribución – VAN (€)"

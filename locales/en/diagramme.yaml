@@ -89,3 +89,8 @@ achse_irr_kurz: "Equity return"
 # --- Variantenvergleich ------------------------------------------------------
 serie_cash_trap: "Cash trap {wert}x"
 serie_event_of_default: "Event of default {wert}x"
+
+# --- Rendite-Risiko-Landkarte ------------------------------------------------
+achse_ek_rendite: "Equity return"
+achse_spezifisches_invest: "Specific capex (€/kWp)"
+achse_deckungsbeitrag: "Contribution – NPV (€)"

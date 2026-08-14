@@ -91,3 +91,8 @@ achse_irr_kurz: "EK-Rendite"
 # --- Variantenvergleich ------------------------------------------------------
 serie_cash_trap: "Cash Trap {wert}x"
 serie_event_of_default: "Event of Default {wert}x"
+
+# --- Rendite-Risiko-Landkarte ------------------------------------------------
+achse_ek_rendite: "EK-Rendite"
+achse_spezifisches_invest: "Spezifisches Invest (€/kWp)"
+achse_deckungsbeitrag: "Deckungsbeitrag – NPV (€)"

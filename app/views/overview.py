@@ -31,54 +31,6 @@ from texte import txt
 _KARTEN_JE_REIHE = 4
 
 
-def _projektkarte(z: dict, selected: str | None) -> None:
-    """Eine Projektkarte samt Oeffnen-Knopf."""
-    project = z["projekt"]
-    kpis = z["kpis"]
-    ist_agri = project.anlagentyp == AnlagenTyp.AGRI_PV
-    typ_badge = (badge(txt("oberflaeche.badge_agri"), "agri") if ist_agri
-                 else badge(txt("oberflaeche.badge_konventionell"), "konv"))
-    if not project.aktiv:
-        typ_badge += " " + badge(txt("oberflaeche.badge_inaktiv"), "inaktiv")
-    klassen = "project-card"
-    if z["id"] == selected:
-        klassen += " selected"
-    if not project.aktiv:
-        klassen += " inaktiv"
-    # Die Variante steht in der Unterzeile, nicht im Titel: Sonst waeren
-    # drei Karten desselben Standorts nur an ihrem abgeschnittenen
-    # Namensende auseinanderzuhalten.
-    # Eigene Zeile statt Anhaengsel der technischen Zeile: Diese ist auf
-    # eine Zeile gekuerzt, ein angehaengtes Kennzeichen fiele bei langen
-    # Namen der Kuerzung zum Opfer - und genau dann wird es gebraucht.
-    # Die Zeile haengt ohne Umbruch am vorigen Element: Eine leere Zeile
-    # gefolgt von eingerueckten Zeilen liest Markdown als Codeblock, und
-    # die Karte zeigte dann ihren eigenen HTML-Quelltext.
-    variante_zeile = (
-        f'<div class="card-variante">{html.escape(project.variantenlabel)}</div>'
-        if project.variante else ""
-    )
-    st.markdown(
-        f'''<div class="{klassen}" title="{html.escape(project.anzeigename)}">
-        <div class="card-kopf">
-          <span class="card-title">{html.escape(project.name)}</span>
-          <span class="card-badges">{typ_badge}</span>
-        </div>{variante_zeile}
-        <span class="card-sub">{fmt_kwp(project.nennleistung_kwp)} · IBN {project.inbetriebnahme_jahr}</span>
-        <div class="card-kpi-zeile">
-          <span class="card-kpi">{fmt_pct(kpis.equity_irr)}</span>
-          <span class="card-kpi-label">Equity IRR</span>
-        </div>
-        <span class="card-sub">Equity {fmt_eur(kpis.eigenkapital_eur)}</span>
-        </div>''',
-        unsafe_allow_html=True,
-    )
-    if st.button(txt("oberflaeche.btn_oeffnen"), key=f"open_{z['id']}",
-                 width="stretch"):
-        st.session_state[STATE_SELECTED_PROJECT] = z["id"]
-        router.gehe_zu("projekt", projekt_id=z["id"])
-
-
 def _standortkarte(gruppe: dict, selected: str | None) -> None:
     """Eine Karte je Standort - mit der Spanne der Varianten statt einer
     einzelnen Zahl.
@@ -187,16 +139,51 @@ def _variantentabelle(gruppen: list[dict], ziel_pct: float,
 #: Session-State-Schluessel des aufgeklappten Standorts der Landkarte.
 STATE_KARTEN_FOKUS = "landkarte_fokus"
 
+#: Beschriftung und Erlaeuterung der beiden x-Achsen, je Datenspalte.
+_X_ACHSEN = {
+    "invest_eur_kwp": ("oberflaeche.karte_x_invest",
+                       "oberflaeche.karte_hilfe_invest"),
+    "npv_eur": ("oberflaeche.karte_x_npv", "oberflaeche.karte_hilfe_npv"),
+}
+
+
+def _achsenwahl() -> str:
+    """Umschalter der x-Achse; gibt die zu plottende Spalte zurueck.
+
+    Rendite ueber spezifischem Invest beantwortet die Frage nach der
+    Effizienz, Rendite ueber Deckungsbeitrag die nach dem Betrag - beide
+    Sichten ordnen dieselbe Pipeline unterschiedlich, ein grosses
+    mittelmaessiges Projekt liegt in der zweiten vorn. Deshalb ein
+    Umschalter und keine zweite Karte: Die Blasen bleiben dieselben, nur
+    ihre Position aendert sich, und der Vergleich beider Sichten ist ein
+    Klick statt eines Bildwechsels.
+    """
+    beschriftungen = {txt(label): feld for feld, (label, _) in _X_ACHSEN.items()}
+    wahl = st.segmented_control(
+        txt("oberflaeche.karte_x_titel"),
+        list(beschriftungen),
+        default=txt(_X_ACHSEN[charts.LANDKARTE_X_STANDARD][0]),
+        key="landkarte_x_achse",
+        help=txt("oberflaeche.karte_x_hilfe"),
+    )
+    # Ein abgewaehltes Segment liefert None - dann bleibt die Karte auf
+    # der Voreinstellung statt leer zu laufen.
+    return beschriftungen.get(wahl, charts.LANDKARTE_X_STANDARD)
+
 
 def _landkarte(tabelle: pd.DataFrame, gruppen: list[dict],
-               labels: dict[str, str], selected: str | None) -> None:
-    """Landkarte mit aufklappbarem Standort.
+               labels: dict[str, str], selected: str | None,
+               ziel_pct: float) -> None:
+    """Landkarte mit waehlbarer x-Achse und aufklappbarem Standort.
 
     Gezeigt wird je Projekt die Leitvariante; ein Klick auf eine Blase
     klappt genau diesen Standort auf. Hover kann in Plotly nur den
     Tooltip fuellen, keine Punkte hinzufuegen - deshalb der Klick, und
     deshalb steht die Variantenliste zusaetzlich im Tooltip.
     """
+    x_feld = _achsenwahl()
+    st.caption(txt(_X_ACHSEN[x_feld][1], ziel=fmt_pct(ziel_pct, 1)))
+
     mit_varianten = {g["standort"] for g in gruppen if len(g["varianten"]) > 1}
     fokus = st.session_state.get(STATE_KARTEN_FOKUS)
     if fokus not in mit_varianten:
@@ -219,7 +206,7 @@ def _landkarte(tabelle: pd.DataFrame, gruppen: list[dict],
         st.caption(txt("oberflaeche.karte_fokus_hinweis"))
 
     ereignis = st.plotly_chart(
-        charts.portfolio_bubble_chart(tabelle, selected, fokus),
+        charts.portfolio_bubble_chart(tabelle, selected, fokus, x_feld),
         width="stretch", key="landkarte", on_select="rerun",
         selection_mode="points",
     )
@@ -270,30 +257,13 @@ def render_overview() -> None:
             }
         )
 
-    # --- Sichtwahl -----------------------------------------------------------
-    # Standorte: je Feld die Leitvariante. Alle Varianten: jede Rechnung
-    # einzeln. Der Unterschied ist keine Darstellungsfrage - er entscheidet,
-    # ob ein Standort mit drei Sensitivitaeten in Leistung, Investitions-
-    # volumen und Eigenkapital dreifach zaehlt.
-    hat_varianten = any(len(g["varianten"]) > 1 for g in gruppen)
-    sicht = "standorte"
-    if hat_varianten:
-        wahl = st.segmented_control(
-            txt("oberflaeche.portfolio_sicht_label"),
-            [txt("oberflaeche.portfolio_sicht_standorte"),
-             txt("oberflaeche.portfolio_sicht_varianten")],
-            default=txt("oberflaeche.portfolio_sicht_standorte"),
-            key="portfolio_sicht", label_visibility="collapsed",
-            help=txt("oberflaeche.portfolio_sicht_hilfe"),
-        )
-        if wahl == txt("oberflaeche.portfolio_sicht_varianten"):
-            sicht = "varianten"
-
-    if sicht == "standorte":
-        leit_ids = {g["leit"].id for g in gruppen}
-        basis = [z for z in zeilen if z["id"] in leit_ids]
-    else:
-        basis = zeilen
+    # Grundlage aller Portfoliozahlen ist je Projekt die Leitvariante.
+    # Eine zweite Sicht "alle Varianten" gab es hier einmal; sie zeigte
+    # Summen, in denen ein Projekt mit drei Sensitivitaeten dreifach
+    # zaehlt - eine Zahl, die niemand braucht. Die einzelnen Rechnungen
+    # stehen im Analytik-Reiter "Varianten".
+    leit_ids = {g["leit"].id for g in gruppen}
+    basis = [z for z in zeilen if z["id"] in leit_ids]
 
     # --- Portfolio-KPIs ------------------------------------------------------
     aktive = [z for z in basis if z["projekt"].aktiv]
@@ -390,6 +360,7 @@ def render_overview() -> None:
                 else "Konventionell",
                 "kwp": z["projekt"].nennleistung_kwp,
                 "irr_pct": (z["kpis"].equity_irr or 0) * 100,
+                "npv_eur": z["kpis"].npv_eur,
                 "invest_eur_kwp": (
                     z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
                     if z["projekt"].nennleistung_kwp
@@ -428,8 +399,9 @@ def render_overview() -> None:
         txt("oberflaeche.portfolio_tab_varianten"),
     ])
     with tab_karte:
-        st.caption(txt("oberflaeche.overview_bubble_hilfe"))
-        _landkarte(landkarte, gruppen, labels, selected)
+        # Der erlaeuternde Satz steht in _landkarte: Er haengt an der
+        # gewaehlten x-Achse, und die waehlt der Umschalter dort.
+        _landkarte(landkarte, gruppen, labels, selected, ziel_pct)
     with tab_rangliste:
         st.caption(txt("oberflaeche.portfolio_rangliste_hilfe"))
         st.plotly_chart(
@@ -485,7 +457,11 @@ def render_overview() -> None:
             hide_index=True,
         )
     with tab_varianten:
-        st.caption(txt("oberflaeche.portfolio_varianten_hilfe"))
+        st.caption(
+            txt("oberflaeche.portfolio_varianten_hilfe",
+                ziel=fmt_pct(ziel_pct, 1),
+                dscr=fmt_number(ga.dscr_cash_trap, 2))
+        )
         _variantentabelle(gruppen, ziel_pct, ga.dscr_cash_trap)
 
     # --- Projektkarten ------------------------------------------------------
@@ -496,14 +472,8 @@ def render_overview() -> None:
     # aus; die feste Kartenhoehe (app/theme.py) sorgt fuer eine gerade
     # Unterkante, auch wenn ein Projektname laenger ist als der andere.
     st.subheader(txt("oberflaeche.overview_projekte_titel"))
-    if sicht == "standorte":
-        karten = [(g, _standortkarte) for g in gruppen]
-    else:
-        karten = [(z, _projektkarte) for z in zeilen]
-    for reihe in range(0, len(karten), _KARTEN_JE_REIHE):
+    for reihe in range(0, len(gruppen), _KARTEN_JE_REIHE):
         cols = st.columns(_KARTEN_JE_REIHE)
-        for spalte, (eintrag, zeichne) in enumerate(
-            karten[reihe:reihe + _KARTEN_JE_REIHE]
-        ):
+        for spalte, gruppe in enumerate(gruppen[reihe:reihe + _KARTEN_JE_REIHE]):
             with cols[spalte]:
-                zeichne(eintrag, selected)
+                _standortkarte(gruppe, selected)

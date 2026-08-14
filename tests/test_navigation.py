@@ -316,7 +316,7 @@ class TestKachelraster:
             encoding="utf-8"
         )
         block = quelle[quelle.index("# --- Projektkarten"):]
-        assert "for reihe in range(0, len(karten), _KARTEN_JE_REIHE)" in block
+        assert "for reihe in range(0, len(gruppen), _KARTEN_JE_REIHE)" in block
         # Der alte Modulo-Griff darf nicht zurueckkehren.
         assert "i % len(cols)" not in block
 
