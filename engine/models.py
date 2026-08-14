@@ -283,6 +283,16 @@ class PVProject(BaseModel):
     #: sind zwei Anlagentypen, keine Sensitivitaeten - das kann nur der
     #: Nutzer entscheiden.
     variante: str = ""
+    #: Kurzbezeichnung des Ortes, z.B. "St. Georgen" zur Projektkennung
+    #: "OÖ_St.Georgen_Spitzwieser". Sie ist die Beschriftung in
+    #: Diagrammen: Die vollstaendige Kennung traegt Bundesland und
+    #: Grundeigentuemer und ist dort zu lang - in einer Punktwolke mit
+    #: dreissig Projekten ueberlagern sich die Namen sonst.
+    #: Leer = die Kennung wird auch als Beschriftung verwendet.
+    #: Teilen sich mehrere Projekte einen Standort, nummeriert die
+    #: Anzeige durch ("St. Georgen I", "St. Georgen II") - siehe
+    #: services.standort_labels.
+    standort: str = ""
     #: Traegt diese Variante die Entscheidung fuer ihren Standort?
     #: Nur die Leitvariante geht in die Portfolio-Kennzahlen und in die
     #: Pipeline ein - ohne sie zaehlte ein Standort mit drei
@@ -342,7 +352,7 @@ class PVProject(BaseModel):
     # pacht_mindestpacht_eur_ha_jahr) - sollte dort gesetzt sein.
     projektflaeche_ha: float | None = None
 
-    @field_validator("name", "variante", mode="before")
+    @field_validator("name", "variante", "standort", mode="before")
     @classmethod
     def _trimmen(cls, wert):
         """Fuehrende/nachlaufende Leerzeichen wuerden zwei Varianten

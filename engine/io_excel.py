@@ -314,7 +314,7 @@ PROJEKT_SPALTEN = [
     # "name" ist der Standort, "variante" die Sensitivitaet an diesem
     # Standort (leer = Grundfall). Zwei Zeilen mit gleichem Namen und
     # verschiedener Variante sind zwei Rechnungen desselben Projekts.
-    "id", "name", "variante", "leitvariante",
+    "id", "name", "standort", "variante", "leitvariante",
     "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
     "anlagentyp",
     "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
@@ -357,6 +357,9 @@ OPTIONALE_PROJEKT_SPALTEN = frozenset(
         # seit v5.2 (Leitvariante je Standort); fehlt sie, gilt je
         # Standort die erste Variante als Leitfall
         "leitvariante",
+        # seit v5.3 (Kurzbezeichnung des Ortes); fehlt sie, wird die
+        # Projektkennung auch als Beschriftung verwendet
+        "standort",
     }
 )
 
@@ -432,6 +435,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
         {
             "id": p.id,
             "name": p.name,
+            "standort": p.standort,
             "variante": p.variante,
             "leitvariante": p.leitvariante,
             "aktiv": p.aktiv,
@@ -500,6 +504,7 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
             PVProject(
                 id=str(r["id"]),
                 name=str(r["name"]),
+                standort=_text(r, "standort"),
                 variante=_text(r, "variante"),
                 leitvariante=_wahrheitswert(r, "leitvariante"),
                 aktiv=bool(r.get("aktiv", True))

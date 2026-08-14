@@ -660,59 +660,66 @@ def varianten_kumuliert_chart(reihen: list[tuple[str, pd.DataFrame]]) -> go.Figu
 def portfolio_bubble_chart(
     df: pd.DataFrame,
     selected_id: str | None,
-    hervorheben: set[str] | None = None,
+    fokus: str | None = None,
 ) -> go.Figure:
-    """Rendite-Risiko-Landkarte des Portfolios: spezifisches Invest
-    (€/kWp) gegen EK-Rendite, Blasengröße = Anlagenleistung, Farbe =
-    Anlagentyp. Das ausgewählte Projekt ist umrandet.
+    """Rendite-Risiko-Landkarte: spezifisches Invest (€/kWp) gegen
+    EK-Rendite, Blasengroesse = Anlagenleistung, Farbe = Anlagentyp.
 
-    hervorheben: ids, die ausgeschrieben und voll deckend gezeichnet
-    werden (die Leitvarianten). Alle uebrigen Rechnungen bleiben
-    sichtbar, treten aber zurueck - sie sind der Moeglichkeitsraum eines
-    Standorts, nicht dessen Zahl. Ohne Angabe sind alle gleichrangig.
+    Gezeigt wird je Projekt nur die LEITVARIANTE. Die uebrigen Rechnungen
+    stehen im Hover - zwoelf Blasen mit sechs Verbindungslinien waren mit
+    wachsender Pipeline nicht mehr zu lesen, und die Namen ueberlagerten
+    einander.
 
-    Robust gegenueber einem leeren DataFrame (z.B. wenn alle Projekte
-    ueber den Inaktiv-Filter ausgeblendet sind) - eine leere Figure
-    ohne Fehler statt eines KeyError beim Spaltenzugriff."""
+    fokus: Projektkennung, deren Varianten aufgeklappt werden. Nur dieser
+    eine Standort zeigt dann alle Rechnungen samt Pfad; alle uebrigen
+    treten zurueck. Das skaliert: Ob sechs oder sechzig blasse Punkte im
+    Hintergrund liegen, aendert an der Lesbarkeit nichts.
+
+    Erwartete Spalten: id, name (Beschriftung), kennung, typ, kwp,
+    irr_pct, invest_eur_kwp, leitfall (bool), varianten (Hover-Text).
+
+    Robust gegenueber einem leeren DataFrame - eine leere Figure ohne
+    Fehler statt eines KeyError beim Spaltenzugriff."""
     fig = go.Figure()
     if df.empty:
         fig.update_layout(height=420)
         return fig
-    # Variantenpfade zuerst, damit die Blasen darueber liegen: Eine duenne
-    # Linie verbindet die Rechnungen desselben Standorts. Ohne sie sind
-    # zwoelf Punkte zwoelf Projekte - mit ihr sieht man, dass drei davon
-    # dasselbe Feld unter anderen Annahmen sind.
-    if "standort" in df.columns:
-        for _, gruppe in df.groupby("standort"):
-            if len(gruppe) < 2:
-                continue
-            geordnet = gruppe.sort_values("invest_eur_kwp")
-            fig.add_scatter(
-                x=geordnet["invest_eur_kwp"], y=geordnet["irr_pct"],
-                mode="lines", line=dict(color=Colors.SOFT, width=1.6),
-                hoverinfo="skip", showlegend=False,
-            )
+
+    im_fokus = df["kennung"] == fokus if fokus else df["kennung"].isin([])
+    sichtbar = df[df["leitfall"] | im_fokus]
+
+    # Pfad nur fuer den fokussierten Standort - eine Linie statt sechs.
+    if fokus and im_fokus.sum() > 1:
+        geordnet = df[im_fokus].sort_values("invest_eur_kwp")
+        fig.add_scatter(
+            x=geordnet["invest_eur_kwp"], y=geordnet["irr_pct"], mode="lines",
+            line=dict(color=Colors.BRAND, width=1.8),
+            hoverinfo="skip", showlegend=False,
+        )
+
     for typ, farbe in [("Agri-PV", Colors.BRAND), ("Konventionell", Colors.INK_SOFT)]:
-        teil = df[df["typ"] == typ]
+        teil = sichtbar[sichtbar["typ"] == typ]
         if teil.empty:
             continue
-        # Beschriftung nur an den hervorgehobenen Punkten: Zwoelf
-        # ausgeschriebene Namen ueberlagern einander und machen die
-        # Landkarte unlesbar - der Rest steht im Hover.
-        beschriftung = [
-            name if (hervorheben is None or pid in hervorheben) else ""
-            for pid, name in zip(teil["id"], teil["name"], strict=False)
-        ]
-        deckkraft = [
-            0.75 if (hervorheben is None or pid in hervorheben) else 0.3
-            for pid in teil["id"]
-        ]
+        gedimmt = bool(fokus)
+        beschriftung, deckkraft, textfarben = [], [], []
+        for _, z in teil.iterrows():
+            aktiv = (not gedimmt) or z["kennung"] == fokus
+            # Im Fokusmodus traegt die aufgeklappte Rechnung ihren
+            # Variantennamen - die Standortbeschriftung staende sonst
+            # mehrfach uebereinander.
+            beschriftung.append(
+                (z["variante"] if (fokus and z["kennung"] == fokus)
+                 else z["name"]) if aktiv else ""
+            )
+            deckkraft.append(0.75 if aktiv else 0.18)
+            textfarben.append(Colors.BRAND if (fokus and aktiv) else Colors.MUTED)
         fig.add_scatter(
             x=teil["invest_eur_kwp"], y=teil["irr_pct"],
             mode="markers+text", name=typ,
             text=beschriftung, textposition="top center",
-            textfont=dict(size=11, color=Colors.MUTED),
-            customdata=teil[["kwp", "name"]],
+            textfont=dict(size=11, color=textfarben),
+            customdata=teil[["kwp", "kennung", "varianten"]],
             marker=dict(
                 size=teil["kwp"], sizemode="area",
                 sizeref=2.0 * df["kwp"].max() / (46.0**2), sizemin=8,
@@ -726,8 +733,8 @@ def portfolio_bubble_chart(
                 ),
             ),
             hovertemplate=(
-                "%{customdata[1]}<br>%{x:,.0f} €/kWp · %{y:,.2f} % IRR · "
-                "%{customdata[0]:,.0f} kWp<extra></extra>"
+                "<b>%{customdata[1]}</b><br>%{x:,.0f} €/kWp · %{y:,.2f} % IRR · "
+                "%{customdata[0]:,.0f} kWp%{customdata[2]}<extra></extra>"
             ),
         )
     fig.update_layout(
@@ -738,33 +745,82 @@ def portfolio_bubble_chart(
     return fig
 
 
-def portfolio_ranking_chart(df: pd.DataFrame, selected_id: str | None) -> go.Figure:
-    """Projekt-Ranking nach EK-Rendite (horizontal, aufsteigend sortiert)."""
-    sortiert = df.sort_values("irr_pct", ascending=True)
-    farben = [
-        Colors.BRAND if pid == selected_id else Colors.INK_SOFT
-        for pid in sortiert["id"]
+def portfolio_rangliste_chart(
+    zeilen: list[dict], ziel_pct: float, selected_id: str | None = None
+) -> go.Figure:
+    """Eine Zeile je Projekt, nach Rendite sortiert.
+
+    Der Ausweg aus dem Beschriftungsproblem: Die Namen stehen in der
+    Achse und koennen sich nicht ueberlagern - auch bei vierzig
+    Projekten nicht. Die Varianten liegen als offene Punkte auf
+    derselben Zeile, verbunden durch die Spanne.
+
+    zeilen: je Projekt {label, kennung, leit_irr, leit_id, varianten:
+    [(variantenname, irr)]}.
+    """
+    fig = go.Figure()
+    if not zeilen:
+        fig.update_layout(height=220)
+        return fig
+
+    geordnet = sorted(zeilen, key=lambda z: z["leit_irr"] or 0)
+    y = [z["label"] for z in geordnet]
+
+    for i, z in enumerate(geordnet):
+        werte = [irr for _, irr in z["varianten"] if irr is not None]
+        if len(werte) > 1:
+            fig.add_scatter(
+                x=[min(werte), max(werte)], y=[y[i], y[i]], mode="lines",
+                line=dict(color=Colors.SOFT, width=5),
+                hoverinfo="skip", showlegend=False,
+            )
+    neben = [
+        (z["label"], name, irr)
+        for z in geordnet for name, irr in z["varianten"]
+        if irr is not None and irr != z["leit_irr"]
     ]
-    fig = go.Figure(
-        go.Bar(
-            x=sortiert["irr_pct"], y=sortiert["name"], orientation="h",
-            marker_color=farben,
-            text=[f"{v:,.2f} %".replace(".", ",") for v in sortiert["irr_pct"]],
-            textposition="outside",
-            hovertemplate="%{y}: %{x:,.2f} % IRR<extra></extra>",
+    if neben:
+        fig.add_scatter(
+            x=[irr for _, _, irr in neben], y=[label for label, _, _ in neben],
+            mode="markers", name="Varianten",
+            marker=dict(size=9, color=Colors.PAPER,
+                        line=dict(color=Colors.BRAND, width=1.6)),
+            customdata=[name for _, name, _ in neben],
+            hovertemplate="%{customdata}: %{x:,.2f} %<extra></extra>",
         )
+    fig.add_scatter(
+        x=[z["leit_irr"] for z in geordnet], y=y, mode="markers+text",
+        name="Leitvariante",
+        marker=dict(
+            size=15, color=Colors.BRAND,
+            line=dict(
+                width=[3 if z["leit_id"] == selected_id else 0 for z in geordnet],
+                color=Colors.INK,
+            ),
+        ),
+        text=[f"{(z['leit_irr'] or 0):,.2f} %".replace(".", ",") for z in geordnet],
+        textposition="middle right", textfont=dict(size=11, color=Colors.INK),
+        customdata=[z["kennung"] for z in geordnet],
+        hovertemplate="<b>%{customdata}</b>: %{x:,.2f} % IRR<extra></extra>",
+    )
+    fig.add_vline(
+        x=ziel_pct * 100, line=dict(color=Colors.BRAND, width=1.2, dash="dash"),
+        annotation_text=f"Ziel {ziel_pct * 100:,.1f} %".replace(".", ","),
+        annotation_position="top", annotation_font=dict(size=10, color=Colors.BRAND),
     )
     fig.update_layout(
-        height=max(220, 60 + 42 * len(sortiert)),
+        height=max(240, 70 + 46 * len(geordnet)),
         xaxis=dict(title="EK-Rendite", ticksuffix=" %"),
-        yaxis_title="", showlegend=False,
+        # Reihenfolge explizit setzen: Plotly ordnet Kategorien sonst nach
+        # ihrem ERSTEN Auftreten - und das sind die Spannenbalken, die es
+        # nur bei Projekten mit mehreren Varianten gibt. Die Rangfolge
+        # waere damit keine.
+        yaxis=dict(title="", type="category", categoryorder="array",
+                   categoryarray=y),
+        showlegend=False,
+        margin=dict(r=70),
     )
     return fig
-
-
-# ===========================================================================
-# Ausschreibungssimulation (EAG-Gebotsmodell)
-# ===========================================================================
 
 
 def auktion_historie_chart(df: pd.DataFrame) -> go.Figure:

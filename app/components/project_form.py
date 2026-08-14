@@ -215,6 +215,15 @@ def _felder(
         key=f"{form_key}_name",
         help=txt("oberflaeche.formular_name_hilfe"),
     )
+    # Der Standort ist die Kurzbezeichnung fuer Diagramme - die
+    # vollstaendige Kennung darueber ist als Punktbeschriftung zu lang.
+    standort = st.text_input(
+        txt("oberflaeche.formular_standort_label"),
+        value=existing.standort if existing else "",
+        placeholder=txt("oberflaeche.formular_standort_platzhalter"),
+        key=f"{form_key}_standort",
+        help=txt("oberflaeche.formular_standort_hilfe"),
+    )
     # Der Variantenname macht die Sensitivitaet benennbar. Er darf leer
     # bleiben - das ist der Grundfall des Standorts; die Oberflaeche
     # nennt ihn "Basis".
@@ -633,6 +642,7 @@ def _felder(
     return PVProject(
         id=project_id,
         name=name.strip(),
+        standort=standort.strip(),
         variante=variante.strip(),
         # Ohne diese Uebernahme wuerde jedes Speichern aus der
         # Parameterspalte ein stillgelegtes Projekt wieder aktivieren -

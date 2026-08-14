@@ -79,7 +79,7 @@ class TestModell:
 
 class TestExcel:
     def test_spalte_steht_direkt_hinter_dem_namen(self):
-        assert PROJEKT_SPALTEN[1:3] == ["name", "variante"]
+        assert PROJEKT_SPALTEN[1:4] == ["name", "standort", "variante"]
 
     def test_rundlauf(self):
         projekte = [
@@ -494,53 +494,146 @@ class TestVergleichssicht:
         )
 
 
-class TestLandkarte:
-    """Die Rendite-Risiko-Landkarte zeigt alle Rechnungen, auch in der
-    Sicht "Standorte" - erst dadurch entstehen die Variantenpfade, und
-    die Spannweite eines Standorts ist genau das, was diese Darstellung
-    zeigen kann."""
+class TestStandortbezeichnung:
+    """Projektkennung und Standort sind zwei Namen mit zwei Aufgaben.
+
+    Die Kennung ("OÖ_St.Georgen_Spitzwieser") steht in der Seitenleiste
+    und identifiziert; der Standort ("St. Georgen") beschriftet
+    Diagramme. Als Punktbeschriftung ist die Kennung zu lang - bei
+    dreissig Projekten ueberlagern sich die Namen.
+    """
+
+    def test_roemische_ziffern(self):
+        from app.services import roemisch
+
+        assert [roemisch(i) for i in (1, 2, 3, 4, 5, 9, 12)] == [
+            "I", "II", "III", "IV", "V", "IX", "XII",
+        ]
+
+    def test_einzelner_standort_ohne_nummer(self):
+        from app.services import standort_labels
+
+        a = _projekt("OÖ_St.Georgen_Spitzwieser", "", "a")
+        a.standort = "St. Georgen"
+        assert standort_labels([a]) == {"OÖ_St.Georgen_Spitzwieser": "St. Georgen"}
+
+    def test_mehrere_projekte_am_ort_werden_nummeriert(self):
+        from app.services import standort_labels
+
+        a = _projekt("OÖ_St.Georgen_Spitzwieser", "", "a")
+        b = _projekt("OÖ_St.Georgen_Huber", "", "b")
+        a.standort = b.standort = "St. Georgen"
+        labels = standort_labels([a, b])
+        assert labels["OÖ_St.Georgen_Spitzwieser"] == "St. Georgen I"
+        assert labels["OÖ_St.Georgen_Huber"] == "St. Georgen II"
+
+    def test_varianten_zaehlen_nicht_als_zweites_projekt(self):
+        """Drei Sensitivitaeten sind ein Feld - sie duerfen keine
+        Nummerierung ausloesen."""
+        from app.services import standort_labels
+
+        varianten = []
+        for i, name in enumerate(["", "Netz high", "Ziel"]):
+            v = _projekt("OÖ_St.Georgen_Spitzwieser", name, f"v{i}")
+            v.standort = "St. Georgen"
+            varianten.append(v)
+        assert set(standort_labels(varianten).values()) == {"St. Georgen"}
+
+    def test_ohne_standort_bleibt_die_kennung(self):
+        """Ein nie gepflegter Bestand verliert keine Beschriftung."""
+        from app.services import standort_labels
+
+        a = _projekt("OÖ_St.Georgen_Spitzwieser", "", "a")
+        assert standort_labels([a]) == {
+            "OÖ_St.Georgen_Spitzwieser": "OÖ_St.Georgen_Spitzwieser"
+        }
+
+    def test_excel_fuehrt_die_spalte(self):
+        assert PROJEKT_SPALTEN[1:4] == ["name", "standort", "variante"]
+        assert "standort" in OPTIONALE_PROJEKT_SPALTEN
+
+        a = _projekt("OÖ_St.Georgen_Spitzwieser", "", "a")
+        a.standort = "St. Georgen"
+        gelesen = excel_to_projects(projects_to_excel([a]))
+        assert gelesen[0].standort == "St. Georgen"
+
+    def test_datei_ohne_standortspalte_bleibt_lesbar(self):
+        import io
+
+        import pandas as pd
+
+        a = _projekt("Sonnenfeld", "", "a")
+        a.standort = "Sonnenfeld"
+        tabelle = pd.read_excel(
+            io.BytesIO(projects_to_excel([a])), sheet_name="Projekte"
+        ).drop(columns=["standort"])
+        puffer = io.BytesIO()
+        with pd.ExcelWriter(puffer, engine="openpyxl") as writer:
+            tabelle.to_excel(writer, sheet_name="Projekte", index=False)
+        assert excel_to_projects(puffer.getvalue())[0].standort == ""
+
+
+class TestLandkarteUndRangliste:
+    """Zwei Reiter statt einer ueberladenen Punktwolke."""
 
     def _tabelle(self):
         import pandas as pd
 
         return pd.DataFrame(
             [
-                {"id": "b1", "name": "Buchkirchen · Basis",
-                 "standort": "Buchkirchen", "typ": "Agri-PV", "kwp": 2800,
-                 "irr_pct": 9.8, "invest_eur_kwp": 596},
-                {"id": "b2", "name": "Buchkirchen · Netz high",
-                 "standort": "Buchkirchen", "typ": "Agri-PV", "kwp": 2800,
-                 "irr_pct": 6.5, "invest_eur_kwp": 640},
-                {"id": "a1", "name": "Amstetten", "standort": "Amstetten",
+                {"id": "b1", "name": "Buchkirchen", "kennung": "OÖ_Buchkirchen",
+                 "variante": "Basis", "leitfall": True, "varianten": "<br>…",
+                 "typ": "Agri-PV", "kwp": 2800, "irr_pct": 9.8,
+                 "invest_eur_kwp": 596},
+                {"id": "b2", "name": "Buchkirchen", "kennung": "OÖ_Buchkirchen",
+                 "variante": "Netz high", "leitfall": False, "varianten": "",
+                 "typ": "Agri-PV", "kwp": 2800, "irr_pct": 6.5,
+                 "invest_eur_kwp": 640},
+                {"id": "a1", "name": "Amstetten", "kennung": "NÖ_Amstetten",
+                 "variante": "Basis", "leitfall": True, "varianten": "",
                  "typ": "Agri-PV", "kwp": 2000, "irr_pct": 12.0,
                  "invest_eur_kwp": 540},
             ]
         )
 
-    def test_varianten_eines_standorts_sind_verbunden(self):
+    def test_ohne_fokus_nur_leitvarianten(self):
+        """Die uebrigen Rechnungen stehen im Tooltip, nicht als eigene
+        Blase - sonst waechst die Punktwolke mit jeder Sensitivitaet."""
         from app.components import charts
 
         fig = charts.portfolio_bubble_chart(self._tabelle(), None)
-        linien = [s for s in fig.data if s.mode == "lines"]
-        assert len(linien) == 1, "genau ein Pfad - Amstetten hat nur eine Rechnung"
-        assert list(linien[0].x) == [596, 640]
+        punkte = [s for s in fig.data if s.mode == "markers+text"]
+        gezeigt = {n for s in punkte for n in s.customdata[:, 1]}
+        assert gezeigt == {"OÖ_Buchkirchen", "NÖ_Amstetten"}
+        assert not [s for s in fig.data if s.mode == "lines"]
 
-    def test_leitvarianten_sind_beschriftet_der_rest_tritt_zurueck(self):
+    def test_fokus_klappt_genau_einen_standort_auf(self):
         from app.components import charts
 
-        fig = charts.portfolio_bubble_chart(self._tabelle(), None, {"b1", "a1"})
+        fig = charts.portfolio_bubble_chart(
+            self._tabelle(), None, fokus="OÖ_Buchkirchen"
+        )
+        assert len([s for s in fig.data if s.mode == "lines"]) == 1
         punkte = next(s for s in fig.data if s.mode == "markers+text")
-        beschriftet = dict(zip(punkte.customdata[:, 1], punkte.text, strict=False))
-        assert beschriftet["Buchkirchen · Basis"] == "Buchkirchen · Basis"
-        assert beschriftet["Buchkirchen · Netz high"] == ""
-        deckkraft = dict(zip(punkte.customdata[:, 1], punkte.marker.opacity,
-                             strict=False))
-        assert deckkraft["Buchkirchen · Netz high"] < deckkraft["Buchkirchen · Basis"]
+        beschriftet = {t for t in punkte.text if t}
+        # Im Fokus stehen die Variantennamen, sonst nichts.
+        assert beschriftet == {"Basis", "Netz high"}
 
-    def test_ohne_hervorhebung_sind_alle_gleichrangig(self):
+    def test_rangliste_ist_sortiert_und_zeigt_die_spanne(self):
         from app.components import charts
 
-        fig = charts.portfolio_bubble_chart(self._tabelle(), None)
-        punkte = next(s for s in fig.data if s.mode == "markers+text")
-        assert all(t for t in punkte.text)
-        assert len(set(punkte.marker.opacity)) == 1
+        fig = charts.portfolio_rangliste_chart(
+            [
+                {"label": "Buchkirchen", "kennung": "OÖ_Buchkirchen",
+                 "leit_id": "b1", "leit_irr": 9.8,
+                 "varianten": [("Basis", 9.8), ("Netz high", 6.5)]},
+                {"label": "Amstetten", "kennung": "NÖ_Amstetten",
+                 "leit_id": "a1", "leit_irr": 12.0,
+                 "varianten": [("Basis", 12.0)]},
+            ],
+            ziel_pct=0.08,
+        )
+        # Aufsteigend, damit die beste Zeile oben steht.
+        assert list(fig.layout.yaxis.categoryarray) == ["Buchkirchen", "Amstetten"]
+        spannen = [s for s in fig.data if s.mode == "lines"]
+        assert len(spannen) == 1 and list(spannen[0].x) == [6.5, 9.8]
