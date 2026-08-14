@@ -90,3 +90,8 @@ achse_irr_kurz: "Rendement des capitaux propres"
 # --- Variantenvergleich ------------------------------------------------------
 serie_cash_trap: "Cash trap {wert}x"
 serie_event_of_default: "Défaut {wert}x"
+
+# --- Rendite-Risiko-Landkarte ------------------------------------------------
+achse_ek_rendite: "Rendement des capitaux propres"
+achse_spezifisches_invest: "Investissement spécifique (€/kWc)"
+achse_deckungsbeitrag: "Marge – VAN (€)"

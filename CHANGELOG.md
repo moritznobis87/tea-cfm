@@ -1,5 +1,40 @@
 # Changelog
 
+## v5.3.1 – Zweite Achse für die Landkarte, Leitfall im Projekt (2026-08)
+
+Nachträge aus der Benutzung; die Rechenregeln sind unverändert.
+
+- **Die x-Achse der Rendite-Risiko-Landkarte ist umschaltbar**: neben dem
+  spezifischen Invest (€/kWp) jetzt auch der **Deckungsbeitrag (NPV)**.
+  Beide Sichten ordnen dieselbe Pipeline unterschiedlich – das
+  spezifische Invest misst die Effizienz unabhängig von der Größe, der
+  Deckungsbeitrag den absoluten Wertbeitrag, und dort liegt ein großes
+  mittelmäßiges Projekt vor einem kleinen exzellenten. Eine gestrichelte
+  Nulllinie markiert die Schwelle, ab der ein Projekt seine
+  Kapitalkosten verdient.
+- **Der Leitfall lässt sich im Projektfenster setzen.** Ein Stern
+  markiert in der Variantenreihe die Rechnung, die in die
+  Portfolio-Kennzahlen eingeht; der Knopf „★ Als Leitfall" macht die
+  geöffnete Variante dazu. Bisher gab es die Wahl nur in der
+  Vergleichssicht – dort sucht sie niemand.
+- **Beschriftungen der Landkarte überlappen nicht mehr.** Die
+  Platzsuche berücksichtigt jetzt die tatsächliche Blasengröße: Plotly
+  setzt den Text an den Rand des Markers, mit einer Einheitsblase
+  gerechnet landete das Label einer großen Blase genau dort, wo das der
+  kleinen Nachbarin lag. Bleibt kein freier Platz, wird der am wenigsten
+  verdeckte gewählt; findet sich gar keiner, entfällt der Name (er steht
+  im Tooltip).
+- **Sicht „Alle Varianten" aus der Portfolioübersicht entfernt**: Sie
+  summierte über alle Rechnungen, ein Standort mit drei Sensitivitäten
+  zählte dreifach. Die einzelnen Rechnungen stehen im Reiter
+  „Varianten".
+- **Reiter „Varianten" erklärt sich**: neuer Hilfetext mit den beiden
+  Schwellen im Klartext, und die Spalte „Ziel" heißt jetzt „Ziel
+  erfüllt" (angehakt, wenn Zielrendite *und* Cash-Trap-Schwelle
+  eingehalten sind).
+- 10 neue Tests (x-Achsenwahl samt Rückfall, Nulllinie, Platzsuche der
+  Beschriftungen, Leitfall in der Variantenreihe); Suite: 359.
+
 ## v5.3 – Standort als Kurzbezeichnung, Landkarte entlastet (2026-08)
 
 Mit zwölf Rechnungen war die Rendite-Risiko-Landkarte am Limit: sechs

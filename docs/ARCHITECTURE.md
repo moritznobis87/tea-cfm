@@ -137,7 +137,20 @@ ein Standort mit drei Sensitivitäten dreifach. Ist keine gesetzt, gilt
 die erste Variante (`services.leitvariante_von`); ein nie angefasster
 Bestand ist damit ohne Migration korrekt. `services.setze_leitvariante`
 schreibt die übrigen Varianten des Standorts mit – zwei Leitfälle
-ergäben zwei mögliche Portfoliozahlen.
+ergäben zwei mögliche Portfoliozahlen. Gesetzt wird sie in der
+Variantenreihe des Projektfensters (Stern am Reiter, Knopf „Als
+Leitfall"); die Vergleichssicht bietet dieselbe Wahl zusätzlich an.
+
+**Rendite-Risiko-Landkarte:** Die y-Achse ist immer die EK-Rendite, die
+x-Achse ist umschaltbar (`charts.LANDKARTE_ACHSEN`): spezifisches Invest
+(€/kWp) misst die Effizienz unabhängig von der Projektgröße, der
+Deckungsbeitrag (NPV) den absoluten Wertbeitrag – dort liegt ein großes
+mittelmäßiges Projekt vor einem kleinen exzellenten. Die Beschriftungen
+platziert `charts.beschriftungsplaetze()`: Plotly kennt nur neun starre
+Textpositionen je Punkt und kein Ausweichen, deshalb wird für jeden
+Namen der erste kollisionsfreie Platz gesucht (Blasengrößen gehen dabei
+ein, weil Plotly den Text an den Markerrand setzt) und der Name notfalls
+weggelassen – er steht im Tooltip.
 
 **Variantenvergleich:** `app/components/varianten.py` leitet die
 Unterschiede zwischen Varianten aus den Projektmodellen ab (kein

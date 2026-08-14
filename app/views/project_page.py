@@ -274,7 +274,16 @@ def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
 
     Jede Variante ist weiterhin ein eigenes Projekt mit eigener Adresse;
     der Reiter navigiert also schlicht zur Schwester-id.
+
+    Hier steht auch der Leitfall: Der Stern markiert die Rechnung, die
+    fuer diesen Standort in die Portfoliozahlen eingeht, und der Knopf
+    daneben macht die geoeffnete Variante dazu. Diese Wahl gehoerte
+    hierher und nicht nur in die Vergleichssicht - sie betrifft die
+    Reiterreihe selbst, und wer sie nur im Vergleich findet, findet sie
+    gar nicht.
     """
+    leitfall = services.leitvariante_von(varianten)
+    mehrere = len(varianten) > 1
     with st.container(key="variantenleiste", horizontal=True):
         st.markdown(
             f'<div class="varianten-label">'
@@ -283,8 +292,13 @@ def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
         )
         for variante in varianten:
             key = f"variante_{variante.id}"
-            if st.button(variante.variantenlabel, key=key, type="tertiary",
-                         help=variante.anzeigename):
+            ist_leitfall = mehrere and variante.id == leitfall.id
+            hilfe = variante.anzeigename
+            if ist_leitfall:
+                hilfe += " · " + txt("oberflaeche.variante_leitfall_hilfe")
+            beschriftung = (f"★ {variante.variantenlabel}" if ist_leitfall
+                            else variante.variantenlabel)
+            if st.button(beschriftung, key=key, type="tertiary", help=hilfe):
                 router.gehe_zu("projekt", projekt_id=variante.id)
         if st.button(txt("oberflaeche.btn_neue_variante"), key="variante_neu",
                      type="tertiary",
@@ -292,6 +306,14 @@ def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
             neue = services.duplicate_project(projekt_id)
             if neue is not None:
                 router.gehe_zu("projekt", projekt_id=neue.id)
+        # Nur bei mehreren Varianten: Wo es nichts zu waehlen gibt, ist
+        # die geoeffnete Rechnung ohnehin der Leitfall.
+        if mehrere and projekt_id != leitfall.id and st.button(
+            txt("oberflaeche.btn_leitfall_setzen"), key="variante_leitfall",
+            type="tertiary", help=txt("oberflaeche.btn_leitfall_setzen_hilfe"),
+        ):
+            services.setze_leitvariante(projekt_id)
+            st.rerun()
         # Der Vergleich ist keine weitere Variante, sondern die Sicht auf
         # alle - deshalb am Ende der Reihe und in die Sicht verlinkt,
         # nicht als eigener Reiter daneben.
