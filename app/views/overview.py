@@ -140,10 +140,11 @@ def _variantentabelle(gruppen: list[dict], ziel_pct: float,
 STATE_KARTEN_FOKUS = "landkarte_fokus"
 
 #: Beschriftung und Erlaeuterung der beiden x-Achsen, je Datenspalte.
+#: Die Reihenfolge ist die Reihenfolge der Knoepfe.
 _X_ACHSEN = {
+    "npv_eur": ("oberflaeche.karte_x_npv", "oberflaeche.karte_hilfe_npv"),
     "invest_eur_kwp": ("oberflaeche.karte_x_invest",
                        "oberflaeche.karte_hilfe_invest"),
-    "npv_eur": ("oberflaeche.karte_x_npv", "oberflaeche.karte_hilfe_npv"),
 }
 
 
