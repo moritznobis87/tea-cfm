@@ -172,6 +172,60 @@ def varianten_von(projekt: PVProject) -> list[PVProject]:
     return gruppiere_nach_standort().get(projekt.name, [projekt])
 
 
+_ROEMISCH = [
+    (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+]
+
+
+def roemisch(zahl: int) -> str:
+    """Roemische Ziffer fuer die Standortnummerierung (I, II, III ...).
+
+    Ab XL wird es unleserlich, aber so viele Projekte an EINEM Ort sind
+    kein realistischer Fall - und falls doch, ist eine lange Ziffer
+    immer noch eindeutig.
+    """
+    rest, text = zahl, ""
+    for wert, zeichen in _ROEMISCH:
+        while rest >= wert:
+            text += zeichen
+            rest -= wert
+    return text
+
+
+def standort_labels(projekte: list[PVProject] | None = None) -> dict[str, str]:
+    """Beschriftung je Projektkennung: {name: "St. Georgen II"}.
+
+    Die Kurzbezeichnung steht in Diagrammen, die vollstaendige
+    Projektkennung in Seitenleiste und Hover - "OÖ_St.Georgen_Spitzwieser"
+    ist als Punktbeschriftung zu lang, und bei dreissig Projekten
+    ueberlagern sich die Namen ohnehin.
+
+    Teilen sich mehrere Projekte einen Standort, wird durchnummeriert
+    (I, II, III ...) - sonst traegt die Karte zwei gleich beschriftete
+    Punkte, und niemand weiss, welcher welcher ist. Ohne Kurzbezeichnung
+    bleibt die Kennung stehen; ein nie gepflegter Bestand verliert also
+    keine Beschriftung.
+    """
+    if projekte is None:
+        projekte = list_projects()
+    # Je Kurzbezeichnung die Kennungen sammeln, die sie verwenden -
+    # Varianten desselben Projekts zaehlen dabei als EIN Projekt.
+    belegung: dict[str, list[str]] = {}
+    for name in dict.fromkeys(p.name for p in projekte):
+        kurz = next(
+            (p.standort for p in projekte if p.name == name and p.standort), ""
+        )
+        belegung.setdefault(kurz or name, []).append(name)
+
+    labels: dict[str, str] = {}
+    for kurz, kennungen in belegung.items():
+        for nummer, name in enumerate(kennungen, start=1):
+            labels[name] = (
+                kurz if len(kennungen) == 1 else f"{kurz} {roemisch(nummer)}"
+            )
+    return labels
+
+
 def leitvariante_von(varianten: list[PVProject]) -> PVProject:
     """Die Rechnung, die fuer diesen Standort die Entscheidung traegt.
 

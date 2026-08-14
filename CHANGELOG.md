@@ -1,5 +1,39 @@
 # Changelog
 
+## v5.3 – Standort als Kurzbezeichnung, Landkarte entlastet (2026-08)
+
+Mit zwölf Rechnungen war die Rendite-Risiko-Landkarte am Limit: sechs
+Variantenpfade kreuzten einander, und die vollständigen Projektnamen
+überlagerten sich. Beides wächst mit der Pipeline. Die Rechenregeln sind
+unverändert.
+
+- **Projektkennung und Standort sind jetzt zwei Felder.** Die Kennung
+  („OÖ_St.Georgen_Spitzwieser") identifiziert und steht in der
+  Seitenleiste; der **Standort** („St. Georgen") ist die
+  Kurzbezeichnung und beschriftet die Diagramme. Er steht als zweites
+  Feld in der Parameterspalte.
+- **Mehrere Projekte an einem Ort werden durchnummeriert**
+  („St. Georgen I", „St. Georgen II") – sonst trüge die Karte zwei
+  gleich beschriftete Punkte. Sensitivitäten desselben Projekts zählen
+  dabei nicht mit; sie sind ein Feld. Ohne Kurzbezeichnung bleibt die
+  Kennung stehen, ein nie gepflegter Bestand verliert also nichts.
+- **Excel-Sicherung**: neue optionale Spalte `standort` hinter `name`.
+- **Die Landkarte zeigt je Projekt nur noch die Leitvariante.** Aus zwölf
+  Blasen mit sechs Pfaden werden sechs Blasen ohne Pfad; die übrigen
+  Rechnungen stehen mit ihrer Rendite im Tooltip.
+- **Ein Klick auf eine Blase klappt ihr Projekt auf**: nur dieser eine
+  Standort zeigt dann alle Rechnungen samt Pfad und Variantennamen, alle
+  übrigen treten zurück. Das bleibt lesbar, ob sechs oder sechzig
+  Projekte im Hintergrund liegen. Ein Knopf hebt den Fokus wieder auf.
+- **Neuer Reiter „Rangliste"** ersetzt das bisherige Ranking: eine Zeile
+  je Projekt, nach Rendite der Leitvariante sortiert, Varianten als
+  offene Punkte auf derselben Zeile, Spanne als Balken, Zielmarke als
+  senkrechte Linie. Die Namen stehen in der Achse und können sich
+  strukturell nicht überlagern – die Ansicht, die auch bei vierzig
+  Projekten trägt.
+- 12 neue Tests (Nummerierung, Excel-Spalte samt Abwärtskompatibilität,
+  Landkarte mit und ohne Fokus, Sortierung der Rangliste); Suite: 355.
+
 ## v5.2 – Blick über alle Varianten (2026-08)
 
 ### v5.2.2 – Pacht als Treiber der Tornado-Analyse

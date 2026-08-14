@@ -121,6 +121,15 @@ Seitenleiste führt Standorte, die Variantenreihe im Projektfenster
 wechselt zwischen ihnen. In der Excel-Sicherung ist `variante` eine
 optionale Spalte, ältere Dateien bleiben lesbar.
 
+**Projektkennung und Standort:** `name` ist die Kennung
+(„OÖ_St.Georgen_Spitzwieser") – sie identifiziert das Projekt, gruppiert
+seine Varianten und steht in der Seitenleiste. `standort` ist die
+Kurzbezeichnung („St. Georgen") und beschriftet Diagramme; teilen sich
+mehrere Projekte einen Ort, nummeriert `services.standort_labels()`
+durch (I, II, III …). Varianten desselben Projekts lösen keine
+Nummerierung aus. Ohne `standort` wird die Kennung auch als
+Beschriftung verwendet.
+
 **Leitvariante:** Je Standort trägt genau eine Variante das Flag
 `leitvariante`. Nur sie geht in die Portfolio-Kennzahlen und die
 Pipeline ein (`services.leitvarianten()`) – ohne diese Auswahl zählte

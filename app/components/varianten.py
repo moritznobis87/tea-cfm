@@ -98,7 +98,7 @@ _FELDER: dict[str, tuple[str, callable]] = {
 
 #: Diese Felder benennen die Variante, sie beschreiben sie nicht - ein
 #: Unterschied darin ist keine Annahme, sondern die Identitaet.
-_KEINE_ANNAHME = {"id", "name", "variante", "leitvariante"}
+_KEINE_ANNAHME = {"id", "name", "standort", "variante", "leitvariante"}
 
 
 @dataclass(frozen=True)

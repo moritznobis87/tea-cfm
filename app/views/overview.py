@@ -184,6 +184,55 @@ def _variantentabelle(gruppen: list[dict], ziel_pct: float,
     )
 
 
+#: Session-State-Schluessel des aufgeklappten Standorts der Landkarte.
+STATE_KARTEN_FOKUS = "landkarte_fokus"
+
+
+def _landkarte(tabelle: pd.DataFrame, gruppen: list[dict],
+               labels: dict[str, str], selected: str | None) -> None:
+    """Landkarte mit aufklappbarem Standort.
+
+    Gezeigt wird je Projekt die Leitvariante; ein Klick auf eine Blase
+    klappt genau diesen Standort auf. Hover kann in Plotly nur den
+    Tooltip fuellen, keine Punkte hinzufuegen - deshalb der Klick, und
+    deshalb steht die Variantenliste zusaetzlich im Tooltip.
+    """
+    mit_varianten = {g["standort"] for g in gruppen if len(g["varianten"]) > 1}
+    fokus = st.session_state.get(STATE_KARTEN_FOKUS)
+    if fokus not in mit_varianten:
+        fokus = None
+
+    if fokus:
+        col_marke, col_zurueck = st.columns([3, 1.1], vertical_alignment="center")
+        col_marke.caption(
+            txt("oberflaeche.karte_fokus_aktiv",
+                name=labels.get(fokus, fokus), kennung=fokus)
+        )
+        # Bewusst ein Knopf statt eines Auswahlfeldes: Der Fokus wird per
+        # Klick auf eine Blase gesetzt, ein Auswahlfeld haette daneben
+        # einen zweiten, konkurrierenden Zustand. Ein Knopf traegt keinen.
+        if col_zurueck.button(txt("oberflaeche.karte_fokus_zurueck"),
+                              key="landkarte_fokus_aus", width="stretch"):
+            st.session_state[STATE_KARTEN_FOKUS] = None
+            st.rerun()
+    elif mit_varianten:
+        st.caption(txt("oberflaeche.karte_fokus_hinweis"))
+
+    ereignis = st.plotly_chart(
+        charts.portfolio_bubble_chart(tabelle, selected, fokus),
+        width="stretch", key="landkarte", on_select="rerun",
+        selection_mode="points",
+    )
+    # Klick auf eine Blase setzt den Fokus. Streamlit liefert die
+    # Auswahl erst im NAECHSTEN Durchlauf - deshalb der Rerun.
+    punkte = (ereignis or {}).get("selection", {}).get("points", [])
+    if punkte:
+        gewaehlt = punkte[0].get("customdata", [None, None])[1]
+        if gewaehlt and gewaehlt != fokus:
+            st.session_state[STATE_KARTEN_FOKUS] = gewaehlt
+            st.rerun()
+
+
 def render_overview() -> None:
     projects = services.list_project_files()
     if not projects:
@@ -301,29 +350,6 @@ def render_overview() -> None:
 
     # --- Portfolio-Analytik ---------------------------------------------------
     selected = st.session_state.get(STATE_SELECTED_PROJECT)
-    analytik = pd.DataFrame(
-        [
-            {
-                "id": z["id"],
-                "name": z["projekt"].anzeigename,
-                # Traegt die Variantenpfade der Landkarte: Rechnungen
-                # desselben Standorts werden verbunden.
-                "standort": z["projekt"].name,
-                "typ": "Agri-PV"
-                if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
-                else "Konventionell",
-                "kwp": z["projekt"].nennleistung_kwp,
-                "irr_pct": (z["kpis"].equity_irr or 0) * 100,
-                "invest_eur_kwp": (
-                    z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
-                    if z["projekt"].nennleistung_kwp
-                    else 0
-                ),
-            }
-            for z in aktive
-        ]
-    )
-
     # Die Landkarte zeigt IMMER alle Rechnungen, auch in der Sicht
     # "Standorte": Erst dadurch entstehen die Variantenpfade, und die
     # Spannweite eines Standorts ist genau das, was diese Darstellung
@@ -332,12 +358,33 @@ def render_overview() -> None:
     # bleiben dagegen bei der gewaehlten Sicht - sie sind Listen und
     # muessen zur Kennzahlenleiste passen.
     alle_aktiven = [z for z in zeilen if z["projekt"].aktiv]
+    labels = services.standort_labels([z["projekt"] for z in zeilen])
+    leit_ids_alle = {g["leit"].id for g in gruppen}
+
+    def _variantenliste(kennung: str) -> str:
+        """Die uebrigen Rechnungen als Hover-Zusatz - sie stehen nicht
+        mehr als eigene Blasen auf der Karte."""
+        gruppe = next(g for g in gruppen if g["standort"] == kennung)
+        if len(gruppe["varianten"]) < 2:
+            return ""
+        zeilen_text = "".join(
+            f"<br>{'●' if z['id'] == gruppe['leit'].id else '○'} "
+            f"{z['projekt'].variantenlabel}: "
+            f"{fmt_pct(z['kpis'].equity_irr, 2)}"
+            for z in gruppe["varianten"]
+        )
+        return f"<br><br><b>{len(gruppe['varianten'])} Varianten</b>{zeilen_text}"
+
     landkarte = pd.DataFrame(
         [
             {
                 "id": z["id"],
-                "name": z["projekt"].anzeigename,
-                "standort": z["projekt"].name,
+                # Beschriftung = Kurzbezeichnung, Hover = volle Kennung.
+                "name": labels.get(z["projekt"].name, z["projekt"].name),
+                "kennung": z["projekt"].name,
+                "variante": z["projekt"].variantenlabel,
+                "leitfall": z["id"] in leit_ids_alle,
+                "varianten": _variantenliste(z["projekt"].name),
                 "typ": "Agri-PV"
                 if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
                 else "Konventionell",
@@ -351,9 +398,6 @@ def render_overview() -> None:
             }
             for z in alle_aktiven
         ]
-    )
-    hervorheben = (
-        {g["leit"].id for g in gruppen} if sicht == "standorte" else None
     )
 
     col_xl1, col_xl2 = st.columns([1.6, 3])
@@ -377,23 +421,36 @@ def render_overview() -> None:
     # denselben Gegenstand, Klappfelder optionales Detail INNERHALB einer
     # Sicht - und nie ineinander (dieselbe Regel gilt auf der Projektseite).
     st.subheader(txt("oberflaeche.portfolio_analytik_titel"))
-    tab_karte, tab_ranking, tab_tabelle, tab_varianten = st.tabs([
+    tab_karte, tab_rangliste, tab_tabelle, tab_varianten = st.tabs([
         txt("oberflaeche.portfolio_tab_karte"),
-        txt("oberflaeche.portfolio_tab_ranking"),
+        txt("oberflaeche.portfolio_tab_rangliste"),
         txt("oberflaeche.portfolio_tab_tabelle"),
         txt("oberflaeche.portfolio_tab_varianten"),
     ])
     with tab_karte:
         st.caption(txt("oberflaeche.overview_bubble_hilfe"))
-        if sicht == "standorte" and len(landkarte) > len(gruppen):
-            st.caption(txt("oberflaeche.overview_bubble_varianten"))
+        _landkarte(landkarte, gruppen, labels, selected)
+    with tab_rangliste:
+        st.caption(txt("oberflaeche.portfolio_rangliste_hilfe"))
         st.plotly_chart(
-            charts.portfolio_bubble_chart(landkarte, selected, hervorheben),
+            charts.portfolio_rangliste_chart(
+                [
+                    {
+                        "label": labels.get(g["standort"], g["standort"]),
+                        "kennung": g["standort"],
+                        "leit_id": g["leit"].id,
+                        "leit_irr": (g["leit_kpis"].equity_irr or 0) * 100,
+                        "varianten": [
+                            (z["projekt"].variantenlabel,
+                             (z["kpis"].equity_irr or 0) * 100)
+                            for z in g["varianten"]
+                        ],
+                    }
+                    for g in gruppen
+                ],
+                ziel_pct, selected,
+            ),
             width="stretch",
-        )
-    with tab_ranking:
-        st.plotly_chart(
-            charts.portfolio_ranking_chart(analytik, selected), width="stretch"
         )
     with tab_tabelle:
         vergleich = pd.DataFrame(
