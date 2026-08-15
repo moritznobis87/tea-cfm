@@ -145,7 +145,8 @@ Leitfall"); die Vergleichssicht bietet dieselbe Wahl zusätzlich an.
 x-Achse ist umschaltbar (`charts.LANDKARTE_ACHSEN`): spezifisches Invest
 (€/kWp) misst die Effizienz unabhängig von der Projektgröße, der
 Deckungsbeitrag (NPV) den absoluten Wertbeitrag – dort liegt ein großes
-mittelmäßiges Projekt vor einem kleinen exzellenten. Die Beschriftungen
+mittelmäßiges Projekt vor einem kleinen exzellenten. Voreingestellt ist
+der Deckungsbeitrag (`charts.LANDKARTE_X_STANDARD`). Die Beschriftungen
 platziert `charts.beschriftungsplaetze()`: Plotly kennt nur neun starre
 Textpositionen je Punkt und kein Ausweichen, deshalb wird für jeden
 Namen der erste kollisionsfreie Platz gesucht (Blasengrößen gehen dabei

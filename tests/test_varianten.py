@@ -713,15 +713,17 @@ class TestLandkarteUndRangliste:
             self._tabelle(), None, x_feld="gibt_es_nicht"
         )
         punkte = next(s for s in fig.data if s.mode == "markers+text")
-        assert sorted(punkte.x) == [540, 596]
+        assert sorted(punkte.x) == [480_000.0, 900_000.0]
 
     def test_achse_ohne_spalte_bricht_nicht(self):
-        """Aeltere Aufrufer liefern die NPV-Spalte nicht mit."""
+        """Aeltere Aufrufer liefern die NPV-Spalte nicht mit - dann gilt
+        die naechste vorhandene Achse statt eines KeyError."""
         from app.components import charts
 
         tabelle = self._tabelle().drop(columns=["npv_eur"])
         fig = charts.portfolio_bubble_chart(tabelle, None, x_feld="npv_eur")
-        assert [s for s in fig.data if s.mode == "markers+text"]
+        punkte = next(s for s in fig.data if s.mode == "markers+text")
+        assert sorted(punkte.x) == [540, 596]
 
 
 class TestBeschriftungsplaetze:

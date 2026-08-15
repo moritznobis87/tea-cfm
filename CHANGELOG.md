@@ -11,7 +11,9 @@ Nachträge aus der Benutzung; die Rechenregeln sind unverändert.
   Deckungsbeitrag den absoluten Wertbeitrag, und dort liegt ein großes
   mittelmäßiges Projekt vor einem kleinen exzellenten. Eine gestrichelte
   Nulllinie markiert die Schwelle, ab der ein Projekt seine
-  Kapitalkosten verdient.
+  Kapitalkosten verdient. Voreingestellt ist der Deckungsbeitrag: Die
+  erste Frage an eine Pipeline ist, welches Projekt wie viel Wert
+  schafft.
 - **Der Leitfall lässt sich im Projektfenster setzen.** Ein Stern
   markiert in der Variantenreihe die Rechnung, die in die
   Portfolio-Kennzahlen eingeht; der Knopf „★ Als Leitfall" macht die

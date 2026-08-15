@@ -791,9 +791,10 @@ LANDKARTE_ACHSEN: dict[str, tuple[str, str]] = {
     "npv_eur": ("diagramme.achse_deckungsbeitrag", "%{x:,.0f} €"),
 }
 
-#: Voreinstellung der x-Achse - die Sicht, mit der die Karte immer
-#: begonnen hat.
-LANDKARTE_X_STANDARD = "invest_eur_kwp"
+#: Voreinstellung der x-Achse: der Deckungsbeitrag. Die erste Frage an
+#: eine Pipeline ist, welches Projekt wie viel Wert schafft - das
+#: spezifische Invest ordnet danach ein, wie effizient es das tut.
+LANDKARTE_X_STANDARD = "npv_eur"
 
 
 def portfolio_bubble_chart(
@@ -826,9 +827,15 @@ def portfolio_bubble_chart(
     fig = go.Figure()
     # Eine unbekannte Achse faellt auf die Voreinstellung zurueck: Der
     # Wunsch kommt aus einem Widget, und ein leerer Wert (abgewaehltes
-    # Segment) darf die Karte nicht zerlegen.
+    # Segment) darf die Karte nicht zerlegen. Fehlt die Spalte der
+    # Voreinstellung - ein aelterer Aufrufer liefert sie nicht mit -,
+    # gilt die naechste vorhandene.
     if x_feld not in LANDKARTE_ACHSEN or x_feld not in df.columns:
-        x_feld = LANDKARTE_X_STANDARD
+        x_feld = next(
+            (feld for feld in (LANDKARTE_X_STANDARD, *LANDKARTE_ACHSEN)
+             if feld in df.columns),
+            LANDKARTE_X_STANDARD,
+        )
     x_titel, x_hover = LANDKARTE_ACHSEN[x_feld]
     if df.empty:
         fig.update_layout(height=420)
