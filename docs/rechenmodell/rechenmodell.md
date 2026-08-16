@@ -377,6 +377,7 @@ indiziert, Degradation und Kostenindexierung nach Betriebsjahr.
 | $E_t$ | Stromproduktion im Jahr $t$ | kWh | Schritt 2 |
 | $m^{\mathrm{real}}_t$ | Marktwert Solar, real | ct/kWh | Szenariokurve |
 | $m_t$ | Marktwert Solar, nominal | ct/kWh | Schritt 3 |
+| $b_t$ | Großhandelspreis (Baseload), nominal | ct/kWh | Szenariokurve |
 | $z$ | EAG-Zuschlagswert, effektiv | ct/kWh | Projekt + Regel |
 | $F$ | Förderdauer | Jahre | global |
 | $s_t$ | Vergütungssatz | ct/kWh | Schritt 3 |
@@ -902,7 +903,11 @@ Effekten mit gegenläufigem Vorzeichen:
 
 **Ausgang.** $y_t$, $m^{\mathrm{real}}_t$, $m_t$, $s_t$, $R_t$,
 $R^{\mathrm{markt}}_t$, $R^{\text{Prämie}}_t$, $R^{\mathrm{ppa}}_t$,
-$R^{\mathrm{merch}}_t$, $R^{\mathrm{r\ddot{u}ck}}_t$.
+$R^{\mathrm{merch}}_t$, $R^{\mathrm{r\ddot{u}ck}}_t$ sowie – sofern das
+Szenario ihn führt – der nominale Großhandelspreis $b_t$. Er geht in
+keine Erlösgröße ein; er ist Bezugsgröße der Direktvermarktungskosten
+(Abschnitt 8.3) und im Diagramm der Abstand, aus dem sich die
+Kannibalisierung ablesen lässt.
 
 # 8 Schritt 4 – Betriebskosten
 
@@ -964,22 +969,35 @@ Position als eigene Spalte in die Zeitreihe geschrieben wird.
 
 $$ C^{\mathrm{gem}}_t = E_t \cdot c_{\mathrm{gem}} \cdot \Theta_t $$
 
-**Direktvermarktungskosten** (Bilanzkreis, Prognose, Marktzugang) in zwei
+**Direktvermarktungskosten** (Bilanzkreis, Prognose, Marktzugang) in drei
 Modi:
 
 Modus **absolut** – fester Satz je kWh:
 
 $$ C^{\mathrm{dv}}_t = E_t \cdot c_{\mathrm{dv}} \cdot \Theta_t $$
 
-Modus **relativ zum Marktwert** – Anteil $\varphi$ am nominalen
-Jahresmarktwert der erzeugten Menge:
+Modus **Anteil am Großhandelspreis** – Anteil $\varphi$ am nominalen
+Baseload-Preis $b_t$ des Szenarios:
+
+$$ C^{\mathrm{dv}}_t = E_t \cdot \frac{b_t}{100} \cdot \varphi $$
+
+Modus **Anteil am Marktwert Solar** – derselbe Anteil, bezogen auf den
+technologiespezifischen Marktwert:
 
 $$ C^{\mathrm{dv}}_t = E_t \cdot \frac{m_t}{100} \cdot \varphi $$
 
-Im relativen Modus verändern sich die Kosten proportional zum Preisniveau.
-Eine zusätzliche Kostenindexierung erfolgt nicht, da die Preisentwicklung
-bereits im nominalen Marktwert enthalten ist und andernfalls doppelt
-berücksichtigt würde.
+Marktüblich sind rund 10 %, bezogen auf den **Großhandelspreis**: Der
+Direktvermarkter rechnet gegen den Spotmarkt ab, nicht gegen den
+Marktwert der einzelnen Technologie. Da für Photovoltaik $m_t < b_t$
+gilt (Kannibalisierung), führen beide relativen Modi bei gleichem
+Prozentsatz zu spürbar unterschiedlichen Kosten; der Bezug ist deshalb
+eine bewusste Wahl und keine Formalie. Führt das gewählte Szenario keine
+Baseload-Kurve, wird ersatzweise $m_t$ verwendet.
+
+In beiden relativen Modi verändern sich die Kosten proportional zum
+Preisniveau. Eine zusätzliche Kostenindexierung erfolgt nicht, da die
+Preisentwicklung bereits im nominalen Preis enthalten ist und
+andernfalls doppelt berücksichtigt würde.
 
 ## 8.4 Pacht
 

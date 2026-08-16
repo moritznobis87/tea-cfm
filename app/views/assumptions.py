@@ -108,139 +108,261 @@ def _aurora_import(ga: GlobalAssumptions) -> None:
     Abschoepfungsschwelle lagen.
     """
     with st.expander(txt("oberflaeche.aurora_titel"), expanded=False):
-        st.caption(txt("oberflaeche.aurora_hinweis"))
+        # Zwei Wege zu denselben Kurven: die Arbeitsmappe, die Aurora als
+        # "Market Forecast Data" ausliefert, oder die vier CSV-Exporte aus
+        # EOS. Die Mappe ist der kuerzere Weg (eine Datei, alle
+        # Preisszenarien); die CSVs tragen dafuer die monatliche Erzeugung
+        # und damit die Einspeisekurve.
+        tab_mappe, tab_csv = st.tabs([
+            txt("oberflaeche.aurora_tab_mappe"),
+            txt("oberflaeche.aurora_tab_csv"),
+        ])
+        with tab_mappe:
+            _aurora_arbeitsmappe(ga)
+        with tab_csv:
+            _aurora_csv(ga)
 
-        col_t1, col_t2 = st.columns(2)
-        tech_monat = col_t1.file_uploader(
-            txt("oberflaeche.aurora_tech_monat"), type=["csv", "xlsx", "xlsm"],
-            key="aurora_tech_monat",
-            help=txt("oberflaeche.aurora_tech_monat_hilfe"),
-        )
-        tech_jahr = col_t2.file_uploader(
-            txt("oberflaeche.aurora_tech_jahr"), type=["csv", "xlsx", "xlsm"],
-            key="aurora_tech_jahr",
-            help=txt("oberflaeche.aurora_tech_jahr_hilfe"),
-        )
-        col_s1, col_s2 = st.columns(2)
-        system_jahr = col_s1.file_uploader(
-            txt("oberflaeche.aurora_system_jahr"), type=["csv", "xlsx", "xlsm"],
-            key="aurora_system_jahr",
-            help=txt("oberflaeche.aurora_system_jahr_hilfe"),
-        )
-        system_monat = col_s2.file_uploader(
-            txt("oberflaeche.aurora_system_monat"), type=["csv", "xlsx", "xlsm"],
-            key="aurora_system_monat",
-            help=txt("oberflaeche.aurora_system_monat_hilfe"),
-        )
 
-        if tech_monat is None:
-            st.info(txt("oberflaeche.aurora_warte_auf_datei"))
-            return
+def _aurora_arbeitsmappe(ga: GlobalAssumptions) -> None:
+    """Import aus der Aurora-Arbeitsmappe (Market Forecast Data).
 
-        # Die Technologieauswahl kommt aus der Datei selbst: "Solar"
-        # steht je nach Marktgebiet als eigene Gruppe oder als
-        # Untergruppe, das kann nur die Datei beantworten.
-        try:
-            auswahl = io_aurora.technologien(*_datei(tech_monat))
-        except AuroraImportFehler as fehler:
-            st.error(str(fehler))
-            return
-        if not auswahl:
-            st.error(txt("oberflaeche.aurora_keine_technologien"))
-            return
-        vorschlag = io_aurora.vorschlag_solar(auswahl)
-        technologie = st.selectbox(
-            txt("oberflaeche.aurora_technologie_label"), auswahl,
-            index=auswahl.index(vorschlag) if vorschlag in auswahl else 0,
-            help=txt("oberflaeche.aurora_technologie_hilfe"),
-        )
+    Eine Datei, drei Preisszenarien, zwei Bauformen - daraus werden
+    mehrere Marktpreisszenarien auf einmal. Gesucht wird alles
+    dynamisch: Aurora verschiebt zwischen den Ausgaben Kopfzeilen,
+    benennt Blaetter um und fuegt Sprachspalten hinzu.
+    """
+    st.caption(txt("oberflaeche.aurora_mappe_hinweis"))
+    hochgeladen = st.file_uploader(
+        txt("oberflaeche.aurora_mappe_label"), type=["xlsx", "xlsm"],
+        key="aurora_mappe", help=txt("oberflaeche.aurora_mappe_hilfe"),
+    )
+    if hochgeladen is None:
+        return
+    try:
+        mappe = io_aurora.lies_arbeitsmappe(*_datei(hochgeladen))
+    except AuroraImportFehler as fehler:
+        st.error(str(fehler))
+        return
 
-        col_name, col_preis = st.columns([1.2, 2])
-        name = col_name.text_input(
-            txt("oberflaeche.aurora_name_label"),
-            value=tech_monat.name.rsplit(".", 1)[0][:40],
-            help=txt("oberflaeche.aurora_name_hilfe"),
-        )
-        uncurtailed = col_preis.radio(
-            txt("oberflaeche.aurora_preisbasis_label"),
-            [True, False],
-            format_func=lambda w: (
-                txt("oberflaeche.aurora_preis_uncurtailed") if w
-                else txt("oberflaeche.aurora_preis_curtailed")
-            ),
-            horizontal=True,
-            help=txt("oberflaeche.aurora_preisbasis_hilfe"),
-        )
+    st.caption(
+        txt("oberflaeche.aurora_mappe_gefunden",
+            titel=mappe.titel or "—", geografie=mappe.geografie or "—",
+            basisjahr=mappe.preisbasisjahr or "—")
+    )
+    col_tech, col_name = st.columns([1, 2])
+    technologie = col_tech.radio(
+        txt("oberflaeche.aurora_technologie_label"), mappe.technologien,
+        index=(mappe.technologien.index(io_aurora.TECHNOLOGIE_STANDARD)
+               if io_aurora.TECHNOLOGIE_STANDARD in mappe.technologien else 0),
+        horizontal=True, help=txt("oberflaeche.aurora_bauform_hilfe"),
+    )
+    vorschlag = " ".join(
+        teil for teil in ("Aurora", mappe.quartal, mappe.geografie[:3].upper())
+        if teil
+    )
+    basisname = col_name.text_input(
+        txt("oberflaeche.aurora_basisname_label"), value=vorschlag,
+        help=txt("oberflaeche.aurora_basisname_hilfe"),
+    )
+    szenarien = st.multiselect(
+        txt("oberflaeche.aurora_szenarien_label"), mappe.szenarien,
+        default=mappe.szenarien,
+        help=txt("oberflaeche.aurora_szenarien_hilfe"),
+    )
+    col_preis, col_infl, col_monat = st.columns(3)
+    uncurtailed = col_preis.radio(
+        txt("oberflaeche.aurora_preisbasis_label"), [True, False],
+        format_func=lambda w: (
+            txt("oberflaeche.aurora_preis_uncurtailed") if w
+            else txt("oberflaeche.aurora_preis_curtailed")
+        ),
+        help=txt("oberflaeche.aurora_preisbasis_hilfe"),
+    )
+    mit_basisjahr = col_infl.checkbox(
+        txt("oberflaeche.aurora_uebernimm_basisjahr"), value=True,
+        help=txt("oberflaeche.aurora_uebernimm_basisjahr_hilfe"),
+    )
+    auf_monat = col_monat.checkbox(
+        txt("oberflaeche.aurora_setze_monatsmodus"), value=True,
+        key="aurora_mappe_monat",
+        help=txt("oberflaeche.aurora_setze_monatsmodus_hilfe"),
+    )
 
-        col_o1, col_o2, col_o3 = st.columns(3)
-        mit_kurve = col_o1.checkbox(
-            txt("oberflaeche.aurora_uebernimm_kurve"), value=True,
-            help=txt("oberflaeche.aurora_uebernimm_kurve_hilfe"),
+    if not st.button(txt("oberflaeche.aurora_importieren"), type="primary",
+                     key="aurora_mappe_import"):
+        return
+    try:
+        ergebnisse = io_aurora.importiere_arbeitsmappe(
+            mappe, basisname=basisname, technologie=technologie,
+            szenarien=szenarien or None, uncurtailed=uncurtailed,
         )
-        mit_inflation = col_o2.checkbox(
-            txt("oberflaeche.aurora_uebernimm_inflation"), value=True,
-            help=txt("oberflaeche.aurora_uebernimm_inflation_hilfe"),
-        )
-        auf_monat = col_o3.checkbox(
-            txt("oberflaeche.aurora_setze_monatsmodus"), value=True,
-            help=txt("oberflaeche.aurora_setze_monatsmodus_hilfe"),
-        )
+    except AuroraImportFehler as fehler:
+        st.error(str(fehler))
+        return
 
-        if not st.button(txt("oberflaeche.aurora_importieren"), type="primary"):
-            return
+    namen = [e.szenario.name for e in ergebnisse]
+    ga.marktpreisszenarien = [
+        s for s in ga.marktpreisszenarien if s.name not in namen
+    ] + [e.szenario for e in ergebnisse]
+    if mit_basisjahr and ergebnisse[0].inflation_basisjahr:
+        ga.marktpreis_inflation_basisjahr = ergebnisse[0].inflation_basisjahr
+    if auf_monat:
+        ga.zeitaufloesung = Zeitaufloesung.MONAT
+    services.save_global_assumptions(ga)
 
-        try:
-            ergebnis = io_aurora.importiere_aurora(
-                name=name,
-                technologie_monat=_datei(tech_monat),
-                technologie_jahr=_datei(tech_jahr),
-                system_jahr=_datei(system_jahr),
-                system_monat=_datei(system_monat),
-                technologie=technologie,
-                uncurtailed=uncurtailed,
-            )
-        except AuroraImportFehler as fehler:
-            st.error(str(fehler))
-            return
+    erstes = ergebnisse[0]
+    st.success(
+        txt("oberflaeche.aurora_mappe_erfolg", anzahl=len(ergebnisse),
+            technologie=technologie, von=erstes.jahre[0], bis=erstes.jahre[1],
+            namen=", ".join(namen))
+    )
+    for hinweis in dict.fromkeys(h for e in ergebnisse for h in e.hinweise):
+        st.warning(hinweis)
+    st.plotly_chart(
+        charts.szenarien_linien_chart(
+            [(e.szenario.name, e.szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+             for e in ergebnisse],
+            txt("diagramme.achse_marktwert_solar"), "ct/kWh",
+        ),
+        width="stretch", key="aurora_mappe_vorschau",
+    )
 
-        # Ein bestehendes Szenario gleichen Namens wird ersetzt, nicht
-        # verdoppelt: Ein Reimport derselben Studie ist eine Korrektur.
-        ga.marktpreisszenarien = [
-            s for s in ga.marktpreisszenarien if s.name != ergebnis.szenario.name
-        ] + [ergebnis.szenario]
-        if mit_kurve and ergebnis.einspeisekurve_pct_je_monat:
-            ga.einspeisekurve_pct_je_monat = ergebnis.einspeisekurve_pct_je_monat
-        if mit_inflation and ergebnis.inflation_basisjahr is not None:
-            ga.marktpreis_inflation_basisjahr = ergebnis.inflation_basisjahr
-            if ergebnis.inflation_pct_pa is not None:
-                ga.marktpreis_inflation_pct_pa = ergebnis.inflation_pct_pa
-        if auf_monat:
-            ga.zeitaufloesung = Zeitaufloesung.MONAT
-        services.save_global_assumptions(ga)
 
-        st.success(
-            txt("oberflaeche.aurora_erfolg",
-                name=ergebnis.szenario.name,
-                technologie=ergebnis.technologie,
-                von=ergebnis.jahre[0], bis=ergebnis.jahre[1],
-                monatsjahre=ergebnis.monatsjahre)
+def _aurora_csv(ga: GlobalAssumptions) -> None:
+    """Import aus den vier CSV-Exporten (System/Technologie x Jahr/Monat)."""
+    st.caption(txt("oberflaeche.aurora_hinweis"))
+
+    col_t1, col_t2 = st.columns(2)
+    tech_monat = col_t1.file_uploader(
+        txt("oberflaeche.aurora_tech_monat"), type=["csv", "xlsx", "xlsm"],
+        key="aurora_tech_monat",
+        help=txt("oberflaeche.aurora_tech_monat_hilfe"),
+    )
+    tech_jahr = col_t2.file_uploader(
+        txt("oberflaeche.aurora_tech_jahr"), type=["csv", "xlsx", "xlsm"],
+        key="aurora_tech_jahr",
+        help=txt("oberflaeche.aurora_tech_jahr_hilfe"),
+    )
+    col_s1, col_s2 = st.columns(2)
+    system_jahr = col_s1.file_uploader(
+        txt("oberflaeche.aurora_system_jahr"), type=["csv", "xlsx", "xlsm"],
+        key="aurora_system_jahr",
+        help=txt("oberflaeche.aurora_system_jahr_hilfe"),
+    )
+    system_monat = col_s2.file_uploader(
+        txt("oberflaeche.aurora_system_monat"), type=["csv", "xlsx", "xlsm"],
+        key="aurora_system_monat",
+        help=txt("oberflaeche.aurora_system_monat_hilfe"),
+    )
+
+    if tech_monat is None:
+        st.info(txt("oberflaeche.aurora_warte_auf_datei"))
+        return
+
+    # Die Technologieauswahl kommt aus der Datei selbst: "Solar"
+    # steht je nach Marktgebiet als eigene Gruppe oder als
+    # Untergruppe, das kann nur die Datei beantworten.
+    try:
+        auswahl = io_aurora.technologien(*_datei(tech_monat))
+    except AuroraImportFehler as fehler:
+        st.error(str(fehler))
+        return
+    if not auswahl:
+        st.error(txt("oberflaeche.aurora_keine_technologien"))
+        return
+    vorschlag = io_aurora.vorschlag_solar(auswahl)
+    technologie = st.selectbox(
+        txt("oberflaeche.aurora_technologie_label"), auswahl,
+        index=auswahl.index(vorschlag) if vorschlag in auswahl else 0,
+        help=txt("oberflaeche.aurora_technologie_hilfe"),
+    )
+
+    col_name, col_preis = st.columns([1.2, 2])
+    name = col_name.text_input(
+        txt("oberflaeche.aurora_name_label"),
+        value=tech_monat.name.rsplit(".", 1)[0][:40],
+        help=txt("oberflaeche.aurora_name_hilfe"),
+    )
+    uncurtailed = col_preis.radio(
+        txt("oberflaeche.aurora_preisbasis_label"),
+        [True, False],
+        format_func=lambda w: (
+            txt("oberflaeche.aurora_preis_uncurtailed") if w
+            else txt("oberflaeche.aurora_preis_curtailed")
+        ),
+        horizontal=True,
+        help=txt("oberflaeche.aurora_preisbasis_hilfe"),
+    )
+
+    col_o1, col_o2, col_o3 = st.columns(3)
+    mit_kurve = col_o1.checkbox(
+        txt("oberflaeche.aurora_uebernimm_kurve"), value=True,
+        help=txt("oberflaeche.aurora_uebernimm_kurve_hilfe"),
+    )
+    mit_inflation = col_o2.checkbox(
+        txt("oberflaeche.aurora_uebernimm_inflation"), value=True,
+        help=txt("oberflaeche.aurora_uebernimm_inflation_hilfe"),
+    )
+    auf_monat = col_o3.checkbox(
+        txt("oberflaeche.aurora_setze_monatsmodus"), value=True,
+        help=txt("oberflaeche.aurora_setze_monatsmodus_hilfe"),
+    )
+
+    if not st.button(txt("oberflaeche.aurora_importieren"), type="primary"):
+        return
+
+    try:
+        ergebnis = io_aurora.importiere_aurora(
+            name=name,
+            technologie_monat=_datei(tech_monat),
+            technologie_jahr=_datei(tech_jahr),
+            system_jahr=_datei(system_jahr),
+            system_monat=_datei(system_monat),
+            technologie=technologie,
+            uncurtailed=uncurtailed,
         )
-        if mit_inflation and ergebnis.inflation_basisjahr is not None:
-            st.caption(
-                txt("oberflaeche.aurora_inflation_uebernommen",
-                    basisjahr=ergebnis.inflation_basisjahr,
-                    rate=fmt_number((ergebnis.inflation_pct_pa or 0) * 100, 2))
-            )
-        for hinweis in ergebnis.hinweise:
-            st.warning(hinweis)
-        st.plotly_chart(
-            charts.szenarien_linien_chart(
-                [(ergebnis.szenario.name,
-                  ergebnis.szenario.marktwert_solar_ct_kwh_je_kalenderjahr)],
-                txt("diagramme.achse_marktwert_solar"), "ct/kWh",
-            ),
-            width="stretch", key="aurora_vorschau",
+    except AuroraImportFehler as fehler:
+        st.error(str(fehler))
+        return
+
+    # Ein bestehendes Szenario gleichen Namens wird ersetzt, nicht
+    # verdoppelt: Ein Reimport derselben Studie ist eine Korrektur.
+    ga.marktpreisszenarien = [
+        s for s in ga.marktpreisszenarien if s.name != ergebnis.szenario.name
+    ] + [ergebnis.szenario]
+    if mit_kurve and ergebnis.einspeisekurve_pct_je_monat:
+        ga.einspeisekurve_pct_je_monat = ergebnis.einspeisekurve_pct_je_monat
+    if mit_inflation and ergebnis.inflation_basisjahr is not None:
+        ga.marktpreis_inflation_basisjahr = ergebnis.inflation_basisjahr
+        if ergebnis.inflation_pct_pa is not None:
+            ga.marktpreis_inflation_pct_pa = ergebnis.inflation_pct_pa
+    if auf_monat:
+        ga.zeitaufloesung = Zeitaufloesung.MONAT
+    services.save_global_assumptions(ga)
+
+    st.success(
+        txt("oberflaeche.aurora_erfolg",
+            name=ergebnis.szenario.name,
+            technologie=ergebnis.technologie,
+            von=ergebnis.jahre[0], bis=ergebnis.jahre[1],
+            monatsjahre=ergebnis.monatsjahre)
+    )
+    if mit_inflation and ergebnis.inflation_basisjahr is not None:
+        st.caption(
+            txt("oberflaeche.aurora_inflation_uebernommen",
+                basisjahr=ergebnis.inflation_basisjahr,
+                rate=fmt_number((ergebnis.inflation_pct_pa or 0) * 100, 2))
         )
+    for hinweis in ergebnis.hinweise:
+        st.warning(hinweis)
+    st.plotly_chart(
+        charts.szenarien_linien_chart(
+            [(ergebnis.szenario.name,
+              ergebnis.szenario.marktwert_solar_ct_kwh_je_kalenderjahr)],
+            txt("diagramme.achse_marktwert_solar"), "ct/kWh",
+        ),
+        width="stretch", key="aurora_vorschau",
+    )
 
 
 def render_assumptions() -> None:
@@ -599,18 +721,26 @@ def render_assumptions() -> None:
             help=txt("oberflaeche.annahmen_pacht_umsatzbeteiligung_vorschlag_hilfe"),
         )
         st.markdown(txt("oberflaeche.annahmen_direktvermarktung_titel"))
-        dv_modus_absolut = txt("oberflaeche.annahmen_dv_modus_absolut")
-        dv_modus_relativ = txt("oberflaeche.annahmen_dv_modus_relativ")
-        dv_modus_label = st.radio(
+        dv_labels = {
+            DirektvermarktungsModus.ABSOLUT.value: (
+                txt("oberflaeche.annahmen_dv_modus_absolut")
+            ),
+            DirektvermarktungsModus.RELATIV_GROSSHANDEL.value: (
+                txt("oberflaeche.annahmen_dv_modus_grosshandel")
+            ),
+            DirektvermarktungsModus.RELATIV_MARKTWERT.value: (
+                txt("oberflaeche.annahmen_dv_modus_relativ")
+            ),
+        }
+        dv_optionen = list(dv_labels)
+        dv_modus_wert = st.radio(
             txt("oberflaeche.annahmen_dv_modus_label"),
-            [dv_modus_absolut, dv_modus_relativ],
-            index=0
-            if ga.direktvermarktung_modus == DirektvermarktungsModus.ABSOLUT
-            else 1,
-            horizontal=True,
+            dv_optionen,
+            format_func=lambda v: dv_labels[v],
+            index=dv_optionen.index(ga.direktvermarktung_modus.value),
             help=txt("oberflaeche.annahmen_dv_modus_hilfe"),
         )
-        dv_relativ = dv_modus_label == dv_modus_relativ
+        dv_relativ = dv_modus_wert != DirektvermarktungsModus.ABSOLUT.value
         col_dv1, col_dv2 = st.columns(2)
         direktvermarktungskosten = col_dv1.number_input(
             txt("oberflaeche.annahmen_dv_vorschlagswert_label"),
@@ -849,11 +979,7 @@ def render_assumptions() -> None:
         ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
         ga.pacht_umsatzbeteiligung_pct_vorschlag = pacht_umsatzbeteiligung_vorschlag / 100
         ga.direktvermarktungskosten_eur_kwh = direktvermarktungskosten / 1000
-        ga.direktvermarktung_modus = (
-            DirektvermarktungsModus.RELATIV_MARKTWERT
-            if dv_relativ
-            else DirektvermarktungsModus.ABSOLUT
-        )
+        ga.direktvermarktung_modus = DirektvermarktungsModus(dv_modus_wert)
         ga.direktvermarktung_pct_marktwert = dv_pct_marktwert / 100
         ga.tax_modus = TaxModus(tax_modus)
         ga.afa_nutzungsdauer_jahre = (

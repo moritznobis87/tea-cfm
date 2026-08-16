@@ -34,6 +34,7 @@ def calculate_opex(
     direktvermarktung_modus: DirektvermarktungsModus = DirektvermarktungsModus.ABSOLUT,
     direktvermarktung_pct_marktwert: float = 0.0,
     marktwert_nominal_ct_kwh: np.ndarray | None = None,
+    baseload_nominal_ct_kwh: np.ndarray | None = None,
     kosten_inflation_pct_pa: float = 0.0,
     pacht_modus: PachtModus = PachtModus.FIX,
     pacht_eur_kwp_jahr: float = 0.0,
@@ -76,17 +77,25 @@ def calculate_opex(
     df["gemeindeabgabe_eur"] = (
         produktion_kwh * gemeindeabgabe_eur_kwh * inflation_faktor
     )
-    if (
-        direktvermarktung_modus == DirektvermarktungsModus.RELATIV_MARKTWERT
-        and marktwert_nominal_ct_kwh is not None
-    ):
-        # Anteil am nominalen Jahresmarktwert je erzeugter kWh - die
-        # Kosten steigen und fallen mit dem Preisniveau.
+    # Direktvermarktung: absolut je MWh oder als Anteil eines Preises.
+    # Im relativen Modus traegt der Satz keine eigene Kosteninflation - er
+    # atmet bereits mit dem (nominalen) Preisniveau der Kurve.
+    bezug = None
+    if direktvermarktung_modus == DirektvermarktungsModus.RELATIV_GROSSHANDEL:
+        # Marktueblich ist der Bezug auf den Grosshandelspreis: Der
+        # Dienstleister rechnet gegen den Spotmarkt ab. Fehlt dem
+        # Szenario eine Baseload-Kurve (aeltere Bestaende, eigene
+        # Szenarien), gilt ersatzweise der Marktwert - besser als eine
+        # stumme Null.
+        bezug = baseload_nominal_ct_kwh
+        if bezug is None or not np.any(bezug):
+            bezug = marktwert_nominal_ct_kwh
+    elif direktvermarktung_modus == DirektvermarktungsModus.RELATIV_MARKTWERT:
+        bezug = marktwert_nominal_ct_kwh
+
+    if bezug is not None:
         df["direktvermarktungskosten_eur"] = (
-            produktion_kwh
-            * marktwert_nominal_ct_kwh
-            / 100.0
-            * direktvermarktung_pct_marktwert
+            produktion_kwh * bezug / 100.0 * direktvermarktung_pct_marktwert
         )
     else:
         df["direktvermarktungskosten_eur"] = (
