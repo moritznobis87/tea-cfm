@@ -95,3 +95,7 @@ serie_event_of_default: "Incumplimiento {wert}x"
 achse_ek_rendite: "Rentabilidad del capital propio"
 achse_spezifisches_invest: "Inversión específica (€/kWp)"
 achse_deckungsbeitrag: "Margen de contribución – VAN (€)"
+
+# --- Vermarktung und Rueckzahlung (v5.4) ---
+serie_erloes_ppa: "Ingresos PPA"
+serie_rueckzahlung: "Devolución (sobreapoyo)"

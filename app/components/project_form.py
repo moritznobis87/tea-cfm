@@ -526,6 +526,49 @@ def _felder(
             help=txt("oberflaeche.formular_marktpreisszenario_hilfe"),
         )
 
+        # --- Hybride Vermarktung: PPA-Anteil -------------------------------
+        # Der Anteil steht oben und allein: Er entscheidet, ob die drei
+        # Vertragsfelder ueberhaupt eine Rolle spielen. Bei 0 % bleiben
+        # sie sichtbar, aber gesperrt - so ist zu sehen, welche Angaben
+        # ein Vertrag braucht, ohne dass sie stumm mitrechnen.
+        st.markdown(txt("oberflaeche.formular_ppa_titel"))
+        ppa_anteil = st.slider(
+            txt("oberflaeche.formular_ppa_anteil_label"),
+            min_value=0, max_value=100,
+            value=int(round((existing.ppa_anteil_pct if existing else 0.0) * 100)),
+            step=5, key=f"{form_key}_ppa_anteil",
+            help=txt("oberflaeche.formular_ppa_anteil_hilfe"),
+        )
+        ohne_ppa = ppa_anteil == 0
+        col_ppa1, col_ppa2, col_ppa3 = spalten(3)
+        ppa_preis = col_ppa1.number_input(
+            txt("oberflaeche.formular_ppa_preis_label"), min_value=0.0,
+            value=(existing.ppa_preis_eur_mwh if existing
+                   else global_assumptions.ppa_preis_eur_mwh_vorschlag),
+            step=1.0, key=f"{form_key}_ppa_preis", disabled=ohne_ppa,
+            help=txt("oberflaeche.formular_ppa_preis_hilfe"),
+        )
+        ppa_laufzeit = col_ppa2.number_input(
+            txt("oberflaeche.formular_ppa_laufzeit_label"), min_value=0,
+            value=(existing.ppa_laufzeit_jahre if existing
+                   else global_assumptions.ppa_laufzeit_jahre_vorschlag),
+            step=1, key=f"{form_key}_ppa_laufzeit", disabled=ohne_ppa,
+            help=txt("oberflaeche.formular_ppa_laufzeit_hilfe"),
+        )
+        ppa_index = col_ppa3.number_input(
+            txt("oberflaeche.formular_ppa_index_label"), min_value=0.0,
+            value=((existing.ppa_indexierung_pct_pa if existing
+                    else global_assumptions.ppa_indexierung_pct_pa_vorschlag) * 100),
+            step=0.25, key=f"{form_key}_ppa_index", disabled=ohne_ppa,
+            help=txt("oberflaeche.formular_ppa_index_hilfe"),
+        )
+        ppa_start = st.number_input(
+            txt("oberflaeche.formular_ppa_start_label"), min_value=1,
+            value=(existing.ppa_start_jahr if existing else 1),
+            step=1, key=f"{form_key}_ppa_start", disabled=ohne_ppa,
+            help=txt("oberflaeche.formular_ppa_start_hilfe"),
+        )
+
         pacht_umsatzbeteiligung_pct = (
             existing.pacht_umsatzbeteiligung_pct if existing
             else global_assumptions.pacht_umsatzbeteiligung_pct_vorschlag
@@ -666,6 +709,11 @@ def _felder(
         gemeindeabgabe_eur_mwh=gemeindeabgabe_mwh,
         direktvermarktungskosten_eur_mwh=direktvermarktungskosten_mwh,
         marktpreisszenario=marktpreisszenario,
+        ppa_anteil_pct=ppa_anteil / 100,
+        ppa_preis_eur_mwh=ppa_preis,
+        ppa_start_jahr=int(ppa_start),
+        ppa_laufzeit_jahre=int(ppa_laufzeit),
+        ppa_indexierung_pct_pa=ppa_index / 100,
         zusatz_opex=[
             OpexItem(
                 name=eintrag["Position"],

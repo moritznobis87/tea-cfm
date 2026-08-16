@@ -1,5 +1,50 @@
 # Changelog
 
+## v5.4 – Monatsauflösung, Prämienmodelle, hybride PPA (2026-08)
+
+Die Erlösrechnung ist methodisch geöffnet: Sie kann jetzt in Monaten
+rechnen, kennt drei Vertragsformen der Förderung und teilt die Menge
+zwischen PPA und Spotmarkt auf. **Alle drei Erweiterungen sind
+voreingestellt aus** – ein bestehendes Projekt rechnet unverändert.
+
+- **Monatliche Marktwerte und Negativstunden-Quoten.** Ein
+  Marktpreisszenario trägt neben den Jahreskurven optionale Monatsreihen
+  (zwölf Werte je Kalenderjahr). Fehlt für ein Jahr die Monatsreihe,
+  gilt sein Jahreswert für alle zwölf Monate; die Umschaltung bleibt
+  damit auch mit unvollständigen Daten rechenbar.
+- **Einspeisekurve** in den Globalen Annahmen: zwölf Prozentwerte, die
+  festlegen, welcher Anteil der Jahreserzeugung in welchem Monat
+  anfällt. Sie wird beim Rechnen auf 100 % normiert – gerundete Eingaben
+  verändern die Jahresmenge nicht.
+- **Zeitauflösung Jahr/Monat** als globaler Schalter. Im Monatsmodus
+  trifft die Sommermenge auf den Sommerpreis, und das Anlaufjahr folgt
+  der Erzeugung statt dem Kalender: Eine im Juli in Betrieb gehende
+  Anlage liefert rund 60 % der Jahresmenge, nicht die Hälfte. Cashflow,
+  Finanzierung, Steuer und DSCR bleiben jährlich.
+- **Drei Marktprämienmodelle**: einseitiger CfD (bisheriges Verhalten),
+  zweiseitiger CfD (Vergütung = anzulegender Wert) und der
+  österreichische Weg mit **Toleranzband nach § 10 EAG** – 66 % des
+  Betrags oberhalb von 140 % des anzulegenden Werts gehen zurück, für
+  Photovoltaik ab 5 MW Engpassleistung. Schwelle, Band und Anteil sind
+  einstellbar, weil sie Gegenstand laufender Novellen sind.
+- **Hybride Vermarktung (PPA + Merchant)**: Anteil, Preis, Startjahr,
+  Laufzeit und Indexierung je Projekt. Die Förderung bemisst sich
+  weiterhin am Referenzmarktwert, nicht am erzielten Preis – ein PPA
+  verschiebt die Erlösverteilung, nicht den Förderanspruch.
+- **Erlösdiagramm** zeigt die Herkunft: Merchant, PPA, Marktprämie, und
+  die Rückzahlung als Balken unter der Nulllinie. PPA und Rückzahlung
+  erscheinen nur, wenn es sie gibt.
+- **Excel-Rundlauf** um zwei Blätter erweitert („Preiskurven Monate",
+  „Einspeisekurve") sowie um die PPA-Spalten der Projektliste. Ältere
+  Dateien ohne diese Blätter/Spalten bleiben lesbar.
+- **Rechenmodell-Dokumentation** um die Abschnitte 6.3 (Monatsaufteilung),
+  7.7 (Prämienmodelle), 7.8 (hybride Vermarktung) und 7.9
+  (Monatsauflösung samt Konvexitätseffekt) erweitert, PDF neu gebaut.
+- Die mitgelieferten Monatsreihen und die Einspeisekurve sind
+  **Platzhalter** mit plausibler Form (Winter teuer, Sommer billig;
+  negative Stunden im Frühjahr) – sie werden durch echte Daten ersetzt.
+- 21 neue Tests; Suite: 380.
+
 ## v5.3.1 – Zweite Achse für die Landkarte, Leitfall im Projekt (2026-08)
 
 Nachträge aus der Benutzung; die Rechenregeln sind unverändert.

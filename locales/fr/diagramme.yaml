@@ -95,3 +95,7 @@ serie_event_of_default: "Défaut {wert}x"
 achse_ek_rendite: "Rendement des capitaux propres"
 achse_spezifisches_invest: "Investissement spécifique (€/kWc)"
 achse_deckungsbeitrag: "Marge – VAN (€)"
+
+# --- Vermarktung und Rueckzahlung (v5.4) ---
+serie_erloes_ppa: "Revenu PPA"
+serie_rueckzahlung: "Restitution (surcompensation)"

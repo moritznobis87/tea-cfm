@@ -96,3 +96,7 @@ serie_event_of_default: "Event of Default {wert}x"
 achse_ek_rendite: "EK-Rendite"
 achse_spezifisches_invest: "Spezifisches Invest (€/kWp)"
 achse_deckungsbeitrag: "Deckungsbeitrag – NPV (€)"
+
+# --- Vermarktung und Rueckzahlung (v5.4) ---
+serie_erloes_ppa: "PPA-Erlös"
+serie_rueckzahlung: "Rückzahlung (Überförderung)"
