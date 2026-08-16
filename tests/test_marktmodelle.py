@@ -416,3 +416,63 @@ class TestExcelRundlauf:
         assert gelesen.ppa_start_jahr == 2
         assert gelesen.ppa_laufzeit_jahre == 12
         assert gelesen.ppa_indexierung_pct_pa == pytest.approx(0.015)
+
+
+class TestSzenarienPlot:
+    """Die Globalen Annahmen zeigen die Szenarien als Bild; die Zahlen
+    stehen hinter einem Schalter.
+
+    Vier Tabellen mit je 36 Zeilen beantworten die Frage nicht, die man
+    an eine Szenariosammlung hat: Wie weit liegen die Prognosen
+    auseinander, und ab wann?
+    """
+
+    def test_eine_linie_je_szenario(self):
+        from app.components import charts
+
+        fig = charts.szenarien_linien_chart(
+            [
+                ("Aurora", {2030: 4.0, 2028: 3.5, 2029: 3.8}),
+                ("Enervis", {2028: 4.2, 2029: 4.4, 2030: 4.6}),
+            ],
+            "Marktwert", "ct/kWh",
+        )
+        assert [s.name for s in fig.data] == ["Aurora", "Enervis"]
+        # Nach Kalenderjahr sortiert - ein Diagramm folgt der Zeit, nicht
+        # der Einfuegereihenfolge des Datenbestands.
+        assert list(fig.data[0].x) == [2028, 2029, 2030]
+        assert list(fig.data[0].y) == [3.5, 3.8, 4.0]
+
+    def test_leere_kurve_bekommt_keine_linie(self):
+        """Ein frisch angelegtes Szenario hat noch keine Werte - eine
+        Linie ohne Punkte waere ein Legendeneintrag ohne Aussage."""
+        from app.components import charts
+
+        fig = charts.szenarien_linien_chart(
+            [("leer", {}), ("voll", {2030: 4.0})], "Marktwert", "ct/kWh"
+        )
+        assert [s.name for s in fig.data] == ["voll"]
+
+    def test_faktor_rechnet_anteile_in_prozent(self):
+        from app.components import charts
+
+        fig = charts.szenarien_linien_chart(
+            [("Aurora", {2030: 0.08})], "Anteil", "%", faktor=100.0,
+        )
+        assert list(fig.data[0].y) == [8.0]
+
+    def test_zahlen_stehen_hinter_einem_schalter(self):
+        """Regressionsschutz fuer die Reihenfolge: erst das Bild, dann
+        die Zahlen - und die Tabelle nur, wenn der Schalter an ist."""
+        from pathlib import Path
+
+        quelle = (
+            Path(__file__).resolve().parent.parent
+            / "app" / "views" / "assumptions.py"
+        ).read_text(encoding="utf-8")
+        abschnitt = quelle[quelle.index("annahmen_marktpreisszenarien_titel"):]
+        abschnitt = abschnitt[: abschnitt.index("annahmen_neues_szenario_titel")]
+        assert abschnitt.index("szenarien_linien_chart") < abschnitt.index(
+            "kurven_editor_"
+        ), "Das Bild gehoert vor die Tabelle"
+        assert "annahmen_zahlen_zeigen" in abschnitt

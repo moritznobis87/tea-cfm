@@ -98,3 +98,6 @@ achse_deckungsbeitrag: "Contribution – NPV (€)"
 # --- Vermarktung und Rueckzahlung (v5.4) ---
 serie_erloes_ppa: "PPA revenue"
 serie_rueckzahlung: "Repayment (over-support)"
+achse_kalenderjahr: "Calendar year"
+achse_marktwert_solar: "Solar market value (ct/kWh)"
+achse_negativ_anteil: "Generation during negative-price hours"

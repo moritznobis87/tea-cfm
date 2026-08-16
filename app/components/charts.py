@@ -304,6 +304,50 @@ def equity_waterfall_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def szenarien_linien_chart(
+    reihen: list[tuple[str, dict[int, float]]],
+    y_titel: str,
+    einheit: str,
+    faktor: float = 1.0,
+    nachkommastellen: int = 2,
+) -> go.Figure:
+    """Eine Linie je Marktpreisszenario ueber dem Kalenderjahr.
+
+    Der Vergleich ist die eigentliche Frage an eine Szenariosammlung:
+    Wie weit liegen die Prognosen auseinander, und ab wann? In einer
+    Tabelle mit 36 Zeilen je Szenario ist das nicht zu sehen - vier
+    Linien in einem Bild beantworten es auf einen Blick.
+
+    reihen: (Szenarioname, {Kalenderjahr: Wert}). Leere Reihen werden
+    uebergangen; ein Szenario ohne Kurve hat nichts zu zeigen.
+    """
+    fig = go.Figure()
+    for i, (name, kurve) in enumerate(reihen):
+        if not kurve:
+            continue
+        jahre = sorted(kurve)
+        fig.add_scatter(
+            x=jahre, y=[kurve[j] * faktor for j in jahre], mode="lines",
+            name=name, line=dict(color=Colors.SERIES[i % len(Colors.SERIES)],
+                                 width=2.2),
+            hovertemplate=(
+                f"{name}<br>%{{x}}: %{{y:,.{nachkommastellen}f}} {einheit}"
+                "<extra></extra>"
+            ),
+        )
+    fig.update_layout(
+        height=320, xaxis_title=txt("diagramme.achse_kalenderjahr"),
+        # Prozentzeichen an die Achse, andere Einheiten nicht: "20"
+        # allein liest sich wie eine absolute Menge, waehrend "5 ct/kWh"
+        # an jedem Strich nur die Einheit aus dem Achsentitel
+        # wiederholt.
+        yaxis=dict(title=y_titel, ticksuffix=" %" if einheit == "%" else ""),
+        margin=dict(t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    return fig
+
+
 def verguetung_chart(
     df: pd.DataFrame, eag_zuschlag_ct: float, foerderdauer_jahre: int
 ) -> go.Figure:
