@@ -165,6 +165,18 @@ Spaltenerkennung arbeitet über Teilbegriffe statt exakter Namen, weil
 sich Aurora-Exporte zwischen Marktgebieten in Kleinigkeiten
 unterscheiden.
 
+**Einspeisekurven je Bauform** (`engine/io_lastgang.py`): Die zwölf
+Monatsanteile der Einspeisekurve stammen aus Stundenreihen – je eine für
+Pult und Tracker, 8.760 Werte, monatsweise summiert und auf 1 normiert
+(`kurve_aus_datei`, Pflichtlänge 8.760 bzw. 8.784, sonst
+`LastgangFehler`). Das Modul läuft **nicht** zur Laufzeit: Es hat die
+Kurven einmal erzeugt, sie stehen als `EINSPEISEKURVEN_JE_BAUFORM` in
+`engine/models.py`, die Rohreihen liegen unter `data/lastgang/`, und
+`tests/test_lastgang.py` rechnet die hinterlegten Zahlen daraus nach –
+eine Kurve, die zu keiner Messung mehr gehört, fällt damit auf. In den
+globalen Annahmen wird nur noch zwischen den Bauformen umgeschaltet
+oder von Hand nachgebessert.
+
 **Standort und Variante:** Ein `PVProject` trägt zwei Namen – `name`
 (Standort) und `variante` (Sensitivität, leer = Grundfall). Mehrere
 Varianten desselben Standorts sind weiterhin eigenständige Projekte mit

@@ -1,5 +1,27 @@
 # Changelog
 
+## v5.7 – Einspeisekurven aus Messreihen, Prämienmodell je Markt (2026-08)
+
+- **Zwei hinterlegte Einspeisekurven**: „Pult" und „Tracker", abgeleitet
+  aus je einer Stundenreihe desselben Standorts und Wetterjahres (8.760
+  Werte, monatsweise summiert und auf 100 % normiert). Sie ersetzen die
+  bisherige geschätzte Standardkurve. In den globalen Annahmen wird
+  zwischen beiden umgeschaltet; wer die Werte von Hand ändert, landet
+  bei „Eigene Kurve".
+  Die Nachführung verschiebt Erzeugung aus April und September in die
+  Monate Mai bis Juli – für die Monatsrechnung spürbar, weil die Monate
+  unterschiedliche Marktwerte tragen.
+  Die Ableitung steht in `engine/io_lastgang.py`, die Rohreihen unter
+  `data/lastgang/`; die Tests rechnen die hinterlegten Kurven daraus
+  nach.
+- **Prämienmodell folgt dem Länderschalter**: Österreich rechnet mit dem
+  zweiseitigen CfD mit Toleranzband (§ 10 EAG), Deutschland mit dem
+  einseitigen CfD des EEG. Beides bleibt danach frei wählbar. Die
+  ausgelieferten globalen Annahmen (Marktsystem Österreich) stehen damit
+  auf dem Toleranzband – **das ändert Ergebnisse bestehender Projekte**,
+  sobald Marktwerte über dem anzulegenden Wert liegen und die Anlage die
+  5-MW-Schwelle erreicht.
+
 ## v5.6 – Aurora-Arbeitsmappe, Großhandelspreis, Bauform (2026-08)
 
 Der Aurora-Import liest jetzt die Arbeitsmappe, die Aurora ohnehin

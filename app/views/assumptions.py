@@ -47,8 +47,11 @@ _MARKT_SYSTEME: dict[MarktSystem, tuple[str, str]] = {
 def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
     """Stellt die Marktsystematik als Paket um und speichert sofort.
 
-    Oesterreich (EAG): 6h-Regel, Koerperschaftsteuer mit AfA, act/365.
-    Deutschland (EEG): 1h-Regel, deutsche Gewerbesteuer, 30/360.
+    Oesterreich (EAG): 6h-Regel, Koerperschaftsteuer mit AfA, act/365,
+    zweiseitiger CfD mit Toleranzband (§ 10 EAG).
+    Deutschland (EEG): 1h-Regel, deutsche Gewerbesteuer, 30/360,
+    einseitiger CfD - das EEG kennt keine Rueckzahlung des Uebergewinns,
+    oberhalb des anzulegenden Werts behaelt der Betreiber den Marktwert.
     Titelzeile und Marktpraemienseite folgen dem Schalter zur Laufzeit
     (streamlit_app.py bzw. app/views/auktion.py); die einzelnen Felder
     bleiben danach weiterhin manuell aenderbar.
@@ -60,10 +63,12 @@ def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
         # Pflichtfeld des AfA-Modus (siehe GlobalAssumptions.check_afa_fields).
         ga.afa_nutzungsdauer_jahre = ga.afa_nutzungsdauer_jahre or 20
         ga.zinsmethode = ZinsMethode.OESTERREICH
+        ga.praemien_modell = PraemienModell.EAG_TOLERANZBAND
     else:
         ga.negative_stunden_regel = NegativeStundenRegel.EINE_STUNDE
         ga.tax_modus = TaxModus.GEWERBESTEUER_DE
         ga.zinsmethode = ZinsMethode.DEUTSCH
+        ga.praemien_modell = PraemienModell.EINSEITIG_CFD
     services.save_global_assumptions(ga)
 
 
@@ -365,6 +370,56 @@ def _aurora_csv(ga: GlobalAssumptions) -> None:
     )
 
 
+#: Kennung der frei bearbeiteten Kurve im Bauform-Umschalter - sie
+#: gehoert zu keiner hinterlegten Bauform.
+_EIGENE_KURVE = "__eigene__"
+
+
+def _bauform_auswahl(ga: GlobalAssumptions) -> None:
+    """Umschalter zwischen den hinterlegten Einspeisekurven (Pult,
+    Tracker - siehe EINSPEISEKURVEN_JE_BAUFORM).
+
+    Die Auswahl wirkt sofort und nicht erst beim Speichern der Seite,
+    weil die Tabelle darunter die gewaehlte Kurve zeigen muss. Wer die
+    Werte danach von Hand aendert, verlaesst die Bauform - deshalb der
+    dritte Eintrag "Eigene Kurve".
+    """
+    namen = list(ga.einspeisekurven_je_bauform)
+    if not namen:
+        return
+    optionen = namen + [_EIGENE_KURVE]
+    aktiv = (
+        ga.einspeisekurve_bauform
+        if ga.einspeisekurve_bauform in namen
+        else _EIGENE_KURVE
+    )
+    wahl = st.radio(
+        txt("oberflaeche.annahmen_bauform_label"),
+        optionen,
+        format_func=lambda n: (
+            txt("oberflaeche.annahmen_bauform_eigene") if n == _EIGENE_KURVE else n
+        ),
+        index=optionen.index(aktiv),
+        horizontal=True,
+        key="einspeisekurve_bauform_wahl",
+        help=txt("oberflaeche.annahmen_bauform_hilfe"),
+    )
+    if wahl == aktiv:
+        return
+    if wahl == _EIGENE_KURVE:
+        # Die Kurve bleibt stehen, nur die Herkunftsangabe faellt weg:
+        # Wer von Hand nachbessert, rechnet nicht mehr mit der Bauform.
+        ga.einspeisekurve_bauform = ""
+    else:
+        ga.einspeisekurve_bauform = wahl
+        ga.einspeisekurve_pct_je_monat = list(ga.einspeisekurven_je_bauform[wahl])
+    # Der Editor haelt seine Aenderungen an der alten Kurve fest; ohne
+    # Zuruecksetzen wuerde er die neue sofort wieder ueberschreiben.
+    st.session_state.pop("einspeisekurve_editor", None)
+    services.save_global_assumptions(ga)
+    st.rerun()
+
+
 def render_assumptions() -> None:
     st.subheader(txt("oberflaeche.nav_globale_annahmen"))
 
@@ -592,6 +647,7 @@ def render_assumptions() -> None:
 
         st.markdown(txt("oberflaeche.annahmen_einspeisekurve_titel"))
         st.caption(txt("oberflaeche.annahmen_einspeisekurve_hinweis"))
+        _bauform_auswahl(ga)
         kurve_df = pd.DataFrame(
             {
                 "Monat": monate_kurz(),

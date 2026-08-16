@@ -604,6 +604,12 @@ annahmen_einspeisekurve_hinweis: "Part de la production annuelle par mois. Elle 
 annahmen_einspeisekurve_summe: "Somme des parts : {summe} % (normalisée à 100 %)."
 annahmen_col_monat: "Mois"
 annahmen_col_anteil_jahreserzeugung: "Part de la production annuelle (%)"
+
+# --- Courbe d'injection par type de structure (v5.7) -------------------------
+annahmen_bauform_label: "Courbes enregistrées"
+annahmen_bauform_eigene: "Courbe personnalisée"
+annahmen_bauform_hilfe: "« Pult » (fixe) et « Tracker » sont déduits de séries horaires du même site et de la même année météo (8 760 valeurs, sommées par mois et normalisées à 100 %). Le choix s'applique immédiatement et remplace le tableau ci-dessous ; « Courbe personnalisée » conserve les valeurs actuelles et supprime seulement le lien avec un type de structure."
+
 annahmen_praemienmodell_titel: "**Modèle de prime de marché**"
 annahmen_praemienmodell_hinweis: "Forme contractuelle entre exploitant et organisme de soutien. Elle décide de ce qui se passe au-dessus de la valeur de référence ; en dessous, les trois modèles complètent."
 annahmen_praemienmodell_label: "Modèle"

@@ -604,6 +604,12 @@ annahmen_einspeisekurve_hinweis: "Parte de la generación anual por mes. Se apli
 annahmen_einspeisekurve_summe: "Suma de las partes: {summe} % (se normaliza al 100 %)."
 annahmen_col_monat: "Mes"
 annahmen_col_anteil_jahreserzeugung: "Parte de la generación anual (%)"
+
+# --- Curva de inyección por tipo de estructura (v5.7) ------------------------
+annahmen_bauform_label: "Curvas guardadas"
+annahmen_bauform_eigene: "Curva propia"
+annahmen_bauform_hilfe: "«Pult» (fija) y «Tracker» se obtienen de series horarias del mismo emplazamiento y año meteorológico (8.760 valores, sumados por mes y normalizados al 100 %). La selección se aplica de inmediato y sustituye la tabla siguiente; «Curva propia» conserva los valores actuales y solo elimina la asignación a un tipo de estructura."
+
 annahmen_praemienmodell_titel: "**Modelo de prima de mercado**"
 annahmen_praemienmodell_hinweis: "Forma contractual entre operador y organismo de apoyo. Decide qué ocurre por encima del valor de referencia; por debajo, los tres modelos complementan."
 annahmen_praemienmodell_label: "Modelo"

@@ -605,6 +605,12 @@ annahmen_einspeisekurve_hinweis: "Anteil der Jahreserzeugung je Monat. Sie gilt 
 annahmen_einspeisekurve_summe: "Summe der Anteile: {summe} % (wird auf 100 % normiert)."
 annahmen_col_monat: "Monat"
 annahmen_col_anteil_jahreserzeugung: "Anteil Jahreserzeugung (%)"
+
+# --- Einspeisekurve je Bauform (v5.7) ----------------------------------------
+annahmen_bauform_label: "Hinterlegte Kurven"
+annahmen_bauform_eigene: "Eigene Kurve"
+annahmen_bauform_hilfe: "„Pult“ und „Tracker“ sind aus Stundenreihen desselben Standorts und Wetterjahrs abgeleitet (8.760 Werte, monatsweise summiert und auf 100 % normiert). Die Auswahl wirkt sofort und ersetzt die Tabelle darunter; „Eigene Kurve“ behält die aktuellen Werte und löst nur die Zuordnung zur Bauform."
+
 annahmen_praemienmodell_titel: "**Marktprämienmodell**"
 annahmen_praemienmodell_hinweis: "Vertragsform zwischen Betreiber und Förderstelle. Sie bestimmt, was bei Marktpreisen über dem anzulegenden Wert geschieht — unter ihm wird in allen drei Modellen aufgezahlt."
 annahmen_praemienmodell_label: "Modell"

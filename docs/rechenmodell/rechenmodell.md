@@ -336,6 +336,7 @@ konsistentes Ausgangspaket:
 | Ertragsbesteuerung | Körperschaftsteuer mit AfA, Freibetrag und Verlustvortrag | Gewerbesteuer mit Freibetrag, ohne Verlustvortrag im Referenzmodell |
 | Zinsmethode im Anlaufjahr | taggenau Act/365 | kaufmännisch 30/360 |
 | Herkunft des anzulegenden Wertes | empirisches Ausschreibungsmodell nach Kapitel 15 | manuelle Vorgabe des erwarteten Zuschlags |
+| Marktprämienmodell | zweiseitiger CfD mit Toleranzband (§ 10 EAG) | einseitiger CfD – kein Rückfluss oberhalb des anzulegenden Wertes |
 
 Die Einzelparameter bleiben nach Auswahl des Marktsystems veränderbar. Der
 Länderschalter stellt somit eine konsistente Vorbelegung dar, ohne die
@@ -651,6 +652,43 @@ die Monatsebene ist also eine reine Verteilung. Alle nachgelagerten
 Schritte (Betriebskosten, Finanzierung, Steuern, Kennzahlen) rechnen
 unverändert auf Jahresscheiben; die Monatsebene wirkt ausschließlich in
 Schritt 3 (Abschnitt 7.9).
+
+### Herkunft der Einspeisekurve
+
+Die Kurve beschreibt die **Form** des Erzeugungsjahres, nicht seine Höhe;
+die Jahresmenge bleibt das Produkt aus Leistung und
+Vollbenutzungsstunden. Hinterlegt sind zwei Kurven, abgeleitet aus je
+einer Stundenreihe desselben Standorts und desselben Wetterjahres
+(8.760 Werte): monatsweise summiert und auf $\sum_j \theta_j = 1$
+normiert. Weil nur das Verhältnis der Monatssummen eingeht, ist die
+Einheit der Reihe (kW, kWh, MW oder Prozent der Nennleistung)
+gleichgültig.
+
+| Monat | Pult (%) | Tracker (%) |
+| --- | ---: | ---: |
+| Januar | 2,16 | 1,96 |
+| Februar | 4,58 | 4,42 |
+| März | 7,25 | 6,93 |
+| April | 13,63 | 13,14 |
+| Mai | 12,02 | 12,58 |
+| Juni | 11,97 | 12,86 |
+| Juli | 12,55 | 13,10 |
+| August | 13,91 | 13,79 |
+| September | 10,27 | 9,88 |
+| Oktober | 4,93 | 5,00 |
+| November | 2,85 | 2,64 |
+| Dezember | 3,89 | 3,70 |
+
+Die Nachführung verschiebt Erzeugung aus den Spitzenmonaten in die
+Monate mit flachem Sonnenstand: Der Tracker trägt von Mai bis Juli rund
+1,3 Prozentpunkte mehr als die Pultaufständerung und in April und
+September entsprechend weniger. Für die Monatsrechnung ist das
+wesentlich, weil die Monate unterschiedliche Marktwerte tragen.
+
+Die Ableitung steht in `engine/io_lastgang.py`, die Rohreihen unter
+`data/lastgang/`; `tests/test_lastgang.py` rechnet die hinterlegten
+Kurven daraus nach. In den globalen Annahmen wird zwischen beiden
+Bauformen umgeschaltet oder eine eigene Kurve eingetragen.
 
 **Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr, in der
 Monatsauflösung zusätzlich $E_{t,j}$.

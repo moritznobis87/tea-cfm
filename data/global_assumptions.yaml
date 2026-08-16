@@ -1521,6 +1521,8 @@ marktpreisszenarien:
     - 0.0
     - 0.0
     - 0.0
+  baseload_ct_kwh_je_kalenderjahr: {}
+  baseload_ct_kwh_je_monat: {}
 - name: Aurora 04/26
   marktwert_solar_ct_kwh_je_kalenderjahr:
     '2025': 4.764
@@ -3040,6 +3042,8 @@ marktpreisszenarien:
     - 0.0
     - 0.0
     - 0.0
+  baseload_ct_kwh_je_kalenderjahr: {}
+  baseload_ct_kwh_je_monat: {}
 - name: Aurora 10/25
   marktwert_solar_ct_kwh_je_kalenderjahr:
     '2025': 4.764
@@ -4559,6 +4563,8 @@ marktpreisszenarien:
     - 0.0
     - 0.0
     - 0.0
+  baseload_ct_kwh_je_kalenderjahr: {}
+  baseload_ct_kwh_je_monat: {}
 - name: Enervis 2025
   marktwert_solar_ct_kwh_je_kalenderjahr:
     '2025': 3.914
@@ -6078,25 +6084,55 @@ marktpreisszenarien:
     - 0.0
     - 0.0
     - 0.0
+  baseload_ct_kwh_je_kalenderjahr: {}
+  baseload_ct_kwh_je_monat: {}
 marktpreis_inflation_pct_pa: 0.02
 marktpreis_inflation_basisjahr: 2025
 kosten_inflation_pct_pa: 0.02
 negative_stunden_regel: 6h
 zeitaufloesung: jahr
 einspeisekurve_pct_je_monat:
-- 0.025
-- 0.045
-- 0.085
-- 0.11
-- 0.13
-- 0.135
-- 0.135
-- 0.12
-- 0.095
-- 0.065
-- 0.033
-- 0.022
-praemien_modell: einseitig_cfd
+- 0.02163
+- 0.045764
+- 0.072472
+- 0.13631
+- 0.120248
+- 0.119668
+- 0.125485
+- 0.139141
+- 0.102668
+- 0.049251
+- 0.028465
+- 0.038899
+einspeisekurven_je_bauform:
+  Pult:
+  - 0.02163
+  - 0.045764
+  - 0.072472
+  - 0.13631
+  - 0.120248
+  - 0.119668
+  - 0.125485
+  - 0.139141
+  - 0.102668
+  - 0.049251
+  - 0.028465
+  - 0.038899
+  Tracker:
+  - 0.019621
+  - 0.044177
+  - 0.069323
+  - 0.131418
+  - 0.125751
+  - 0.128575
+  - 0.130982
+  - 0.137865
+  - 0.098824
+  - 0.050023
+  - 0.026408
+  - 0.037032
+einspeisekurve_bauform: Pult
+praemien_modell: eag_toleranzband
 eag_rueckzahlung_ab_mw: 5.0
 eag_rueckzahlung_toleranzband_pct: 0.4
 eag_rueckzahlung_anteil_pct: 0.66

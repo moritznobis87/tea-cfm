@@ -604,6 +604,12 @@ annahmen_einspeisekurve_hinweis: "Share of annual generation per month. It appli
 annahmen_einspeisekurve_summe: "Sum of shares: {summe} % (normalised to 100 %)."
 annahmen_col_monat: "Month"
 annahmen_col_anteil_jahreserzeugung: "Share of annual generation (%)"
+
+# --- Feed-in curve per mounting type (v5.7) ----------------------------------
+annahmen_bauform_label: "Stored curves"
+annahmen_bauform_eigene: "Custom curve"
+annahmen_bauform_hilfe: "“Pult” (fixed tilt) and “Tracker” are derived from hourly series of the same site and weather year (8,760 values, summed per month and normalised to 100 %). The choice takes effect immediately and replaces the table below; “Custom curve” keeps the current values and only drops the link to a mounting type."
+
 annahmen_praemienmodell_titel: "**Market premium model**"
 annahmen_praemienmodell_hinweis: "Contract form between operator and support body. It decides what happens above the applicable value — below it, all three models top up."
 annahmen_praemienmodell_label: "Model"
