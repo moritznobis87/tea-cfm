@@ -132,8 +132,24 @@ Projekt-IDs entstehen per Slugify aus dem Namen (Umlaute
 transliteriert, Kollisionen erhalten eine Laufnummer) – siehe
 `services.make_project_id()`.
 
-**Aurora-Import** (`engine/io_aurora.py`): baut aus den Aurora-Exporten
-ein `MarktpreisSzenario`. Quelle der Kurven ist die **Technologiedatei
+**Aurora-Import** (`engine/io_aurora.py`): baut aus den Aurora-Daten
+`MarktpreisSzenario`-Objekte – auf zwei Wegen. Die **Arbeitsmappe**
+(„Market Forecast Data", `lies_arbeitsmappe` / `importiere_arbeitsmappe`)
+liefert in einer Datei alle Preisszenarien (Central/Low/High/Net Zero)
+und beide Bauformen (Aurora „Fixed"/„Tracking solar PV", im Tool „Pult"
+und „Tracker"); je gewähltem Preisszenario entsteht ein eigenes Szenario
+`Stamm · Bauform · Preisszenario`. Nichts wird über feste Zeilen- oder
+Spaltennummern gefunden: Kopfzeile ist die Zeile mit „Calendar year"/
+„Month", Datenspalten sind die mit Zahlen darunter, die Szenariospalte
+wird an ihren Werten erkannt, und gesucht wird im zusammengesetzten Text
+aller Beschriftungsspalten (das erfasst auch die deutschen
+Zweitspalten). Die monatliche Abregelungsquote bezieht sich je nach
+Jahrgang auf eine andere Regel; welche es ist, verrät die Beschriftung
+oder die Fußnote des Abschnitts – sonst wird sie durch Vergleich mit den
+Jahresreihen bestimmt. Die Monatsreihe trägt dann das Profil, die
+Jahresreihe der Zielregel das Niveau. Der zweite Weg sind die vier
+**CSV-Exporte** aus EOS; sie tragen zusätzlich die monatliche Erzeugung
+und damit die Einspeisekurve. Quelle der Kurven ist die **Technologiedatei
 in Monatsauflösung** – Capture Price (EUR/MWh → ct/kWh), die beiden
 Abregelungsquoten (1h/6h) und die monatliche Erzeugung, aus der die
 Einspeisekurve abgeleitet wird; die Jahreswerte entstehen als

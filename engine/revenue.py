@@ -64,6 +64,11 @@ REVENUE_COLUMNS = [
     # Ohne PPA ist erloes_ppa_eur = 0 und erloes_merchant_eur =
     # erloes_markt_eur; ohne Rueckzahlungspflicht ist rueckzahlung_eur = 0.
     "erloes_ppa_eur", "erloes_merchant_eur", "rueckzahlung_eur",
+    # Grosshandelspreis (Baseload) des Szenarios: rechnet im Erloes nicht
+    # mit, ist aber die Bezugsgroesse der Direktvermarktungskosten im
+    # Modus RELATIV_GROSSHANDEL - und im Diagramm der Abstand, aus dem
+    # sich die Kannibalisierung ablesen laesst.
+    "baseload_nominal_ct_kwh",
 ]
 
 
@@ -166,6 +171,10 @@ def _scheiben(
             df["kalenderjahr"], df["monat"],
             assumptions.anteil_negativer_stunden_pct_je_monat,
         )
+        baseload_real = _monatskurve_nachschlagen(
+            df["kalenderjahr"], df["monat"],
+            assumptions.baseload_ct_kwh_je_monat,
+        )
     else:
         df = timeline[["jahr"]].copy()
         df["monat"] = 0
@@ -178,6 +187,9 @@ def _scheiben(
             df["kalenderjahr"],
             assumptions.anteil_negativer_stunden_pct_je_kalenderjahr,
         )
+        baseload_real = _kurve_nachschlagen(
+            df["kalenderjahr"], assumptions.baseload_ct_kwh_je_kalenderjahr
+        )
 
     # Inflationsfaktor bewusst auf Basis des TATSAECHLICHEN Kalenderjahres
     # (nicht des ggf. am Kurvenrand geklemmten Nachschlagejahres) - auch
@@ -189,6 +201,9 @@ def _scheiben(
     )
     df["marktwert_real_ct_kwh"] = marktwert_real
     df["marktwert_nominal_ct_kwh"] = marktwert_real * inflationsfaktor
+    # Der Baseload folgt derselben Inflationierung wie der Marktwert -
+    # beide stammen aus derselben Studie und derselben Preisbasis.
+    df["baseload_nominal_ct_kwh"] = baseload_real * inflationsfaktor
     # Gewichtung 0% = Effekt komplett ausgeblendet (volle Verguetung auch
     # in Stunden negativer Preise), 100% = volle gesetzliche Wirkung.
     df["anteil_negativ"] = negativ * assumptions.negative_stunden_gewichtung_pct
@@ -287,6 +302,6 @@ def _verdichte_auf_jahre(df: pd.DataFrame) -> pd.DataFrame:
         rueckzahlung_eur=("rueckzahlung_eur", "sum"),
     )
     for spalte in ("marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
-                   "verguetungssatz_ct_kwh"):
+                   "verguetungssatz_ct_kwh", "baseload_nominal_ct_kwh"):
         jahre[spalte] = _gewichtet(spalte).to_numpy()
     return jahre[REVENUE_COLUMNS]

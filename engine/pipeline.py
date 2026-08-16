@@ -75,6 +75,8 @@ def resolve_assumptions(
             global_assumptions.einspeisekurve_pct_je_monat
         ),
         marktwert_solar_ct_kwh_je_monat=szenario.marktwert_monatskurve(),
+        baseload_ct_kwh_je_kalenderjahr=szenario.baseload_ct_kwh_je_kalenderjahr,
+        baseload_ct_kwh_je_monat=szenario.baseload_monatskurve(),
         anteil_negativer_stunden_pct_je_monat=szenario.negativ_monatskurve(
             global_assumptions.negative_stunden_regel
         ),
@@ -173,6 +175,7 @@ def run_valuation_from_assumptions(
         direktvermarktung_modus=assumptions.direktvermarktung_modus,
         direktvermarktung_pct_marktwert=assumptions.direktvermarktung_pct_marktwert,
         marktwert_nominal_ct_kwh=revenue["marktwert_nominal_ct_kwh"].to_numpy(),
+        baseload_nominal_ct_kwh=revenue["baseload_nominal_ct_kwh"].to_numpy(),
         kosten_inflation_pct_pa=assumptions.kosten_inflation_pct_pa,
         pacht_modus=assumptions.pacht_modus,
         pacht_eur_kwp_jahr=assumptions.pacht_eur_kwp_jahr,

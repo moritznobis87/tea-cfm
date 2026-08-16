@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from .models import MONATE, MarktpreisSzenario
+from .models import EINSPEISEKURVE_STANDARD_PCT, MONATE, MarktpreisSzenario
 
 
 class AuroraImportFehler(ValueError):
@@ -528,3 +528,641 @@ def _gegenprobe(
             "Monatsmittel um mehr als 2 % vom ausgewiesenen Jahreswert ab "
             f"(z. B. {abweichungen[0]}). Gerechnet wird mit den Monatswerten."
         )
+
+
+# ---------------------------------------------------------------------------
+# Aurora-Arbeitsmappe (Market Forecast Data, .xlsx/.xlsm)
+# ---------------------------------------------------------------------------
+#
+# Der zweite Weg in dieses Modul: Statt vier CSV-Exporten eine einzige
+# Arbeitsmappe. Sie enthaelt je Szenario ein Jahresblatt (Central, Low,
+# High, teils Net Zero) und ein gemeinsames Blatt "Monthly prices" mit
+# allen Szenarien.
+#
+# Zwischen den Jahrgaengen aendert Aurora Kleinigkeiten - Blattnamen
+# ("Monthly prices"/"Monthly Prices"), Kopfzeilen um eine Zeile
+# verschoben, zweisprachige Zusatzspalten, "Baseload"/"Baseload price"/
+# "Baseload prices", "curtailment-below-zero"/"curtailment % - 1 hour
+# rule". Deshalb wird NICHTS ueber feste Zeilen- oder Spaltennummern
+# gefunden: Die Kopfzeile ist die Zeile, in der "Calendar year" und
+# "Month" stehen; die Datenspalten sind die, unter denen beides eine
+# Zahl ist; die Szenariospalte ist die, in der die Szenarionamen stehen.
+# Gesucht wird dann im zusammengesetzten Text aller Beschriftungsspalten
+# einer Zeile - das erfasst auch die deutschen Zweitspalten.
+
+#: Aurora-Bezeichnung der Solartechnologien -> Anzeige im Tool.
+#: "Fixed" ist die suedausgerichtete Pultanlage, "Tracking" die
+#: einachsig nachgefuehrte. Ihr Marktwert unterscheidet sich sichtbar:
+#: Der Tracker erzeugt breiter ueber den Tag verteilt und trifft damit
+#: weniger stark die Mittagsstunden mit den niedrigsten Preisen.
+SOLAR_TECHNOLOGIEN: dict[str, str] = {
+    "fixed solar pv": "Pult",
+    "tracking solar pv": "Tracker",
+}
+#: Voreinstellung - die weit ueberwiegende Bauform im Bestand.
+TECHNOLOGIE_STANDARD = "Pult"
+
+#: Szenarionamen, an denen die Szenariospalte erkannt wird.
+_SZENARIO_NAMEN = ("central", "low", "high", "net zero")
+
+#: Regeln der Abregelungsquote, die ein Jahresblatt fuehren kann - in
+#: der Reihenfolge, in der sie im Blatt stehen.
+_REGELN = {
+    "1h": ("1 hour",),
+    "4h": ("4 hour",),
+    "6h": ("6 hour",),
+    "15min": ("15 minute",),
+}
+
+
+def _text_normal(wert) -> str:
+    """Vergleichsform einer Beschriftung: klein, ohne Bindestriche,
+    ohne Mehrfach-Leerzeichen. "curtailed-below-zero" und "curtailed
+    below zero" sind dieselbe Groesse."""
+    if wert is None or (isinstance(wert, float) and pd.isna(wert)):
+        return ""
+    text = str(wert).replace("–", "-").replace("—", "-")
+    text = text.replace("-", " ").replace("/", " ")
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _ist_jahr(wert) -> bool:
+    return isinstance(wert, (int, float)) and not isinstance(wert, bool) and (
+        1990 <= float(wert) <= 2100 and float(wert) == int(wert)
+    )
+
+
+def _abschnitte(df: pd.DataFrame) -> pd.Series:
+    """Laufende Nummer des Abschnitts je Zeile.
+
+    Abschnitte beginnen mit einer Ueberschrift in der ersten Spalte
+    ("Results - solar"). Sie begrenzen das Fortschreiben der
+    Beschriftungen: Ein Blocktitel darf nicht in den naechsten Block
+    hineinlaufen.
+    """
+    ueberschrift = df.iloc[:, 0].apply(lambda w: bool(_text_normal(w)))
+    return ueberschrift.cumsum()
+
+
+def _beschriftungstext(df: pd.DataFrame, meta_spalten: list[int]) -> pd.Series:
+    """Ein Suchtext je Zeile aus allen Beschriftungsspalten.
+
+    Die Beschriftung steht in Aurora-Mappen mal in einer, mal in zwei
+    Spalten (englisch/deutsch), und sie wird oft nur in der ersten Zeile
+    eines Blocks gesetzt. Deshalb: je Spalte innerhalb des Abschnitts
+    fortschreiben, danach alles zusammenfuegen.
+    """
+    abschnitt = _abschnitte(df)
+    teile = []
+    for spalte in meta_spalten:
+        werte = df.iloc[:, spalte].apply(_text_normal).replace("", pd.NA)
+        gefuellt = werte.groupby(abschnitt).ffill().fillna("")
+        teile.append(gefuellt)
+    return teile[0].str.cat(teile[1:], sep=" | ") if teile else pd.Series("", index=df.index)
+
+
+def _szenario_je_zeile(df: pd.DataFrame, meta_spalten: list[int]) -> pd.Series:
+    """Die Spalte, in der die Szenarionamen stehen - dynamisch gesucht."""
+    beste, treffer_beste = None, 0
+    for spalte in meta_spalten:
+        werte = df.iloc[:, spalte].apply(_text_normal)
+        treffer = int(werte.isin(_SZENARIO_NAMEN).sum())
+        if treffer > treffer_beste:
+            beste, treffer_beste = spalte, treffer
+    if beste is None:
+        return pd.Series("", index=df.index)
+    return df.iloc[:, beste].apply(_text_normal)
+
+
+@dataclass
+class AuroraArbeitsmappe:
+    """Eine gelesene Aurora-Arbeitsmappe.
+
+    Traegt die Rohblaetter und das, was die Oberflaeche fuer die Auswahl
+    braucht: welche Szenarien und welche Solartechnologien darin
+    vorkommen.
+    """
+
+    titel: str
+    geografie: str
+    quartal: str
+    preisbasisjahr: int | None
+    szenarien: list[str]
+    technologien: list[str]
+    #: Monatsblatt: Rohzellen, Datenspalten (Spalte, Jahr, Monat),
+    #: Suchtext und Szenario je Zeile.
+    monat_df: pd.DataFrame = field(repr=False, default_factory=pd.DataFrame)
+    monat_spalten: list[tuple[int, int, int]] = field(default_factory=list)
+    monat_text: pd.Series = field(repr=False, default_factory=pd.Series)
+    monat_szenario: pd.Series = field(repr=False, default_factory=pd.Series)
+    #: Jahresblaetter je Szenario (Kleinschreibung) mit denselben Angaben.
+    jahr_blaetter: dict[str, tuple[pd.DataFrame, list[tuple[int, int]], pd.Series]] = (
+        field(repr=False, default_factory=dict)
+    )
+
+
+def _kopfzeilen_monat(df: pd.DataFrame) -> list[tuple[int, int, int]]:
+    """Datenspalten des Monatsblatts als (Spalte, Jahr, Monat).
+
+    Gesucht werden die Zeilen mit "Calendar year" und "Month"; die
+    Datenspalten sind die, unter denen in beiden eine Zahl steht.
+    """
+    jahr_zeile = monat_zeile = None
+    for i in range(min(len(df), 20)):
+        werte = [_text_normal(w) for w in df.iloc[i]]
+        if jahr_zeile is None and any(w in ("calendar year", "kalenderjahr") for w in werte):
+            jahr_zeile = i
+        if monat_zeile is None and any(w in ("month", "monat") for w in werte):
+            monat_zeile = i
+    if jahr_zeile is None or monat_zeile is None:
+        raise AuroraImportFehler(
+            "Im Blatt der Monatswerte fehlen die Kopfzeilen „Calendar year“ "
+            "und „Month“ – die Arbeitsmappe hat ein unbekanntes Format."
+        )
+    spalten = []
+    for spalte in range(df.shape[1]):
+        jahr, monat = df.iat[jahr_zeile, spalte], df.iat[monat_zeile, spalte]
+        if _ist_jahr(jahr) and isinstance(monat, (int, float)) and not isinstance(monat, bool):
+            if 1 <= int(monat) <= MONATE:
+                spalten.append((spalte, int(jahr), int(monat)))
+    if not spalten:
+        raise AuroraImportFehler(
+            "Im Blatt der Monatswerte konnten keine Monatsspalten erkannt "
+            "werden – die Arbeitsmappe hat ein unbekanntes Format."
+        )
+    return spalten
+
+
+def _kopfzeilen_jahr(df: pd.DataFrame) -> list[tuple[int, int]]:
+    """Datenspalten eines Jahresblatts als (Spalte, Jahr)."""
+    # Zwei Jahresspalten genuegen als Nachweis: Andere Zellen koennen
+    # zwar zufaellig im Jahresbereich liegen, aber nicht zwei in einer
+    # Zeile nebeneinander - und die erste solche Zeile ist die Kopfzeile.
+    for i in range(min(len(df), 60)):
+        kandidaten = [
+            (spalte, int(df.iat[i, spalte]))
+            for spalte in range(df.shape[1])
+            if _ist_jahr(df.iat[i, spalte])
+        ]
+        if len(kandidaten) >= 2:
+            return kandidaten
+    return []
+
+
+def _kopfangabe(df: pd.DataFrame, schluessel: str) -> str:
+    """Wert aus dem Kopf der Mappe ("Title", "Geography", "Currency")."""
+    for i in range(min(len(df), 10)):
+        for spalte in range(min(df.shape[1], 8)):
+            if _text_normal(df.iat[i, spalte]) == schluessel:
+                for rechts in range(spalte + 1, min(spalte + 4, df.shape[1])):
+                    wert = df.iat[i, rechts]
+                    if wert is not None and str(wert).strip():
+                        return str(wert).strip()
+    return ""
+
+
+def lies_arbeitsmappe(inhalt: bytes, dateiname: str) -> AuroraArbeitsmappe:
+    """Liest die Arbeitsmappe und sagt, was in ihr steckt."""
+    try:
+        blaetter = pd.read_excel(io.BytesIO(inhalt), sheet_name=None, header=None)
+    except Exception as fehler:
+        raise AuroraImportFehler(
+            f"Die Arbeitsmappe „{dateiname}“ ließ sich nicht lesen: {fehler}"
+        ) from fehler
+
+    monatsblatt = next(
+        (name for name in blaetter if _text_normal(name).startswith("monthly")), None
+    )
+    if monatsblatt is None:
+        raise AuroraImportFehler(
+            f"In „{dateiname}“ fehlt das Blatt „Monthly prices“. Für das "
+            "Monatsmodell (zweiseitiger CfD, Abschöpfung) werden monatliche "
+            "Daten benötigt – bitte die vollständige Aurora-Arbeitsmappe laden."
+        )
+
+    monat_df = blaetter[monatsblatt]
+    monat_spalten = _kopfzeilen_monat(monat_df)
+    erste_datenspalte = monat_spalten[0][0]
+    meta = [s for s in range(1, erste_datenspalte)]
+    monat_text = _beschriftungstext(monat_df, meta)
+    monat_szenario = _szenario_je_zeile(monat_df, meta)
+
+    szenarien: list[str] = []
+    for name in blaetter:
+        if _text_normal(name) in _SZENARIO_NAMEN:
+            szenarien.append(str(name).strip())
+    if not szenarien:
+        # Ohne Jahresblaetter bleiben die Szenarien des Monatsblatts.
+        szenarien = [w.title() for w in dict.fromkeys(monat_szenario) if w]
+
+    technologien = [
+        anzeige
+        for aurora, anzeige in SOLAR_TECHNOLOGIEN.items()
+        if monat_text.str.contains(aurora, regex=False).any()
+    ]
+
+    jahr_blaetter = {}
+    for name in blaetter:
+        if _text_normal(name) not in _SZENARIO_NAMEN:
+            continue
+        jahr_df = blaetter[name]
+        spalten = _kopfzeilen_jahr(jahr_df)
+        if not spalten:
+            continue
+        meta_jahr = [s for s in range(1, spalten[0][0])]
+        jahr_blaetter[_text_normal(name)] = (
+            jahr_df, spalten, _beschriftungstext(jahr_df, meta_jahr)
+        )
+
+    waehrung = _kopfangabe(monat_df, "currency")
+    basisjahr = None
+    treffer = re.search(r"real\s+(\d{4})", waehrung.lower())
+    if treffer:
+        basisjahr = int(treffer.group(1))
+
+    return AuroraArbeitsmappe(
+        titel=_kopfangabe(monat_df, "title"),
+        geografie=_kopfangabe(monat_df, "geography"),
+        quartal=_quartal_aus_name(dateiname),
+        preisbasisjahr=basisjahr,
+        szenarien=szenarien,
+        technologien=technologien or [TECHNOLOGIE_STANDARD],
+        monat_df=monat_df,
+        monat_spalten=monat_spalten,
+        monat_text=monat_text,
+        monat_szenario=monat_szenario,
+        jahr_blaetter=jahr_blaetter,
+    )
+
+
+def _quartal_aus_name(dateiname: str) -> str:
+    """Ausgabestand aus dem Dateinamen ("Q3_26", "Oct25") - er macht den
+    Szenarionamen im Tool unterscheidbar."""
+    treffer = re.search(r"(Q[1-4][_ ]?\d{2})", dateiname, re.IGNORECASE)
+    if treffer:
+        return treffer.group(1).replace("_", "/").upper()
+    treffer = re.search(
+        r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[_ ]?(\d{2})",
+        dateiname, re.IGNORECASE,
+    )
+    if treffer:
+        return f"{treffer.group(1).title()} {treffer.group(2)}"
+    return ""
+
+
+def _monatsreihen(
+    mappe: AuroraArbeitsmappe, szenario: str, *begriffe: str, ohne: str = ""
+) -> dict[int, list[float]]:
+    """Zwoelferreihen je Kalenderjahr fuer die erste passende Zeile.
+
+    Nur vollstaendige Jahre: Eine Reihe mit zehn Monaten stuende in der
+    Kurve stillschweigend verschoben.
+    """
+    passend = mappe.monat_text.str.contains(begriffe[0], regex=False)
+    for begriff in begriffe[1:]:
+        passend &= mappe.monat_text.str.contains(begriff, regex=False)
+    if ohne:
+        passend &= ~mappe.monat_text.str.contains(ohne, regex=False)
+    passend &= mappe.monat_szenario == _text_normal(szenario)
+
+    zeilen = list(mappe.monat_df.index[passend])
+    if not zeilen:
+        return {}
+    zeile = zeilen[0]
+
+    roh: dict[int, dict[int, float]] = {}
+    for spalte, jahr, monat in mappe.monat_spalten:
+        wert = pd.to_numeric(mappe.monat_df.iat[zeile, spalte], errors="coerce")
+        if pd.notna(wert):
+            roh.setdefault(jahr, {})[monat] = float(wert)
+    return {
+        jahr: [werte[m] for m in range(1, MONATE + 1)]
+        for jahr, werte in roh.items()
+        if len(werte) == MONATE
+    }
+
+
+def _erste_zeile_text(
+    mappe: AuroraArbeitsmappe, szenario: str, *begriffe: str
+) -> str:
+    """Der Suchtext der ersten passenden Monatszeile - aus ihm laesst
+    sich ablesen, welche Regel Aurora dort meint."""
+    passend = mappe.monat_szenario == _text_normal(szenario)
+    for begriff in begriffe:
+        passend &= mappe.monat_text.str.contains(begriff, regex=False)
+    treffer = list(mappe.monat_text[passend])
+    return treffer[0] if treffer else ""
+
+
+def _jahresreihe(
+    mappe: AuroraArbeitsmappe, szenario: str, *begriffe: str, ohne: str = ""
+) -> dict[int, float]:
+    """Jahreswerte aus dem Szenarioblatt fuer die erste passende Zeile."""
+    blatt = mappe.jahr_blaetter.get(_text_normal(szenario))
+    if blatt is None:
+        return {}
+    df, spalten, text = blatt
+    passend = text.str.contains(begriffe[0], regex=False)
+    for begriff in begriffe[1:]:
+        passend &= text.str.contains(begriff, regex=False)
+    if ohne:
+        passend &= ~text.str.contains(ohne, regex=False)
+    zeilen = list(df.index[passend])
+    if not zeilen:
+        return {}
+    zeile = zeilen[0]
+    werte = {}
+    for spalte, jahr in spalten:
+        wert = pd.to_numeric(df.iat[zeile, spalte], errors="coerce")
+        if pd.notna(wert):
+            werte[jahr] = float(wert)
+    return werte
+
+
+def _abregelung_jahr(
+    mappe: AuroraArbeitsmappe, szenario: str, tech: str
+) -> dict[str, dict[int, float]]:
+    """Die Abregelungsquoten aller im Blatt gefuehrten Regeln (Anteil 0-1)."""
+    ergebnis = {}
+    for regel, begriffe in _REGELN.items():
+        werte = _jahresreihe(
+            mappe, szenario, "curtailment", *begriffe, tech, "germany"
+        )
+        if werte:
+            ergebnis[regel] = {j: w / 100.0 for j, w in werte.items()}
+    return ergebnis
+
+
+def _regel_aus_text(text: str) -> str | None:
+    """Die im Text genannte Abregelungsregel, falls eine genannt wird."""
+    for regel, begriffe in _REGELN.items():
+        if all(b in text for b in begriffe):
+            return regel
+    return None
+
+
+def _regel_der_monatsreihe(
+    mappe: AuroraArbeitsmappe,
+    zeilentext: str,
+    monat: dict[int, list[float]],
+    jahr: dict[str, dict[int, float]],
+) -> str | None:
+    """Auf welche Regel bezieht sich die monatliche Abregelungsquote?
+
+    Aurora benennt sie je nach Jahrgang unterschiedlich: „curtailment %
+    - 1 hour rule“ sagt es direkt, „curtailment-below-zero“ nicht. Im
+    zweiten Fall steht die Antwort in der Fussnote des Abschnitts
+    („equivalent to the 15 minute rule“). Erst wenn auch die fehlt,
+    wird geraten - und zwar mit einem erzeugungsgewichteten Vergleich,
+    weil Aurora seine Jahreswerte gewichtet und ein ungewichtetes
+    Monatsmittel fuer PV systematisch zu niedrig liegt.
+    """
+    # Genannte Regeln zaehlen nur, wenn das Jahresblatt sie auch fuehrt -
+    # sonst gaebe es kein Niveau, auf das sich skalieren liesse.
+    aus_beschriftung = _regel_aus_text(zeilentext)
+    if aus_beschriftung in jahr:
+        return aus_beschriftung
+
+    fussnoten = mappe.monat_text[
+        mappe.monat_text.str.contains("equivalent to", regex=False)
+    ]
+    for text in fussnoten:
+        regel = _regel_aus_text(text)
+        if regel in jahr:
+            return regel
+
+    if not monat or not jahr:
+        return None
+    gewicht = [w / sum(EINSPEISEKURVE_STANDARD_PCT) for w in EINSPEISEKURVE_STANDARD_PCT]
+    mittel = {
+        j: sum(w * g for w, g in zip(werte, gewicht, strict=True))
+        for j, werte in monat.items()
+    }
+    beste, abstand_beste = None, None
+    for regel, werte in jahr.items():
+        gemeinsam = set(mittel) & set(werte)
+        if not gemeinsam:
+            continue
+        abstand = sum(abs(mittel[j] - werte[j]) for j in gemeinsam) / len(gemeinsam)
+        if abstand_beste is None or abstand < abstand_beste:
+            beste, abstand_beste = regel, abstand
+    return beste
+
+
+def _skaliere_auf_regel(
+    monat: dict[int, list[float]],
+    referenz: dict[int, float],
+    ziel: dict[int, float],
+) -> dict[int, list[float]]:
+    """Monatsprofil der einen Regel auf das Jahresniveau der anderen.
+
+    Die Monatsreihe traegt die Form (Fruehjahr viel, Winter wenig), die
+    Jahresreihe das Niveau der gesuchten Regel. Beides zusammen ergibt
+    die Monatsreihe der gesuchten Regel - ohne sie waere die 6h-Regel
+    entweder ohne Monatsprofil oder auf dem falschen Niveau.
+    """
+    ergebnis = {}
+    for jahr, werte in monat.items():
+        faktor = 1.0
+        if jahr in referenz and jahr in ziel and referenz[jahr] > 0:
+            faktor = ziel[jahr] / referenz[jahr]
+        ergebnis[jahr] = [min(max(w * faktor, 0.0), 1.0) for w in werte]
+    return ergebnis
+
+
+def importiere_arbeitsmappe(
+    mappe: AuroraArbeitsmappe,
+    basisname: str,
+    technologie: str = TECHNOLOGIE_STANDARD,
+    szenarien: list[str] | None = None,
+    uncurtailed: bool = True,
+) -> list[AuroraImport]:
+    """Ein Marktpreisszenario je Aurora-Szenario aus einer Arbeitsmappe.
+
+    Die drei Preisszenarien (Central, Low, High) werden als drei
+    getrennte Marktpreisszenarien angelegt - „<Basisname> · Pult ·
+    Central“ und so fort. Damit sind sie im Projekt einzeln waehlbar
+    (eine Variante je Szenario) und stehen zugleich gemeinsam im
+    Szenarienvergleich der Risikosicht: Die Sensitivitaet gegenueber dem
+    Preispfad ist dort ein Bild, kein Rechenlauf von Hand.
+
+    technologie: „Pult“ oder „Tracker“ (siehe SOLAR_TECHNOLOGIEN). Beide
+    Bauformen erloesen unterschiedlich, deshalb ist die Wahl Teil des
+    Imports und keine Nebensache.
+    """
+    if not basisname.strip():
+        raise AuroraImportFehler("Bitte einen Namen für die Szenarien angeben.")
+
+    aurora_tech = next(
+        (a for a, anzeige in SOLAR_TECHNOLOGIEN.items() if anzeige == technologie),
+        None,
+    )
+    if aurora_tech is None:
+        raise AuroraImportFehler(
+            f"Unbekannte Technologie „{technologie}“ – erwartet werden "
+            + " oder ".join(SOLAR_TECHNOLOGIEN.values())
+            + "."
+        )
+
+    gewaehlt = szenarien or mappe.szenarien
+    ergebnisse: list[AuroraImport] = []
+    for szenario in gewaehlt:
+        ergebnisse.append(
+            _importiere_szenario(
+                mappe, basisname.strip(), technologie, aurora_tech, szenario,
+                uncurtailed,
+            )
+        )
+    return ergebnisse
+
+
+def _importiere_szenario(
+    mappe: AuroraArbeitsmappe,
+    basisname: str,
+    technologie: str,
+    aurora_tech: str,
+    szenario: str,
+    uncurtailed: bool,
+) -> AuroraImport:
+    hinweise: list[str] = []
+
+    preis_begriffe = (
+        (aurora_tech, "uncurtailed capture price") if uncurtailed
+        else (aurora_tech, "capture price curtailed below zero")
+    )
+    marktwert_monat = _monatsreihen(mappe, szenario, *preis_begriffe)
+    if not marktwert_monat and uncurtailed:
+        marktwert_monat = _monatsreihen(
+            mappe, szenario, aurora_tech, "capture price curtailed below zero"
+        )
+        if marktwert_monat:
+            hinweise.append(
+                "Kein ungekürzter Capture Price im Monatsblatt – es gilt der "
+                "um negative Stunden gekürzte. Die Abregelung wirkt dann "
+                "doppelt; die Gewichtung negativer Stunden kann das in den "
+                "Globalen Annahmen ausgleichen."
+            )
+    if not marktwert_monat:
+        raise AuroraImportFehler(
+            f"Für „{technologie}“ und das Szenario „{szenario}“ stehen im "
+            "Blatt der Monatswerte keine vollständigen Monatsreihen des "
+            "Capture Price. Ohne sie sind zweiseitiger CfD und Abschöpfung "
+            "nicht rechenbar."
+        )
+
+    # EUR/MWh -> ct/kWh
+    marktwert_monat = {j: [w / 10.0 for w in werte] for j, werte in marktwert_monat.items()}
+
+    baseload_monat = {
+        j: [w / 10.0 for w in werte]
+        for j, werte in _monatsreihen(
+            mappe, szenario, "baseload", ohne="solar"
+        ).items()
+    }
+    if not baseload_monat:
+        hinweise.append(
+            "Kein Baseload-Preis im Monatsblatt gefunden – die "
+            "Direktvermarktungskosten im Modus „Anteil am Großhandelspreis“ "
+            "greifen dann ersatzweise auf den Marktwert zurück."
+        )
+
+    # Abregelung: Monatsprofil aus dem Monatsblatt, Niveau je Regel aus
+    # dem Jahresblatt.
+    abregelung_monat = _monatsreihen(mappe, szenario, aurora_tech, "curtailment")
+    abregelung_monat = {j: [w / 100.0 for w in werte] for j, werte in abregelung_monat.items()}
+    jahresregeln = _abregelung_jahr(mappe, szenario, aurora_tech)
+    zeilentext = _erste_zeile_text(mappe, szenario, aurora_tech, "curtailment")
+    referenz_regel = _regel_der_monatsreihe(
+        mappe, zeilentext, abregelung_monat, jahresregeln
+    )
+
+    def _reihe_fuer(regel: str) -> tuple[dict[int, list[float]], dict[int, float]]:
+        jahr = jahresregeln.get(regel, {})
+        if abregelung_monat and referenz_regel and jahr:
+            monat = _skaliere_auf_regel(
+                abregelung_monat, jahresregeln[referenz_regel], jahr
+            )
+        else:
+            monat = abregelung_monat
+            jahr = jahr or {
+                j: sum(w) / MONATE for j, w in abregelung_monat.items()
+            }
+        return monat, jahr
+
+    neg6_monat, neg6_jahr = _reihe_fuer("6h")
+    neg1_monat, neg1_jahr = _reihe_fuer("1h")
+    if not abregelung_monat and not jahresregeln:
+        hinweise.append(
+            "Keine Abregelungsquoten in der Arbeitsmappe gefunden – die "
+            "Erzeugungsmenge in Stunden negativer Preise bleibt null. Bei "
+            "älteren Ausgaben stehen sie auf eigenen Detailblättern; dann "
+            "bitte von Hand nachtragen."
+        )
+    elif not abregelung_monat:
+        hinweise.append(
+            "Keine monatliche Abregelungsquote in der Arbeitsmappe – es "
+            "gelten die Jahreswerte für alle zwölf Monate."
+        )
+    elif referenz_regel is None:
+        hinweise.append(
+            "Im Jahresblatt fehlen die Abregelungsquoten nach 1h- und "
+            "6h-Regel – die monatliche Quote gilt für beide Regeln "
+            "unverändert."
+        )
+    elif referenz_regel not in ("6h", "1h"):
+        hinweise.append(
+            f"Die monatliche Abregelungsquote entspricht der {referenz_regel}-"
+            "Regel; sie wurde je Kalenderjahr auf das Niveau der 1h- und "
+            "6h-Regel des Jahresblatts skaliert (Monatsprofil bleibt)."
+        )
+
+    # Jahreswerte: Aurora weist sie erzeugungsgewichtet aus - das ist
+    # genauer als ein Mittel aus unseren Monatswerten, weil dort die
+    # Stundenmengen eingehen. Fehlen sie, bleibt das Monatsmittel.
+    marktwert_jahr = {
+        j: w / 10.0
+        for j, w in _jahresreihe(
+            mappe, szenario, *preis_begriffe, "germany"
+        ).items()
+    }
+    if not marktwert_jahr:
+        marktwert_jahr = {j: sum(w) / MONATE for j, w in marktwert_monat.items()}
+    baseload_jahr = {
+        j: w / 10.0
+        for j, w in _jahresreihe(
+            mappe, szenario, "baseload", "germany", ohne="solar"
+        ).items()
+    }
+    if not baseload_jahr and baseload_monat:
+        baseload_jahr = {j: sum(w) / MONATE for j, w in baseload_monat.items()}
+
+    name = " · ".join(
+        teil for teil in (basisname, technologie, szenario.strip()) if teil
+    )
+    szenario_modell = MarktpreisSzenario(
+        name=name,
+        marktwert_solar_ct_kwh_je_kalenderjahr=marktwert_jahr,
+        erzeugungsmenge_negativ_6h_pct_je_kalenderjahr=neg6_jahr,
+        erzeugungsmenge_negativ_1h_pct_je_kalenderjahr=neg1_jahr,
+        marktwert_solar_ct_kwh_je_monat=marktwert_monat,
+        erzeugungsmenge_negativ_6h_pct_je_monat=neg6_monat,
+        erzeugungsmenge_negativ_1h_pct_je_monat=neg1_monat,
+        baseload_ct_kwh_je_kalenderjahr=baseload_jahr,
+        baseload_ct_kwh_je_monat=baseload_monat,
+    )
+    jahre = (min(marktwert_jahr), max(marktwert_jahr)) if marktwert_jahr else (0, 0)
+    if mappe.preisbasisjahr is None:
+        hinweise.append(
+            "Die Arbeitsmappe nennt keine Preisbasis – Basisjahr und "
+            "Inflationsrate der Marktpreiskurven bleiben unverändert."
+        )
+    return AuroraImport(
+        szenario=szenario_modell,
+        technologie=technologie,
+        jahre=jahre,
+        monatsjahre=len(marktwert_monat),
+        einspeisekurve_pct_je_monat=[],
+        inflation_basisjahr=mappe.preisbasisjahr,
+        inflation_pct_pa=None,
+        hinweise=hinweise,
+    )

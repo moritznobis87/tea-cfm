@@ -356,6 +356,23 @@ def verguetung_chart(
     den nominal fixen EAG-Zuschlagswert, die Markierung das Förderende."""
     betrieb = df[df["jahr"] >= 1]
     fig = go.Figure()
+    # Der Grosshandelspreis als Hintergrund, sofern das Szenario ihn
+    # kennt: Der Abstand zum Marktwert Solar IST der
+    # Kannibalisierungseffekt - eine Aussage, die keine Kennzahl der
+    # Seite sonst zeigt.
+    if "baseload_nominal_ct_kwh" in betrieb.columns and float(
+        betrieb["baseload_nominal_ct_kwh"].abs().sum()
+    ):
+        fig.add_scatter(
+            x=betrieb["jahr"], y=betrieb["baseload_nominal_ct_kwh"],
+            name=txt("diagramme.serie_baseload"), mode="lines",
+            line=dict(color=Colors.MUTED, width=1.6, dash="dot"),
+            hovertemplate=(
+                "%{y:,.2f} ct/kWh<extra>"
+                + txt("diagramme.serie_baseload")
+                + "</extra>"
+            ),
+        )
     fig.add_scatter(
         x=betrieb["jahr"], y=betrieb["marktwert_nominal_ct_kwh"],
         name="Marktwert Solar (nominal)", mode="lines",

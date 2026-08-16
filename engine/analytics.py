@@ -442,6 +442,10 @@ def run_scenario_comparison(
     kum: dict[str, np.ndarray] = {}
     jahre: np.ndarray | None = None
     for szenario in global_assumptions.marktpreisszenarien:
+        # Alle Kurven des Szenarios tauschen, nicht nur die Jahreswerte:
+        # In der Monatsaufloesung rechnet die Engine mit den Monatsreihen,
+        # und ein Vergleich, der die des Ausgangsszenarios stehen liesse,
+        # zeigte fuer alle Szenarien dasselbe Ergebnis.
         ea_var = ea.model_copy(
             update={
                 "marktpreisszenario_name": szenario.name,
@@ -449,6 +453,12 @@ def run_scenario_comparison(
                 "anteil_negativer_stunden_pct_je_kalenderjahr": szenario.erzeugungsmenge_negativ(
                     global_assumptions.negative_stunden_regel
                 ),
+                "marktwert_solar_ct_kwh_je_monat": szenario.marktwert_monatskurve(),
+                "anteil_negativer_stunden_pct_je_monat": szenario.negativ_monatskurve(
+                    global_assumptions.negative_stunden_regel
+                ),
+                "baseload_ct_kwh_je_kalenderjahr": szenario.baseload_ct_kwh_je_kalenderjahr,
+                "baseload_ct_kwh_je_monat": szenario.baseload_monatskurve(),
             }
         )
         result = run_valuation_from_assumptions(

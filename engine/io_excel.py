@@ -100,6 +100,7 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
             | set(szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr)
             | set(szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr)
+            | set(szenario.baseload_ct_kwh_je_kalenderjahr)
         )
         for jahr in jahre:
             kurven_zeilen.append(
@@ -123,6 +124,9 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
                         or 0
                     )
                     * 100,
+                    "Baseload (ct/kWh)": (
+                        szenario.baseload_ct_kwh_je_kalenderjahr.get(jahr)
+                    ),
                 }
             )
     kurven_df = pd.DataFrame(
@@ -131,6 +135,7 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             "Kalenderjahr", "Szenario", "Marktwert Solar (ct/kWh)",
             "Erzeugungsmenge neg. Stunden 6h (%)",
             "Erzeugungsmenge neg. Stunden 1h (%)",
+            "Baseload (ct/kWh)",
         ],
     )
 
@@ -143,9 +148,11 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             set(szenario.marktwert_solar_ct_kwh_je_monat)
             | set(szenario.erzeugungsmenge_negativ_6h_pct_je_monat)
             | set(szenario.erzeugungsmenge_negativ_1h_pct_je_monat)
+            | set(szenario.baseload_ct_kwh_je_monat)
         )
         for jahr in jahre:
             marktwerte = szenario.marktwert_solar_ct_kwh_je_monat.get(jahr)
+            baseload = szenario.baseload_ct_kwh_je_monat.get(jahr)
             neg6 = szenario.erzeugungsmenge_negativ_6h_pct_je_monat.get(jahr)
             neg1 = szenario.erzeugungsmenge_negativ_1h_pct_je_monat.get(jahr)
             for monat in range(1, 13):
@@ -163,6 +170,9 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
                         "Erzeugungsmenge neg. Stunden 1h (%)": (
                             neg1[monat - 1] * 100 if neg1 else None
                         ),
+                        "Baseload (ct/kWh)": (
+                            baseload[monat - 1] if baseload else None
+                        ),
                     }
                 )
     monats_df = pd.DataFrame(
@@ -171,6 +181,7 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             "Kalenderjahr", "Szenario", "Monat", "Marktwert Solar (ct/kWh)",
             "Erzeugungsmenge neg. Stunden 6h (%)",
             "Erzeugungsmenge neg. Stunden 1h (%)",
+            "Baseload (ct/kWh)",
         ],
     )
 
@@ -309,6 +320,12 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
             szenarien[name].erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[jahr] = (
                 float(r[spalte_1h]) / 100
             )
+        if "Baseload (ct/kWh)" in kurven_df.columns and pd.notna(
+            r.get("Baseload (ct/kWh)")
+        ):
+            szenarien[name].baseload_ct_kwh_je_kalenderjahr[jahr] = float(
+                r["Baseload (ct/kWh)"]
+            )
         if legacy_spalte in kurven_df.columns and pd.notna(r.get(legacy_spalte)):
             wert = float(r[legacy_spalte]) / 100
             szenarien[name].erzeugungsmenge_negativ_6h_pct_je_kalenderjahr[jahr] = wert
@@ -334,6 +351,8 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
                  szenarien[name].erzeugungsmenge_negativ_6h_pct_je_monat, 100.0),
                 ("Erzeugungsmenge neg. Stunden 1h (%)",
                  szenarien[name].erzeugungsmenge_negativ_1h_pct_je_monat, 100.0),
+                ("Baseload (ct/kWh)",
+                 szenarien[name].baseload_ct_kwh_je_monat, 1.0),
             ):
                 if spalte not in monats_df.columns or pd.isna(r.get(spalte)):
                     continue

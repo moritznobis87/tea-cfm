@@ -1,5 +1,48 @@
 # Changelog
 
+## v5.6 – Aurora-Arbeitsmappe, Großhandelspreis, Bauform (2026-08)
+
+Der Aurora-Import liest jetzt die Arbeitsmappe, die Aurora ohnehin
+ausliefert – statt vier CSV-Exporten eine Datei.
+
+- **Import aus der Arbeitsmappe „Market Forecast Data"**: alle
+  Preisszenarien (Central, Low, High, teils Net Zero) auf einmal. Je
+  gewähltem Preisszenario entsteht ein Marktpreisszenario
+  „Stamm · Bauform · Preisszenario", zum Beispiel „Aurora Q3/26 GER ·
+  Pult · Central". Damit sind sie im Projekt einzeln wählbar **und**
+  stehen gemeinsam im Szenarienvergleich der Risikosicht – die
+  Preisspanne ist dort ein Bild statt einer Reihe von Handrechnungen.
+- **Bauform wählbar**: Aurora unterscheidet „Fixed solar PV" und
+  „Tracking solar PV"; im Tool heißen sie **Pult** (Voreinstellung) und
+  **Tracker**. Ihre Marktwerte unterscheiden sich deutlich – der Tracker
+  trifft die preisschwachen Mittagsstunden weniger stark.
+- **Großhandelspreis (Baseload)** wird mitimportiert und je Szenario
+  gespeichert – jährlich und monatlich.
+- **Direktvermarktungskosten in drei Modi**: fester Betrag je MWh,
+  **Anteil am Großhandelspreis** (marktüblich rund 10 % – so rechnen
+  Direktvermarkter ab) oder Anteil am Marktwert Solar. Da der Marktwert
+  einer PV-Anlage unter dem Baseload liegt, sind die beiden relativen
+  Modi bei gleichem Prozentsatz spürbar verschieden.
+- **Alles dynamisch gesucht**: Aurora verschiebt zwischen den Ausgaben
+  Kopfzeilen, benennt Blätter um, fügt deutsche Zweitspalten hinzu und
+  nennt die monatliche Abregelungsquote mal „below zero", mal „1 hour
+  rule". Der Import findet Kopfzeile, Datenspalten, Szenariospalte und
+  Beschriftungen an ihrem Inhalt. Geprüft an sechs Ausgaben von Jan 25
+  bis Q3 26.
+- **Abregelung**: Das Monatsblatt führt nur eine Quote, das Jahresblatt
+  mehrere Regeln. Welche Regel die Monatsreihe meint, verrät ihre
+  Beschriftung oder die Fußnote; sonst wird sie durch Vergleich mit den
+  Jahresreihen bestimmt. Die Monatsreihe trägt dann das Profil, die
+  Jahresreihe der Zielregel (1h/6h) das Niveau.
+- **Szenarienvergleich korrigiert**: Er tauschte bisher nur die
+  Jahreskurven – in der Monatsauflösung zeigte er deshalb für alle
+  Szenarien dasselbe Ergebnis.
+- **Vergütungsdiagramm** zeigt den Großhandelspreis als gepunktete
+  Linie: Der Abstand zum Marktwert Solar ist die Kannibalisierung.
+- Excel-Rundlauf um die Baseload-Spalten erweitert (Jahres- und
+  Monatsblatt); ältere Dateien bleiben lesbar.
+- 15 neue Tests; Suite: 425.
+
 ## v5.5 – Aurora-Import (2026-08)
 
 Marktpreisszenarien entstehen nicht mehr per Hand, sondern aus den

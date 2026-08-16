@@ -476,3 +476,116 @@ class TestSzenarienPlot:
             "kurven_editor_"
         ), "Das Bild gehoert vor die Tabelle"
         assert "annahmen_zahlen_zeigen" in abschnitt
+
+
+class TestDirektvermarktungskosten:
+    """Zwei Bemessungen: fester Betrag je MWh oder Anteil eines Preises.
+
+    Der Anteil bezieht sich marktueblich auf den GROSSHANDELSPREIS - so
+    rechnen Direktvermarkter ab. Der Bezug auf den Marktwert Solar
+    bleibt als zweite Moeglichkeit erhalten; fuer PV faellt er
+    niedriger aus, weil der Marktwert unter dem Baseload liegt.
+    """
+
+    @pytest.fixture
+    def mit_baseload(self, global_assumptions):
+        szenario = global_assumptions.marktpreisszenarien[0]
+        jahre = list(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+        global_assumptions.marktpreisszenarien = [
+            MarktpreisSzenario(
+                name=szenario.name,
+                marktwert_solar_ct_kwh_je_kalenderjahr=(
+                    szenario.marktwert_solar_ct_kwh_je_kalenderjahr
+                ),
+                erzeugungsmenge_negativ_6h_pct_je_kalenderjahr=(
+                    szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr
+                ),
+                # Marktwert 4 ct, Baseload 8 ct - die Kannibalisierung
+                # einer PV-Anlage in Zahlen.
+                baseload_ct_kwh_je_kalenderjahr={j: 8.0 for j in jahre},
+            )
+        ]
+        return global_assumptions
+
+    def _dv_kosten(self, project, ga) -> float:
+        from engine import run_valuation
+
+        df = run_valuation(project, ga).cashflow.data
+        return float(
+            df.loc[df["jahr"] == 2, "direktvermarktungskosten_eur"].iloc[0]
+        )
+
+    def test_absolut_je_mwh(self, project, mit_baseload):
+        from engine.models import DirektvermarktungsModus
+
+        mit_baseload.direktvermarktung_modus = DirektvermarktungsModus.ABSOLUT
+        project.direktvermarktungskosten_eur_mwh = 2.0
+        # 1 GWh x 2 EUR/MWh = 2.000 EUR
+        assert self._dv_kosten(project, mit_baseload) == pytest.approx(2000.0)
+
+    def test_anteil_am_grosshandelspreis(self, project, mit_baseload):
+        from engine.models import DirektvermarktungsModus
+
+        mit_baseload.direktvermarktung_modus = (
+            DirektvermarktungsModus.RELATIV_GROSSHANDEL
+        )
+        mit_baseload.direktvermarktung_pct_marktwert = 0.10
+        # 10 % von 8 ct/kWh auf 1 GWh = 8.000 EUR
+        assert self._dv_kosten(project, mit_baseload) == pytest.approx(8000.0)
+
+    def test_anteil_am_marktwert_liegt_darunter(self, project, mit_baseload):
+        from engine.models import DirektvermarktungsModus
+
+        mit_baseload.direktvermarktung_modus = (
+            DirektvermarktungsModus.RELATIV_MARKTWERT
+        )
+        mit_baseload.direktvermarktung_pct_marktwert = 0.10
+        # 10 % von 4 ct/kWh - die Haelfte, weil der Marktwert Solar hier
+        # halb so hoch ist wie der Baseload.
+        assert self._dv_kosten(project, mit_baseload) == pytest.approx(4000.0)
+
+    def test_ohne_baseload_greift_der_marktwert(self, project, global_assumptions):
+        """Aeltere Szenarien fuehren keinen Grosshandelspreis - dann
+        rechnet der Modus ersatzweise mit dem Marktwert statt mit null."""
+        from engine.models import DirektvermarktungsModus
+
+        global_assumptions.direktvermarktung_modus = (
+            DirektvermarktungsModus.RELATIV_GROSSHANDEL
+        )
+        global_assumptions.direktvermarktung_pct_marktwert = 0.10
+        assert self._dv_kosten(project, global_assumptions) == pytest.approx(4000.0)
+
+
+class TestSzenarienvergleichMonatlich:
+    def test_vergleich_tauscht_auch_die_monatskurven(
+        self, project, global_assumptions
+    ):
+        """Der Szenarienvergleich der Risikosicht muss in der
+        Monatsaufloesung die Monatsreihen mittauschen - sonst zeigte er
+        fuer alle Szenarien dasselbe Ergebnis."""
+        from engine.analytics import run_scenario_comparison
+
+        hoch = MarktpreisSzenario(
+            name="Hoch",
+            marktwert_solar_ct_kwh_je_kalenderjahr={j: 9.0 for j in range(2025, 2061)},
+            marktwert_solar_ct_kwh_je_monat={
+                j: [9.0] * 12 for j in range(2025, 2061)
+            },
+        )
+        niedrig = MarktpreisSzenario(
+            name="Niedrig",
+            marktwert_solar_ct_kwh_je_kalenderjahr={j: 2.0 for j in range(2025, 2061)},
+            marktwert_solar_ct_kwh_je_monat={
+                j: [2.0] * 12 for j in range(2025, 2061)
+            },
+        )
+        global_assumptions.marktpreisszenarien = [hoch, niedrig]
+        global_assumptions.zeitaufloesung = Zeitaufloesung.MONAT
+        project.marktpreisszenario = "Hoch"
+
+        vergleich = run_scenario_comparison(project, global_assumptions)
+        erloese = dict(
+            zip(vergleich.kennzahlen["szenario"],
+                vergleich.kennzahlen["erloes_gesamt_eur"], strict=True)
+        )
+        assert erloese["Hoch"] > erloese["Niedrig"]

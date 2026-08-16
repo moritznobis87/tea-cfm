@@ -98,14 +98,23 @@ class DirektvermarktungsModus(str, Enum):
     """Bemessung der Direktvermarktungskosten (Bilanzkreis, Prognose,
     Marktzugang).
 
-    ABSOLUT:           fester Betrag je erzeugter MWh (Projektfeld
-                       direktvermarktungskosten_eur_mwh), z.B. 1 EUR/MWh.
-    RELATIV_MARKTWERT: Anteil am nominalen Jahresmarktwert je erzeugter
-                       kWh (globaler Prozentsatz), z.B. 10 % vom Marktwert -
-                       die Kosten atmen dann mit dem Preisniveau.
+    ABSOLUT:              fester Betrag je erzeugter MWh (Projektfeld
+                          direktvermarktungskosten_eur_mwh), z.B. 1 EUR/MWh.
+    RELATIV_GROSSHANDEL:  Anteil am nominalen Grosshandelspreis (Baseload)
+                          des Szenarios, marktueblich rund 10 %. Der
+                          Dienstleister rechnet gegen den Spotmarkt ab,
+                          nicht gegen den technologiespezifischen
+                          Marktwert - deshalb ist das der uebliche Bezug.
+                          Fehlt dem Szenario eine Baseload-Kurve (aeltere
+                          Bestaende), gilt ersatzweise der Marktwert.
+    RELATIV_MARKTWERT:    Anteil am nominalen Marktwert Solar. Bezieht die
+                          Kosten auf den tatsaechlich erzielten Preis der
+                          Anlage; fuer PV faellt das niedriger aus als der
+                          Baseload-Bezug.
     """
 
     ABSOLUT = "absolut"
+    RELATIV_GROSSHANDEL = "relativ_grosshandel"
     RELATIV_MARKTWERT = "relativ_marktwert"
 
 
@@ -211,7 +220,8 @@ RESERVIERTE_POSITIONSNAMEN = frozenset(
         "jahr", "datum", "produktion_kwh", "marktwert_real_ct_kwh",
         "marktwert_nominal_ct_kwh", "verguetungssatz_ct_kwh", "erloes_eur",
         "erloes_markt_eur", "erloes_praemie_eur", "erloes_ppa_eur",
-        "erloes_merchant_eur", "rueckzahlung_eur", "opex_gesamt_eur",
+        "erloes_merchant_eur", "rueckzahlung_eur",
+        "baseload_nominal_ct_kwh", "opex_gesamt_eur",
         "gemeindeabgabe_eur", "direktvermarktungskosten_eur", "zinsen_eur",
         "tilgung_eur", "afa_eur",
         "steuerliches_ergebnis_vor_verlustvortrag_eur",
@@ -520,6 +530,15 @@ class MarktpreisSzenario(BaseModel):
         default_factory=dict
     )
 
+    # --- Grosshandelspreis (Baseload) ----------------------------------------
+    # Rechnet NICHT mit: Der Erloes einer PV-Anlage bemisst sich am
+    # Marktwert Solar, nicht am Baseload. Der Baseload ist die
+    # Einordnung dazu - aus dem Abstand beider Kurven liest man den
+    # Kannibalisierungseffekt ab, und er ist der uebliche Bezugspunkt
+    # fuer PPA-Preise. Einheit wie beim Marktwert: ct/kWh.
+    baseload_ct_kwh_je_kalenderjahr: dict[int, float] = Field(default_factory=dict)
+    baseload_ct_kwh_je_monat: dict[int, list[float]] = Field(default_factory=dict)
+
     @field_validator(
         "marktwert_solar_ct_kwh_je_monat",
         "erzeugungsmenge_negativ_6h_pct_je_monat",
@@ -581,6 +600,12 @@ class MarktpreisSzenario(BaseModel):
         return _monatskurve(
             self.marktwert_solar_ct_kwh_je_monat,
             self.marktwert_solar_ct_kwh_je_kalenderjahr,
+        )
+
+    def baseload_monatskurve(self) -> dict[int, list[float]]:
+        """Grosshandelspreis je Kalenderjahr als Zwoelferreihe."""
+        return _monatskurve(
+            self.baseload_ct_kwh_je_monat, self.baseload_ct_kwh_je_kalenderjahr
         )
 
     def negativ_monatskurve(
@@ -842,6 +867,10 @@ class EffectiveAssumptions(BaseModel):
     anteil_negativer_stunden_pct_je_monat: dict[int, list[float]] = Field(
         default_factory=dict
     )
+    #: Grosshandelspreis (Baseload) des Szenarios - Bezugsgroesse der
+    #: Direktvermarktungskosten im Modus RELATIV_GROSSHANDEL.
+    baseload_ct_kwh_je_kalenderjahr: dict[int, float] = Field(default_factory=dict)
+    baseload_ct_kwh_je_monat: dict[int, list[float]] = Field(default_factory=dict)
 
     # --- Foerdermodell und hybride Vermarktung --------------------------------
     praemien_modell: PraemienModell = PraemienModell.EINSEITIG_CFD
