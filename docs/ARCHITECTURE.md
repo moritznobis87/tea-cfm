@@ -132,6 +132,23 @@ Projekt-IDs entstehen per Slugify aus dem Namen (Umlaute
 transliteriert, Kollisionen erhalten eine Laufnummer) – siehe
 `services.make_project_id()`.
 
+**Aurora-Import** (`engine/io_aurora.py`): baut aus den Aurora-Exporten
+ein `MarktpreisSzenario`. Quelle der Kurven ist die **Technologiedatei
+in Monatsauflösung** – Capture Price (EUR/MWh → ct/kWh), die beiden
+Abregelungsquoten (1h/6h) und die monatliche Erzeugung, aus der die
+Einspeisekurve abgeleitet wird; die Jahreswerte entstehen als
+erzeugungsgewichtetes Mittel der Monatswerte, also mit derselben
+Vorschrift, die auch die Engine beim Verdichten anwendet. Die
+Systemdatei liefert nur Basisjahr und Rate der Inflation, die
+Technologie-Jahresdatei nur eine Gegenprobe. **Monatsdaten sind
+Pflicht**: Zweiseitiger CfD und Abschöpfung sind abgeschnittene
+Funktionen des Marktwerts, aus einem Jahresmittel nicht rekonstruierbar
+– fehlen sie, bricht der Import mit `AuroraImportFehler` ab, statt
+stillschweigend eine entwertete Rechnung zu liefern. Die
+Spaltenerkennung arbeitet über Teilbegriffe statt exakter Namen, weil
+sich Aurora-Exporte zwischen Marktgebieten in Kleinigkeiten
+unterscheiden.
+
 **Standort und Variante:** Ein `PVProject` trägt zwei Namen – `name`
 (Standort) und `variante` (Sensitivität, leer = Grundfall). Mehrere
 Varianten desselben Standorts sind weiterhin eigenständige Projekte mit
