@@ -1,5 +1,43 @@
 # Changelog
 
+## v5.5 – Aurora-Import (2026-08)
+
+Marktpreisszenarien entstehen nicht mehr per Hand, sondern aus den
+Aurora-Exporten. Vier Dateien liefert Aurora je Szenario (System- und
+Technologiedaten, jeweils jährlich und monatlich); der Import liest sie
+und baut daraus ein vollständiges Szenario.
+
+- **Marktwert Solar** aus dem **Capture Price** der gewählten
+  Technologie (EUR/MWh → ct/kWh) – der Preis, den genau diese
+  Technologie erlöst, nicht der Baseload-Preis. Voreingestellt ist der
+  *ungekürzte* Capture Price: Die Wirkung negativer Preise bringt das
+  Modell selbst über die Abregelungsquote ein, mit dem bereits
+  gekürzten Preis zählte sie doppelt.
+- **Beide Negativstunden-Zeitreihen** aus den Abregelungsquoten der
+  1h- und der 6h-Regel – genau die zwei Kurven, zwischen denen die
+  Globalen Annahmen umschalten.
+- **Einspeisekurve** aus der monatlichen Erzeugung derselben
+  Technologie: Der Ertragsverlauf steckt in den Daten und muss nicht
+  mehr geschätzt werden.
+- **Jahreswerte als erzeugungsgewichtetes Mittel** der Monatswerte –
+  dieselbe Vorschrift, mit der die Engine verdichtet. Ein einfacher
+  Mittelwert wäre für PV systematisch zu hoch.
+- **Inflation** (Basisjahr und mittlere Rate) aus dem Index der
+  Systemdatei.
+- **Monatsdaten sind Pflicht.** Zweiseitiger CfD und Abschöpfung
+  entscheiden sich in einzelnen Monaten und sind aus einem Jahresmittel
+  nicht rekonstruierbar. Wer die Jahresdatei lädt, bekommt deshalb keine
+  halbe Rechnung, sondern eine Fehlermeldung; unvollständige Monatsreihen
+  werden übergangen und benannt.
+- **Gegenprobe** gegen die Technologie-Jahresdatei: Weicht das
+  gewichtete Monatsmittel um mehr als 2 % vom ausgewiesenen Jahreswert
+  ab, erscheint eine Warnung – ein Zeichen für die falsche Technologie
+  oder den falschen Capture Price.
+- Robust gegen die Unterschiede echter Exporte: Spaltenerkennung über
+  Teilbegriffe, Monat als Zahl, Name oder Datum, Quoten als Anteil oder
+  Prozent, CSV mit Komma oder Semikolon, Excel ebenso.
+- 26 neue Tests; Suite: 410.
+
 ## v5.4.1 – Szenarien als Bild (2026-08)
 
 - **Die Globalen Annahmen zeigen die Marktpreisszenarien als Diagramm**:
