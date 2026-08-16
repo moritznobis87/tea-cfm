@@ -99,3 +99,6 @@ achse_deckungsbeitrag: "Margen de contribución – VAN (€)"
 # --- Vermarktung und Rueckzahlung (v5.4) ---
 serie_erloes_ppa: "Ingresos PPA"
 serie_rueckzahlung: "Devolución (sobreapoyo)"
+achse_kalenderjahr: "Año natural"
+achse_marktwert_solar: "Valor de mercado solar (ct/kWh)"
+achse_negativ_anteil: "Generación en horas de precio negativo"

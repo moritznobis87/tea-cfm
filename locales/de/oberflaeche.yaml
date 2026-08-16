@@ -635,3 +635,10 @@ formular_ppa_index_label: "Indexierung (%/Jahr)"
 formular_ppa_index_hilfe: "Jährliche Steigerung des PPA-Preises. 0 = nominal fix; bei langen Verträgen sind 1–2 %/Jahr marktüblich."
 formular_ppa_start_label: "Erstes PPA-Betriebsjahr"
 formular_ppa_start_hilfe: "1 = ab Inbetriebnahme. Höhere Werte bilden ab, dass die ersten Jahre noch merchant laufen."
+
+# --- Szenarien als Bild (v5.4.1) ---------------------------------------------
+annahmen_szenarien_plot_titel: "**Szenarien im Vergleich**"
+annahmen_szenarien_plot_hinweis: "Marktwert Solar und Erzeugungsmenge in Stunden negativer Preise, je Szenario eine Linie. Die zweite Grafik folgt der oben gewählten Regel (6h/1h). Die Zahlen dahinter stehen in den Reitern darunter."
+annahmen_szenario_umfang: "{jahre} Kalenderjahre hinterlegt, davon {monatsjahre} mit Monatswerten."
+annahmen_zahlen_zeigen: "Zahlen bearbeiten"
+annahmen_zahlen_zeigen_hilfe: "Blendet die Jahreswerte dieses Szenarios als Tabelle ein. Monatsreihen werden über den Excel-Rundlauf gepflegt — 432 Werte je Szenario sind nichts für eine Eingabemaske."

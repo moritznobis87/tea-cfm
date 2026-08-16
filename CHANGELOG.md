@@ -1,5 +1,18 @@
 # Changelog
 
+## v5.4.1 – Szenarien als Bild (2026-08)
+
+- **Die Globalen Annahmen zeigen die Marktpreisszenarien als Diagramm**:
+  je eine Linie für den Marktwert Solar und für die Erzeugungsmenge in
+  Stunden negativer Preise (nach der oben gewählten 6h/1h-Regel). Der
+  Vergleich ist die Frage, die man an eine Szenariosammlung hat – vier
+  Tabellen mit je 36 Zeilen beantworten sie nicht.
+- **Die Zahlen stehen dahinter**: Je Szenario blendet der Schalter
+  „Zahlen bearbeiten" die Jahreswerte als Tabelle ein; darüber steht,
+  wie viele Kalenderjahre hinterlegt sind und wie viele davon
+  Monatswerte tragen.
+- 4 neue Tests; Suite: 384.
+
 ## v5.4 – Monatsauflösung, Prämienmodelle, hybride PPA (2026-08)
 
 Die Erlösrechnung ist methodisch geöffnet: Sie kann jetzt in Monaten

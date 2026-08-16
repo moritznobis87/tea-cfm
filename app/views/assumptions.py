@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from app import services
+from app.components import charts
 from app.config import FLAGS_DIR, monate_kurz
 from app.formatting import fmt_number
 from engine import (
@@ -164,6 +165,42 @@ def render_assumptions() -> None:
         if not ga.marktpreisszenarien:
             st.info(txt("oberflaeche.annahmen_kein_szenario"))
         else:
+            # Zuerst das Bild, dann die Zahlen: Der Vergleich der
+            # Szenarien ist die Frage, die man an diese Sammlung hat -
+            # vier Tabellen mit je 36 Zeilen beantworten sie nicht. Die
+            # Kurven bleiben editierbar, aber einen Schalter entfernt.
+            st.markdown(txt("oberflaeche.annahmen_szenarien_plot_titel"))
+            st.caption(txt("oberflaeche.annahmen_szenarien_plot_hinweis"))
+            col_preis, col_negativ = st.columns(2)
+            with col_preis:
+                st.plotly_chart(
+                    charts.szenarien_linien_chart(
+                        [
+                            (s.name, s.marktwert_solar_ct_kwh_je_kalenderjahr)
+                            for s in ga.marktpreisszenarien
+                        ],
+                        txt("diagramme.achse_marktwert_solar"), "ct/kWh",
+                    ),
+                    width="stretch", key="szenarien_marktwert",
+                )
+            with col_negativ:
+                st.plotly_chart(
+                    charts.szenarien_linien_chart(
+                        [
+                            (
+                                s.name,
+                                s.erzeugungsmenge_negativ(
+                                    NegativeStundenRegel(negative_stunden_regel)
+                                ),
+                            )
+                            for s in ga.marktpreisszenarien
+                        ],
+                        txt("diagramme.achse_negativ_anteil"), "%",
+                        faktor=100.0, nachkommastellen=1,
+                    ),
+                    width="stretch", key="szenarien_negativ",
+                )
+
             tabs = st.tabs([s.name for s in ga.marktpreisszenarien])
             for tab, szenario in zip(tabs, ga.marktpreisszenarien, strict=True):
                 with tab:
@@ -201,6 +238,20 @@ def render_assumptions() -> None:
                             ],
                         }
                     )
+                    monatsjahre = len(szenario.marktwert_solar_ct_kwh_je_monat)
+                    st.caption(
+                        txt("oberflaeche.annahmen_szenario_umfang",
+                            jahre=len(jahre), monatsjahre=monatsjahre)
+                    )
+                    # Bewusst ein Schalter und kein Klappfeld: Klappfelder
+                    # lassen sich in Streamlit nicht ineinander setzen,
+                    # und dieser Block steckt bereits in einem.
+                    if not st.toggle(
+                        txt("oberflaeche.annahmen_zahlen_zeigen"),
+                        key=f"kurven_zahlen_{szenario.name}",
+                        help=txt("oberflaeche.annahmen_zahlen_zeigen_hilfe"),
+                    ):
+                        continue
                     st.caption(txt("oberflaeche.annahmen_erzeugung_negativ_hinweis"))
                     edited_szenarien[szenario.name] = st.data_editor(
                         kurven_df, width="stretch", hide_index=True,

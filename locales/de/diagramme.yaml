@@ -100,3 +100,6 @@ achse_deckungsbeitrag: "Deckungsbeitrag – NPV (€)"
 # --- Vermarktung und Rueckzahlung (v5.4) ---
 serie_erloes_ppa: "PPA-Erlös"
 serie_rueckzahlung: "Rückzahlung (Überförderung)"
+achse_kalenderjahr: "Kalenderjahr"
+achse_marktwert_solar: "Marktwert Solar (ct/kWh)"
+achse_negativ_anteil: "Erzeugung in Stunden negativer Preise"
