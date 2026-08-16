@@ -94,3 +94,7 @@ serie_event_of_default: "Event of default {wert}x"
 achse_ek_rendite: "Equity return"
 achse_spezifisches_invest: "Specific capex (€/kWp)"
 achse_deckungsbeitrag: "Contribution – NPV (€)"
+
+# --- Vermarktung und Rueckzahlung (v5.4) ---
+serie_erloes_ppa: "PPA revenue"
+serie_rueckzahlung: "Repayment (over-support)"

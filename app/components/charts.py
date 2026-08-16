@@ -342,13 +342,32 @@ def verguetung_chart(
 
 
 def revenue_split_chart(df: pd.DataFrame) -> go.Figure:
-    """Erlöse aufgeteilt in Markterlös (Verkauf zum Marktwert) und
-    Marktprämie (EAG-Zuschuss) - zeigt, wie lange das Projekt am
-    Fördertropf hängt und wann der Markt trägt."""
+    """Erlöse nach Herkunft: Merchant, PPA, Marktprämie - und, falls das
+    Fördermodell eine vorsieht, die Rückzahlung als Balken unter der
+    Nulllinie.
+
+    Zeigt, wie lange das Projekt am Fördertropf hängt und wann der Markt
+    trägt. PPA und Rückzahlung erscheinen nur, wenn es sie gibt: Eine
+    Legende mit zwei dauerhaft leeren Einträgen behauptet eine Struktur,
+    die das Projekt nicht hat."""
     betrieb = df[df["jahr"] >= 1]
     fig = go.Figure()
+
+    def _hat(spalte: str) -> bool:
+        return spalte in betrieb.columns and float(betrieb[spalte].abs().sum()) > 0
+
+    if _hat("erloes_ppa_eur"):
+        merchant = betrieb["erloes_merchant_eur"]
+        fig.add_bar(
+            x=betrieb["jahr"], y=betrieb["erloes_ppa_eur"],
+            name=txt("diagramme.serie_erloes_ppa"), marker_color=Colors.SERIES[2],
+            hovertemplate=_EUR_HOVER
+            + f"<extra>{txt('diagramme.serie_erloes_ppa')}</extra>",
+        )
+    else:
+        merchant = betrieb["erloes_markt_eur"]
     fig.add_bar(
-        x=betrieb["jahr"], y=betrieb["erloes_markt_eur"], name=txt("diagramme.serie_markterloes"),
+        x=betrieb["jahr"], y=merchant, name=txt("diagramme.serie_markterloes"),
         marker_color=Colors.BRAND,
         hovertemplate=_EUR_HOVER + f"<extra>{txt('diagramme.serie_markterloes')}</extra>",
     )
@@ -357,8 +376,15 @@ def revenue_split_chart(df: pd.DataFrame) -> go.Figure:
         marker_color=Colors.INK_SOFT,
         hovertemplate=_EUR_HOVER + f"<extra>{txt('diagramme.serie_marktpraemie')}</extra>",
     )
+    if _hat("rueckzahlung_eur"):
+        fig.add_bar(
+            x=betrieb["jahr"], y=-betrieb["rueckzahlung_eur"],
+            name=txt("diagramme.serie_rueckzahlung"), marker_color=Colors.NEGATIVE,
+            hovertemplate=_EUR_HOVER
+            + f"<extra>{txt('diagramme.serie_rueckzahlung')}</extra>",
+        )
     fig.update_layout(
-        barmode="stack", height=400, xaxis_title=txt("diagramme.achse_betriebsjahr"), yaxis_title="€",
+        barmode="relative", height=400, xaxis_title=txt("diagramme.achse_betriebsjahr"), yaxis_title="€",
         hovermode="x unified",
     )
     return fig

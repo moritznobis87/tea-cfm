@@ -141,6 +141,52 @@ class NegativeStundenModus(str, Enum):
     ABREGELUNG = "abregelung"
 
 
+class Zeitaufloesung(str, Enum):
+    """Auf welcher Ebene Erzeugung und Marktwerte zusammengefuehrt werden.
+
+    JAHR:  Eine Jahresmenge trifft auf einen Jahresmarktwert - die
+           bisherige Rechnung. Sie unterstellt, dass jede Kilowattstunde
+           denselben Preis erloest.
+    MONAT: Die Jahresmenge wird ueber die Einspeisekurve auf zwoelf
+           Monate verteilt und trifft dort auf Monatsmarktwerte. Das ist
+           der Regelfall der Realitaet: PV erzeugt im Sommer viel und
+           erloest dann wenig - eine Jahresrechnung ueberschaetzt den
+           Erloes deshalb systematisch (Kannibalisierung).
+
+    Der Cashflow bleibt in beiden Faellen jaehrlich; die Monatsebene ist
+    eine Unterebene der Erloesrechnung. Finanzierung, Steuer und DSCR
+    arbeiten weiterhin auf Jahresscheiben.
+    """
+
+    JAHR = "jahr"
+    MONAT = "monat"
+
+
+class PraemienModell(str, Enum):
+    """Vertragsform der Foerderung - siehe engine/revenue.py.
+
+    EINSEITIG_CFD: Verguetung = MAX(Marktwert, anzulegender Wert). Liegt
+        der Markt darunter, wird aufgezahlt; liegt er darueber, behaelt
+        der Betreiber den hoeheren Marktwert. Bisheriges Verhalten und
+        die Grundform der EAG-Marktpraemie.
+    ZWEISEITIG_CFD: Verguetung = anzulegender Wert. Ueberschreitungen
+        gehen vollstaendig zurueck an die Foerderstelle - der Betreiber
+        hat keine Preischance nach oben, dafuer kein Preisrisiko nach
+        unten (Differenzvertrag im engeren Sinn, Richtung EEG 2027).
+    EAG_TOLERANZBAND: Einseitiger CfD mit Rueckzahlung erst oberhalb
+        eines Toleranzbandes - die oesterreichische Regelung nach
+        § 10 EAG: Uebersteigt der Referenzmarktwert den anzulegenden
+        Wert um mehr als 40 %, sind 66 % des uebersteigenden Teils
+        zurueckzuzahlen; fuer Photovoltaik gilt das ab 5 MW
+        Engpassleistung. Alle drei Groessen sind einstellbar, weil sie
+        Gegenstand laufender Novellen sind.
+    """
+
+    EINSEITIG_CFD = "einseitig_cfd"
+    ZWEISEITIG_CFD = "zweiseitig_cfd"
+    EAG_TOLERANZBAND = "eag_toleranzband"
+
+
 class TaxModus(str, Enum):
     PAUSCHAL_AUF_EBT = "pauschal_auf_ebt"
     #: Oesterreichische Koerperschaftsteuer: AfA, Freibetrag,
@@ -164,7 +210,8 @@ RESERVIERTE_POSITIONSNAMEN = frozenset(
     {
         "jahr", "datum", "produktion_kwh", "marktwert_real_ct_kwh",
         "marktwert_nominal_ct_kwh", "verguetungssatz_ct_kwh", "erloes_eur",
-        "erloes_markt_eur", "erloes_praemie_eur", "opex_gesamt_eur",
+        "erloes_markt_eur", "erloes_praemie_eur", "erloes_ppa_eur",
+        "erloes_merchant_eur", "rueckzahlung_eur", "opex_gesamt_eur",
         "gemeindeabgabe_eur", "direktvermarktungskosten_eur", "zinsen_eur",
         "tilgung_eur", "afa_eur",
         "steuerliches_ergebnis_vor_verlustvortrag_eur",
@@ -332,6 +379,28 @@ class PVProject(BaseModel):
     # ueblicherweise ca. 0,1 ct/kWh = 1 EUR/MWh.
     direktvermarktungskosten_eur_mwh: float = Field(ge=0, default=1.0)
 
+    # --- Hybride Vermarktung: PPA + Merchant --------------------------------
+    # Ein Teil der Menge geht zu einem festen Preis an einen Abnehmer, der
+    # Rest wird am Spotmarkt vermarktet. Voreingestellt ist 0 % - ohne
+    # ausdrueckliche Eingabe rechnet ein Projekt wie bisher rein
+    # merchant, und bestehende Bewertungen aendern sich nicht.
+    #
+    # Die Foerderung bleibt davon unberuehrt: Die gleitende Marktpraemie
+    # bemisst sich am REFERENZmarktwert, nicht am tatsaechlich erzielten
+    # Preis (siehe engine/revenue.py). Ein PPA verschiebt also die
+    # Erloesverteilung, nicht den Foerderanspruch.
+    #: Anteil der Erzeugung unter PPA (0-1). 0 = kein PPA.
+    ppa_anteil_pct: float = Field(ge=0, le=1, default=0.0)
+    #: Fester PPA-Preis in EUR/MWh (Preisstand im ersten PPA-Jahr).
+    ppa_preis_eur_mwh: float = Field(ge=0, default=65.0)
+    #: Erstes Betriebsjahr des PPA (1 = ab Inbetriebnahme).
+    ppa_start_jahr: int = Field(ge=1, default=1)
+    #: Laufzeit in Jahren ab ppa_start_jahr.
+    ppa_laufzeit_jahre: int = Field(ge=0, default=10)
+    #: Jaehrliche Indexierung des PPA-Preises (0 = nominal fix; bei
+    #: langen Vertraegen sind 1-2 %/a marktueblich).
+    ppa_indexierung_pct_pa: float = Field(ge=0, default=0.0)
+
     # Investkosten
     capex: CapexBreakdown = Field(default_factory=CapexBreakdown)
 
@@ -391,6 +460,28 @@ class PVProject(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+#: Standard-Einspeisekurve einer PV-Anlage in Mitteleuropa: Anteil der
+#: Jahreserzeugung je Monat (Januar bis Dezember). Platzhalter mit
+#: plausiblem Sommer-Winter-Verhaeltnis - die Kurve gehoert zum Standort
+#: und wird in den Globalen Annahmen gepflegt.
+EINSPEISEKURVE_STANDARD_PCT = [
+    0.025, 0.045, 0.085, 0.110, 0.130, 0.135,
+    0.135, 0.120, 0.095, 0.065, 0.033, 0.022,
+]
+
+MONATE = 12
+
+
+def _monatskurve(
+    monatsreihen: dict[int, list[float]], jahreswerte: dict[int, float]
+) -> dict[int, list[float]]:
+    """Fuehrt Monats- und Jahresreihe zu einer vollstaendigen Monatskurve
+    zusammen; die Monatsreihe hat Vorrang."""
+    kurve = {jahr: [wert] * MONATE for jahr, wert in jahreswerte.items()}
+    kurve.update({jahr: list(werte) for jahr, werte in monatsreihen.items()})
+    return kurve
+
+
 class MarktpreisSzenario(BaseModel):
     """Eine benannte Marktpreis-Prognose (z.B. 'Aurora 10/25'). Kurven sind
     nach echtem KALENDERJAHR indiziert (nicht nach Betriebsjahr) - beim
@@ -411,6 +502,39 @@ class MarktpreisSzenario(BaseModel):
     erzeugungsmenge_negativ_1h_pct_je_kalenderjahr: dict[int, float] = Field(
         default_factory=dict
     )
+
+    # --- Monatsreihen (optional) --------------------------------------------
+    # Je Kalenderjahr zwoelf Werte, Januar bis Dezember. Sie treten an die
+    # Stelle des Jahreswerts, sobald in den Globalen Annahmen die
+    # Monatsaufloesung gewaehlt ist; fehlt fuer ein Jahr eine Monatsreihe,
+    # gilt sein Jahreswert fuer alle zwoelf Monate. Dadurch bleibt ein
+    # Szenario auch dann rechenbar, wenn nur ein Teil der Jahre in
+    # Monatsaufloesung vorliegt.
+    marktwert_solar_ct_kwh_je_monat: dict[int, list[float]] = Field(
+        default_factory=dict
+    )
+    erzeugungsmenge_negativ_6h_pct_je_monat: dict[int, list[float]] = Field(
+        default_factory=dict
+    )
+    erzeugungsmenge_negativ_1h_pct_je_monat: dict[int, list[float]] = Field(
+        default_factory=dict
+    )
+
+    @field_validator(
+        "marktwert_solar_ct_kwh_je_monat",
+        "erzeugungsmenge_negativ_6h_pct_je_monat",
+        "erzeugungsmenge_negativ_1h_pct_je_monat",
+    )
+    @classmethod
+    def _zwoelf_monatswerte(cls, reihen):
+        """Eine Monatsreihe mit elf Werten waere stillschweigend um einen
+        Monat verschoben - hier faellt sie auf."""
+        for jahr, werte in reihen.items():
+            if len(werte) != 12:
+                raise ValueError(
+                    f"Monatsreihe {jahr}: {len(werte)} Werte statt 12"
+                )
+        return reihen
 
     @model_validator(mode="before")
     @classmethod
@@ -438,6 +562,35 @@ class MarktpreisSzenario(BaseModel):
         if regel == NegativeStundenRegel.EINE_STUNDE:
             return self.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr
         return self.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr
+
+    def erzeugungsmenge_negativ_monate(
+        self, regel: NegativeStundenRegel
+    ) -> dict[int, list[float]]:
+        """Monatsreihe der Negativmengen zur gewaehlten Regel."""
+        if regel == NegativeStundenRegel.EINE_STUNDE:
+            return self.erzeugungsmenge_negativ_1h_pct_je_monat
+        return self.erzeugungsmenge_negativ_6h_pct_je_monat
+
+    def marktwert_monatskurve(self) -> dict[int, list[float]]:
+        """Marktwerte je Kalenderjahr als Zwoelferreihe.
+
+        Jahre ohne Monatsreihe steuern ihren Jahreswert bei, auf alle
+        zwoelf Monate gelegt - so ist die Kurve immer vollstaendig, auch
+        wenn Monatsdaten nur fuer einen Teil der Jahre vorliegen.
+        """
+        return _monatskurve(
+            self.marktwert_solar_ct_kwh_je_monat,
+            self.marktwert_solar_ct_kwh_je_kalenderjahr,
+        )
+
+    def negativ_monatskurve(
+        self, regel: NegativeStundenRegel
+    ) -> dict[int, list[float]]:
+        """Negativmengen je Kalenderjahr als Zwoelferreihe."""
+        return _monatskurve(
+            self.erzeugungsmenge_negativ_monate(regel),
+            self.erzeugungsmenge_negativ(regel),
+        )
 
 
 class GlobalAssumptions(BaseModel):
@@ -483,6 +636,42 @@ class GlobalAssumptions(BaseModel):
     # Oesterreich/EAG, 1h = Regelung Deutschland). Bestimmt, welche
     # Negativmengen-Zeitreihe der Szenarien angewendet wird.
     negative_stunden_regel: NegativeStundenRegel = NegativeStundenRegel.SECHS_STUNDEN
+
+    # --- Zeitaufloesung und Einspeisekurve -----------------------------------
+    # Voreingestellt ist die Jahresrechnung: Sie ist das bisherige
+    # Verhalten, und ohne gepflegte Monatsdaten waere die Monatsrechnung
+    # nur eine aufwendigere Art, dasselbe Ergebnis zu erhalten.
+    zeitaufloesung: Zeitaufloesung = Zeitaufloesung.JAHR
+    #: Anteil der Jahreserzeugung je Monat (12 Werte, Januar bis
+    #: Dezember). Die Summe wird beim Rechnen auf 1 normiert - eine Kurve
+    #: aus gerundeten Prozentwerten (99,8 %) soll die Jahresmenge nicht
+    #: still veraendern.
+    einspeisekurve_pct_je_monat: list[float] = Field(
+        default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)
+    )
+
+    # --- Marktpraemienmodell --------------------------------------------------
+    # Welche Vertragsform zwischen Betreiber und Foerderstelle gilt -
+    # siehe PraemienModell. Die Parameter darunter gelten nur fuer
+    # EAG_TOLERANZBAND.
+    praemien_modell: PraemienModell = PraemienModell.EINSEITIG_CFD
+    #: Ab welcher Engpassleistung die Rueckzahlungspflicht greift
+    #: (§ 10 EAG: Photovoltaik ab 5 MW).
+    eag_rueckzahlung_ab_mw: float = Field(ge=0, default=5.0)
+    #: Toleranzband: Erst oberhalb des um diesen Anteil erhoehten
+    #: anzulegenden Werts entsteht eine Rueckzahlung (§ 10 EAG: 40 %).
+    eag_rueckzahlung_toleranzband_pct: float = Field(ge=0, default=0.40)
+    #: Anteil des uebersteigenden Betrags, der zurueckzuzahlen ist
+    #: (§ 10 EAG: 66 %).
+    eag_rueckzahlung_anteil_pct: float = Field(ge=0, le=1, default=0.66)
+
+    # --- Vorschlagswerte fuer hybride PPA -------------------------------------
+    # Nur Vorbelegung der Projektmaske; gerechnet wird immer mit den
+    # Projektfeldern (siehe PVProject.ppa_*).
+    ppa_anteil_pct_vorschlag: float = Field(ge=0, le=1, default=0.50)
+    ppa_preis_eur_mwh_vorschlag: float = Field(ge=0, default=65.0)
+    ppa_laufzeit_jahre_vorschlag: int = Field(ge=0, default=10)
+    ppa_indexierung_pct_pa_vorschlag: float = Field(ge=0, default=0.01)
 
     # Standardbetriebskosten (Pacht kommt separat aus dem Projekt)
     opex_standard: list[OpexItem] = Field(default_factory=list)
@@ -573,6 +762,29 @@ class GlobalAssumptions(BaseModel):
     verlustvortrag_verrechnungsgrenze_pct: float = Field(ge=0, le=1, default=0.75)
 
     @model_validator(mode="after")
+    def _einspeisekurve_pruefen(self) -> GlobalAssumptions:
+        """Zwoelf Werte, keiner negativ, Summe > 0.
+
+        Eine leere Liste wird auf die Standardkurve zurueckgesetzt -
+        aeltere Datenstaende kennen das Feld nicht, und eine Anlage ohne
+        Erzeugungsverteilung waere in der Monatsrechnung eine Anlage ohne
+        Erzeugung.
+        """
+        if not self.einspeisekurve_pct_je_monat:
+            self.einspeisekurve_pct_je_monat = list(EINSPEISEKURVE_STANDARD_PCT)
+            return self
+        if len(self.einspeisekurve_pct_je_monat) != MONATE:
+            raise ValueError(
+                "einspeisekurve_pct_je_monat braucht 12 Werte "
+                f"(Januar bis Dezember), hat {len(self.einspeisekurve_pct_je_monat)}"
+            )
+        if any(w < 0 for w in self.einspeisekurve_pct_je_monat):
+            raise ValueError("einspeisekurve_pct_je_monat: kein Wert darf negativ sein")
+        if sum(self.einspeisekurve_pct_je_monat) <= 0:
+            raise ValueError("einspeisekurve_pct_je_monat: Summe muss groesser 0 sein")
+        return self
+
+    @model_validator(mode="after")
     def check_afa_fields(self) -> GlobalAssumptions:
         if (
             self.tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER
@@ -616,6 +828,31 @@ class EffectiveAssumptions(BaseModel):
     # Aufgeloeste Negativmengen-Kurve gemaess gewaehlter Regel (6h/1h).
     anteil_negativer_stunden_pct_je_kalenderjahr: dict[int, float]
     negative_stunden_regel: NegativeStundenRegel
+
+    # --- Monatsebene ----------------------------------------------------------
+    # Nur wirksam bei zeitaufloesung = MONAT; sonst tragen sie dieselbe
+    # Aussage wie die Jahreskurven und bleiben ungenutzt.
+    zeitaufloesung: Zeitaufloesung = Zeitaufloesung.JAHR
+    einspeisekurve_pct_je_monat: list[float] = Field(
+        default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)
+    )
+    marktwert_solar_ct_kwh_je_monat: dict[int, list[float]] = Field(
+        default_factory=dict
+    )
+    anteil_negativer_stunden_pct_je_monat: dict[int, list[float]] = Field(
+        default_factory=dict
+    )
+
+    # --- Foerdermodell und hybride Vermarktung --------------------------------
+    praemien_modell: PraemienModell = PraemienModell.EINSEITIG_CFD
+    eag_rueckzahlung_ab_mw: float = 5.0
+    eag_rueckzahlung_toleranzband_pct: float = 0.40
+    eag_rueckzahlung_anteil_pct: float = 0.66
+    ppa_anteil_pct: float = 0.0
+    ppa_preis_eur_mwh: float = 0.0
+    ppa_start_jahr: int = 1
+    ppa_laufzeit_jahre: int = 0
+    ppa_indexierung_pct_pa: float = 0.0
     marktpreis_inflation_pct_pa: float
     marktpreis_inflation_basisjahr: int
     kosten_inflation_pct_pa: float

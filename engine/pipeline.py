@@ -70,6 +70,25 @@ def resolve_assumptions(
             global_assumptions.negative_stunden_regel
         ),
         negative_stunden_regel=global_assumptions.negative_stunden_regel,
+        zeitaufloesung=global_assumptions.zeitaufloesung,
+        einspeisekurve_pct_je_monat=list(
+            global_assumptions.einspeisekurve_pct_je_monat
+        ),
+        marktwert_solar_ct_kwh_je_monat=szenario.marktwert_monatskurve(),
+        anteil_negativer_stunden_pct_je_monat=szenario.negativ_monatskurve(
+            global_assumptions.negative_stunden_regel
+        ),
+        praemien_modell=global_assumptions.praemien_modell,
+        eag_rueckzahlung_ab_mw=global_assumptions.eag_rueckzahlung_ab_mw,
+        eag_rueckzahlung_toleranzband_pct=(
+            global_assumptions.eag_rueckzahlung_toleranzband_pct
+        ),
+        eag_rueckzahlung_anteil_pct=global_assumptions.eag_rueckzahlung_anteil_pct,
+        ppa_anteil_pct=project.ppa_anteil_pct,
+        ppa_preis_eur_mwh=project.ppa_preis_eur_mwh,
+        ppa_start_jahr=project.ppa_start_jahr,
+        ppa_laufzeit_jahre=project.ppa_laufzeit_jahre,
+        ppa_indexierung_pct_pa=project.ppa_indexierung_pct_pa,
         marktpreis_inflation_pct_pa=global_assumptions.marktpreis_inflation_pct_pa,
         marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
         kosten_inflation_pct_pa=global_assumptions.kosten_inflation_pct_pa,

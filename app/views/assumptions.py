@@ -13,7 +13,8 @@ import pandas as pd
 import streamlit as st
 
 from app import services
-from app.config import FLAGS_DIR
+from app.config import FLAGS_DIR, monate_kurz
+from app.formatting import fmt_number
 from engine import (
     DirektvermarktungsModus,
     GlobalAssumptions,
@@ -22,8 +23,10 @@ from engine import (
     NegativeStundenModus,
     NegativeStundenRegel,
     OpexItem,
+    PraemienModell,
     TaxModus,
     TilgungsArt,
+    Zeitaufloesung,
     ZinsMethode,
 )
 from texte import txt
@@ -237,6 +240,112 @@ def render_assumptions() -> None:
                 )
                 services.save_global_assumptions(ga)
                 st.rerun()
+
+    # --- Zeitaufloesung, Foerdermodell, PPA ------------------------------------
+    with st.expander(txt("oberflaeche.annahmen_modell_titel"), expanded=False):
+        st.markdown(txt("oberflaeche.annahmen_zeitaufloesung_titel"))
+        st.caption(txt("oberflaeche.annahmen_zeitaufloesung_hinweis"))
+        aufloesung_labels = {
+            Zeitaufloesung.JAHR.value: txt("oberflaeche.annahmen_aufloesung_jahr"),
+            Zeitaufloesung.MONAT.value: txt("oberflaeche.annahmen_aufloesung_monat"),
+        }
+        aufloesung_optionen = [a.value for a in Zeitaufloesung]
+        zeitaufloesung = st.radio(
+            txt("oberflaeche.annahmen_zeitaufloesung_label"),
+            aufloesung_optionen,
+            format_func=lambda v: aufloesung_labels[v],
+            index=aufloesung_optionen.index(ga.zeitaufloesung.value),
+            horizontal=True, label_visibility="collapsed",
+            help=txt("oberflaeche.annahmen_zeitaufloesung_hilfe"),
+        )
+
+        st.markdown(txt("oberflaeche.annahmen_einspeisekurve_titel"))
+        st.caption(txt("oberflaeche.annahmen_einspeisekurve_hinweis"))
+        kurve_df = pd.DataFrame(
+            {
+                "Monat": monate_kurz(),
+                "Anteil (%)": [w * 100 for w in ga.einspeisekurve_pct_je_monat],
+            }
+        )
+        edited_kurve = st.data_editor(
+            kurve_df, width="stretch", hide_index=True, key="einspeisekurve_editor",
+            column_config={
+                "Monat": st.column_config.TextColumn(
+                    txt("oberflaeche.annahmen_col_monat"), disabled=True,
+                ),
+                "Anteil (%)": st.column_config.NumberColumn(
+                    txt("oberflaeche.annahmen_col_anteil_jahreserzeugung"),
+                    min_value=0.0, format="%.2f",
+                ),
+            },
+        )
+        summe_kurve = float(pd.to_numeric(edited_kurve["Anteil (%)"],
+                                          errors="coerce").fillna(0).sum())
+        st.caption(txt("oberflaeche.annahmen_einspeisekurve_summe",
+                       summe=fmt_number(summe_kurve, 1)))
+
+        st.divider()
+        st.markdown(txt("oberflaeche.annahmen_praemienmodell_titel"))
+        st.caption(txt("oberflaeche.annahmen_praemienmodell_hinweis"))
+        modell_labels = {
+            PraemienModell.EINSEITIG_CFD.value: txt("oberflaeche.annahmen_modell_einseitig"),
+            PraemienModell.ZWEISEITIG_CFD.value: txt("oberflaeche.annahmen_modell_zweiseitig"),
+            PraemienModell.EAG_TOLERANZBAND.value: txt("oberflaeche.annahmen_modell_eag"),
+        }
+        modell_optionen = [m.value for m in PraemienModell]
+        praemien_modell = st.radio(
+            txt("oberflaeche.annahmen_praemienmodell_label"),
+            modell_optionen,
+            format_func=lambda v: modell_labels[v],
+            index=modell_optionen.index(ga.praemien_modell.value),
+            label_visibility="collapsed",
+        )
+        # Die drei Parameter stehen immer sichtbar, aber nur im
+        # Toleranzband-Modell wirksam: Ausgeblendete Felder wuerden beim
+        # Wechsel des Modells stumm auf ihren alten Wert zurueckfallen.
+        st.caption(txt("oberflaeche.annahmen_eag_rueckzahlung_hinweis"))
+        col_mw, col_band, col_anteil = st.columns(3)
+        eag_ab_mw = col_mw.number_input(
+            txt("oberflaeche.annahmen_eag_ab_mw_label"), min_value=0.0,
+            value=float(ga.eag_rueckzahlung_ab_mw), step=0.5,
+            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
+            help=txt("oberflaeche.annahmen_eag_ab_mw_hilfe"),
+        )
+        eag_band = col_band.number_input(
+            txt("oberflaeche.annahmen_eag_band_label"), min_value=0.0,
+            value=ga.eag_rueckzahlung_toleranzband_pct * 100, step=5.0,
+            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
+            help=txt("oberflaeche.annahmen_eag_band_hilfe"),
+        )
+        eag_anteil = col_anteil.number_input(
+            txt("oberflaeche.annahmen_eag_anteil_label"),
+            min_value=0.0, max_value=100.0,
+            value=ga.eag_rueckzahlung_anteil_pct * 100, step=1.0,
+            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
+            help=txt("oberflaeche.annahmen_eag_anteil_hilfe"),
+        )
+
+        st.divider()
+        st.markdown(txt("oberflaeche.annahmen_ppa_titel"))
+        st.caption(txt("oberflaeche.annahmen_ppa_hinweis"))
+        col_ppa1, col_ppa2, col_ppa3, col_ppa4 = st.columns(4)
+        ppa_anteil_vorschlag = col_ppa1.number_input(
+            txt("oberflaeche.annahmen_ppa_anteil_label"),
+            min_value=0.0, max_value=100.0,
+            value=ga.ppa_anteil_pct_vorschlag * 100, step=5.0,
+        )
+        ppa_preis_vorschlag = col_ppa2.number_input(
+            txt("oberflaeche.annahmen_ppa_preis_label"), min_value=0.0,
+            value=ga.ppa_preis_eur_mwh_vorschlag, step=1.0,
+        )
+        ppa_laufzeit_vorschlag = col_ppa3.number_input(
+            txt("oberflaeche.annahmen_ppa_laufzeit_label"), min_value=0,
+            value=ga.ppa_laufzeit_jahre_vorschlag, step=1,
+        )
+        ppa_index_vorschlag = col_ppa4.number_input(
+            txt("oberflaeche.annahmen_ppa_index_label"), min_value=0.0,
+            value=ga.ppa_indexierung_pct_pa_vorschlag * 100, step=0.25,
+        )
 
     # --- Standardbetriebskosten ----------------------------------------------
     with st.expander(txt("oberflaeche.annahmen_standardbetriebskosten_titel")):
@@ -458,6 +567,18 @@ def render_assumptions() -> None:
             neue_szenarien.append(
                 MarktpreisSzenario(
                     name=szenario.name,
+                    # Die Monatsreihen bleiben unangetastet: Der Editor
+                    # oben zeigt nur die Jahreskurven, ein Neuaufbau ohne
+                    # sie wuerde sie beim Speichern loeschen.
+                    marktwert_solar_ct_kwh_je_monat=(
+                        szenario.marktwert_solar_ct_kwh_je_monat
+                    ),
+                    erzeugungsmenge_negativ_6h_pct_je_monat=(
+                        szenario.erzeugungsmenge_negativ_6h_pct_je_monat
+                    ),
+                    erzeugungsmenge_negativ_1h_pct_je_monat=(
+                        szenario.erzeugungsmenge_negativ_1h_pct_je_monat
+                    ),
                     marktwert_solar_ct_kwh_je_kalenderjahr={
                         int(r["Kalenderjahr"]): float(r["Marktwert Solar (ct/kWh)"])
                         for _, r in edited.iterrows()
@@ -533,6 +654,25 @@ def render_assumptions() -> None:
         ga.gewerbesteuer_hebesatz_pct = float(gewerbesteuer_hebesatz)
         ga.gewerbesteuer_freibetrag_eur = float(gewerbesteuer_freibetrag)
         ga.verlustvortrag_verrechnungsgrenze_pct = verlustvortrag_grenze / 100
+
+        ga.zeitaufloesung = Zeitaufloesung(zeitaufloesung)
+        anteile = [
+            float(w) / 100
+            for w in pd.to_numeric(edited_kurve["Anteil (%)"],
+                                   errors="coerce").fillna(0)
+        ]
+        # Eine leere oder nur aus Nullen bestehende Kurve waere eine
+        # Anlage ohne Erzeugung - dann bleibt die bisherige stehen.
+        if len(anteile) == 12 and sum(anteile) > 0:
+            ga.einspeisekurve_pct_je_monat = anteile
+        ga.praemien_modell = PraemienModell(praemien_modell)
+        ga.eag_rueckzahlung_ab_mw = float(eag_ab_mw)
+        ga.eag_rueckzahlung_toleranzband_pct = eag_band / 100
+        ga.eag_rueckzahlung_anteil_pct = eag_anteil / 100
+        ga.ppa_anteil_pct_vorschlag = ppa_anteil_vorschlag / 100
+        ga.ppa_preis_eur_mwh_vorschlag = float(ppa_preis_vorschlag)
+        ga.ppa_laufzeit_jahre_vorschlag = int(ppa_laufzeit_vorschlag)
+        ga.ppa_indexierung_pct_pa_vorschlag = ppa_index_vorschlag / 100
 
         services.save_global_assumptions(ga)
         st.success(txt("oberflaeche.annahmen_gespeichert"))

@@ -71,6 +71,29 @@ trägt.
   (10 → 100 → 1000), statt bei exotischen Cashflows `None` zu liefern.
 - **Konventionell-Abschlag** (−25 % auf den EAG-Zuschlag) ist eine
   benannte Konstante, kein Nutzerparameter – Geschäftsregel.
+- **Zeitauflösung:** Der Cashflow ist immer jährlich. Die Monatsebene
+  (`GlobalAssumptions.zeitaufloesung = MONAT`) ist ausschließlich eine
+  Unterebene der Erlösrechnung: `energy.calculate_energy_production_monatlich()`
+  verteilt die Jahresmenge über die Einspeisekurve, `revenue.py` rechnet
+  je Monatsscheibe und verdichtet danach auf Jahre – Beträge summiert,
+  Preise **mengengewichtet** gemittelt. Voreingestellt bleibt die
+  Jahresauflösung; fehlen einem Kalenderjahr Monatswerte, gilt sein
+  Jahreswert für alle zwölf Monate. Beides zusammen heißt: Die
+  Umschaltung verändert kein Projekt, für das keine Monatsdaten
+  vorliegen.
+- **Prämienmodell:** `PraemienModell` trennt die Vertragsform von der
+  Rechnung – einseitiger CfD (Voreinstellung, bisheriges Verhalten),
+  zweiseitiger CfD und das österreichische Toleranzband nach § 10 EAG
+  (Rückzahlung von 66 % oberhalb von 140 % des anzulegenden Werts, ab
+  5 MW; alle drei Größen einstellbar). Prämie und Rückzahlung stehen in
+  getrennten Spalten: zwei Zahlungsrichtungen, und nur getrennt ist
+  sichtbar, welcher Teil des Ergebnisses aus einer Abschöpfung stammt.
+- **Hybride Vermarktung:** Der PPA-Anteil teilt die vermarktete *Menge*
+  auf (`erloes_ppa_eur` / `erloes_merchant_eur`); die Förderung bemisst
+  sich unverändert am Referenzmarktwert und nicht am erzielten Preis.
+  Ein PPA verschiebt deshalb die Erlösverteilung, nicht den
+  Förderanspruch – das ist die Konstruktion der gleitenden Marktprämie,
+  keine Vereinfachung.
 
 ## UI-Schicht
 

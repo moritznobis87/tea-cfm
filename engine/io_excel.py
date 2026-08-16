@@ -12,7 +12,15 @@ Struktur der Arbeitsmappe:
   Anteil neg. Stunden (%) - Langformat, ein oder mehrere Szenarien
 - Blatt "Betriebskosten": Position, EUR/kWp/Jahr, Index %/Jahr,
   Indexierung ab Jahr, Start Betriebsjahr
+- Blatt "Preiskurven Monate": Kalenderjahr, Szenario, Monat, Marktwert
+  Solar (ct/kWh), Erzeugungsmenge neg. Stunden 6h/1h (%) - optional; nur
+  noetig, wenn in Monatsaufloesung gerechnet wird
+- Blatt "Einspeisekurve": Monat, Anteil an der Jahreserzeugung (%)
 - Blatt "Einstellungen": Parameter, Wert (alle uebrigen Skalarfelder)
+
+Die beiden Monatsblaetter sind optional: Eine frueher gesicherte Datei
+kennt sie nicht und bleibt trotzdem lesbar - es gilt dann die
+Jahresaufloesung mit der Standard-Einspeisekurve.
 """
 
 from __future__ import annotations
@@ -26,6 +34,7 @@ from .models import (
     AnlagenTyp,
     CapexBreakdown,
     CapexPosition,
+    EINSPEISEKURVE_STANDARD_PCT,
     DirektvermarktungsModus,
     GlobalAssumptions,
     MarktpreisSzenario,
@@ -33,9 +42,11 @@ from .models import (
     NegativeStundenRegel,
     OpexItem,
     PachtModus,
+    PraemienModell,
     PVProject,
     TaxModus,
     TilgungsArt,
+    Zeitaufloesung,
     ZinsMethode,
 )
 
@@ -69,6 +80,16 @@ EINSTELLUNGEN_DEFAULTS = {
     "verlustvortrag_verrechnungsgrenze_pct": 75.0,
     "marktpreis_inflation_pct_pa": 2.0,
     "marktpreis_inflation_basisjahr": 2025,
+    # seit v5.4 (Monatsaufloesung, Praemienmodelle, hybride PPA)
+    "zeitaufloesung": "jahr",
+    "praemien_modell": "einseitig_cfd",
+    "eag_rueckzahlung_ab_mw": 5.0,
+    "eag_rueckzahlung_toleranzband_pct": 40.0,
+    "eag_rueckzahlung_anteil_pct": 66.0,
+    "ppa_anteil_pct_vorschlag": 50.0,
+    "ppa_preis_eur_mwh_vorschlag": 65.0,
+    "ppa_laufzeit_jahre_vorschlag": 10,
+    "ppa_indexierung_pct_pa_vorschlag": 1.0,
 }
 
 
@@ -111,6 +132,55 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             "Erzeugungsmenge neg. Stunden 6h (%)",
             "Erzeugungsmenge neg. Stunden 1h (%)",
         ],
+    )
+
+    # Monatsreihen im Langformat: eine Zeile je Szenario, Jahr und Monat.
+    # Breitformat (zwoelf Spalten) waere kompakter, liesse sich aber nicht
+    # um weitere Groessen erweitern, ohne die Blattstruktur zu aendern.
+    monats_zeilen = []
+    for szenario in ga.marktpreisszenarien:
+        jahre = sorted(
+            set(szenario.marktwert_solar_ct_kwh_je_monat)
+            | set(szenario.erzeugungsmenge_negativ_6h_pct_je_monat)
+            | set(szenario.erzeugungsmenge_negativ_1h_pct_je_monat)
+        )
+        for jahr in jahre:
+            marktwerte = szenario.marktwert_solar_ct_kwh_je_monat.get(jahr)
+            neg6 = szenario.erzeugungsmenge_negativ_6h_pct_je_monat.get(jahr)
+            neg1 = szenario.erzeugungsmenge_negativ_1h_pct_je_monat.get(jahr)
+            for monat in range(1, 13):
+                monats_zeilen.append(
+                    {
+                        "Kalenderjahr": jahr,
+                        "Szenario": szenario.name,
+                        "Monat": monat,
+                        "Marktwert Solar (ct/kWh)": (
+                            marktwerte[monat - 1] if marktwerte else None
+                        ),
+                        "Erzeugungsmenge neg. Stunden 6h (%)": (
+                            neg6[monat - 1] * 100 if neg6 else None
+                        ),
+                        "Erzeugungsmenge neg. Stunden 1h (%)": (
+                            neg1[monat - 1] * 100 if neg1 else None
+                        ),
+                    }
+                )
+    monats_df = pd.DataFrame(
+        monats_zeilen,
+        columns=[
+            "Kalenderjahr", "Szenario", "Monat", "Marktwert Solar (ct/kWh)",
+            "Erzeugungsmenge neg. Stunden 6h (%)",
+            "Erzeugungsmenge neg. Stunden 1h (%)",
+        ],
+    )
+
+    einspeisekurve_df = pd.DataFrame(
+        {
+            "Monat": list(range(1, 13)),
+            "Anteil Jahreserzeugung (%)": [
+                wert * 100 for wert in ga.einspeisekurve_pct_je_monat
+            ],
+        }
     )
 
     opex_df = pd.DataFrame(
@@ -172,6 +242,21 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
             ("marktpreis_inflation_pct_pa", ga.marktpreis_inflation_pct_pa * 100),
             ("marktpreis_inflation_basisjahr", ga.marktpreis_inflation_basisjahr),
             ("kosten_inflation_pct_pa", ga.kosten_inflation_pct_pa),
+            ("zeitaufloesung", ga.zeitaufloesung.value),
+            ("praemien_modell", ga.praemien_modell.value),
+            ("eag_rueckzahlung_ab_mw", ga.eag_rueckzahlung_ab_mw),
+            (
+                "eag_rueckzahlung_toleranzband_pct",
+                ga.eag_rueckzahlung_toleranzband_pct * 100,
+            ),
+            ("eag_rueckzahlung_anteil_pct", ga.eag_rueckzahlung_anteil_pct * 100),
+            ("ppa_anteil_pct_vorschlag", ga.ppa_anteil_pct_vorschlag * 100),
+            ("ppa_preis_eur_mwh_vorschlag", ga.ppa_preis_eur_mwh_vorschlag),
+            ("ppa_laufzeit_jahre_vorschlag", ga.ppa_laufzeit_jahre_vorschlag),
+            (
+                "ppa_indexierung_pct_pa_vorschlag",
+                ga.ppa_indexierung_pct_pa_vorschlag * 100,
+            ),
         ],
         columns=["Parameter", "Wert"],
     )
@@ -179,6 +264,8 @@ def global_assumptions_to_excel(ga: GlobalAssumptions) -> bytes:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         kurven_df.to_excel(writer, sheet_name="Preiskurven", index=False)
+        monats_df.to_excel(writer, sheet_name="Preiskurven Monate", index=False)
+        einspeisekurve_df.to_excel(writer, sheet_name="Einspeisekurve", index=False)
         opex_df.to_excel(writer, sheet_name="Betriebskosten", index=False)
         einstellungen_df.to_excel(writer, sheet_name="Einstellungen", index=False)
     buffer.seek(0)
@@ -226,6 +313,51 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
             wert = float(r[legacy_spalte]) / 100
             szenarien[name].erzeugungsmenge_negativ_6h_pct_je_kalenderjahr[jahr] = wert
             szenarien[name].erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[jahr] = wert
+
+    # Monatsreihen (optional): Sie ergaenzen die Jahreskurven, ersetzen
+    # sie aber nicht - fehlt das Blatt, bleibt alles beim Jahreswert.
+    monats_df = sheets.get("Preiskurven Monate")
+    if monats_df is not None:
+        for _, r in monats_df.iterrows():
+            if pd.isna(r.get("Kalenderjahr")) or pd.isna(r.get("Szenario")):
+                continue
+            name = str(r["Szenario"])
+            if name not in szenarien:
+                szenarien[name] = MarktpreisSzenario(name=name)
+            jahr, monat = int(r["Kalenderjahr"]), int(r["Monat"])
+            if not 1 <= monat <= 12:
+                continue
+            for spalte, ziel, teiler in (
+                ("Marktwert Solar (ct/kWh)",
+                 szenarien[name].marktwert_solar_ct_kwh_je_monat, 1.0),
+                ("Erzeugungsmenge neg. Stunden 6h (%)",
+                 szenarien[name].erzeugungsmenge_negativ_6h_pct_je_monat, 100.0),
+                ("Erzeugungsmenge neg. Stunden 1h (%)",
+                 szenarien[name].erzeugungsmenge_negativ_1h_pct_je_monat, 100.0),
+            ):
+                if spalte not in monats_df.columns or pd.isna(r.get(spalte)):
+                    continue
+                # Eine angefangene Reihe wird mit Nullen aufgefuellt und
+                # dann an der richtigen Stelle beschrieben - so bleibt sie
+                # auch dann zwoelfstellig, wenn in der Tabelle einzelne
+                # Monate fehlen.
+                ziel.setdefault(jahr, [0.0] * 12)[monat - 1] = (
+                    float(r[spalte]) / teiler
+                )
+
+    einspeisekurve_df = sheets.get("Einspeisekurve")
+    einspeisekurve = None
+    if einspeisekurve_df is not None and "Monat" in einspeisekurve_df.columns:
+        spalte = "Anteil Jahreserzeugung (%)"
+        werte = [0.0] * 12
+        for _, r in einspeisekurve_df.iterrows():
+            if pd.isna(r.get("Monat")) or pd.isna(r.get(spalte)):
+                continue
+            monat = int(r["Monat"])
+            if 1 <= monat <= 12:
+                werte[monat - 1] = float(r[spalte]) / 100
+        if sum(werte) > 0:
+            einspeisekurve = werte
 
     opex_items = [
         OpexItem(
@@ -303,6 +435,22 @@ def excel_to_global_assumptions(file_bytes: bytes) -> GlobalAssumptions:
         marktpreis_inflation_pct_pa=float(get("marktpreis_inflation_pct_pa")) / 100,
         marktpreis_inflation_basisjahr=int(get("marktpreis_inflation_basisjahr")),
         kosten_inflation_pct_pa=float(get("kosten_inflation_pct_pa")),
+        zeitaufloesung=Zeitaufloesung(str(get("zeitaufloesung")).strip().lower()),
+        einspeisekurve_pct_je_monat=(
+            einspeisekurve if einspeisekurve is not None else EINSPEISEKURVE_STANDARD_PCT
+        ),
+        praemien_modell=PraemienModell(str(get("praemien_modell")).strip().lower()),
+        eag_rueckzahlung_ab_mw=float(get("eag_rueckzahlung_ab_mw")),
+        eag_rueckzahlung_toleranzband_pct=(
+            float(get("eag_rueckzahlung_toleranzband_pct")) / 100
+        ),
+        eag_rueckzahlung_anteil_pct=float(get("eag_rueckzahlung_anteil_pct")) / 100,
+        ppa_anteil_pct_vorschlag=float(get("ppa_anteil_pct_vorschlag")) / 100,
+        ppa_preis_eur_mwh_vorschlag=float(get("ppa_preis_eur_mwh_vorschlag")),
+        ppa_laufzeit_jahre_vorschlag=int(get("ppa_laufzeit_jahre_vorschlag")),
+        ppa_indexierung_pct_pa_vorschlag=(
+            float(get("ppa_indexierung_pct_pa_vorschlag")) / 100
+        ),
     )
 
 
@@ -322,6 +470,8 @@ PROJEKT_SPALTEN = [
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
     "gemeindeabgabe_eur_mwh", "direktvermarktungskosten_eur_mwh",
     "marktpreisszenario", "projektflaeche_ha",
+    "ppa_anteil_pct", "ppa_preis_eur_mwh", "ppa_start_jahr",
+    "ppa_laufzeit_jahre", "ppa_indexierung_pct_pa",
     "capex_epc_eur", "capex_netzanschluss_eur", "capex_trasse_eur",
     "capex_widmung_eur", "capex_genehmigung_eur",
     "capex_sonstige_extern_eur", "capex_agm_eur", "capex_m_and_a_eur",
@@ -360,6 +510,10 @@ OPTIONALE_PROJEKT_SPALTEN = frozenset(
         # seit v5.3 (Kurzbezeichnung des Ortes); fehlt sie, wird die
         # Projektkennung auch als Beschriftung verwendet
         "standort",
+        # seit v5.4 (hybride Vermarktung); fehlen sie, rechnet das
+        # Projekt wie bisher rein merchant
+        "ppa_anteil_pct", "ppa_preis_eur_mwh", "ppa_start_jahr",
+        "ppa_laufzeit_jahre", "ppa_indexierung_pct_pa",
     }
 )
 
@@ -455,6 +609,11 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "direktvermarktungskosten_eur_mwh": p.direktvermarktungskosten_eur_mwh,
             "marktpreisszenario": p.marktpreisszenario,
             "projektflaeche_ha": p.projektflaeche_ha,
+            "ppa_anteil_pct": p.ppa_anteil_pct * 100,
+            "ppa_preis_eur_mwh": p.ppa_preis_eur_mwh,
+            "ppa_start_jahr": p.ppa_start_jahr,
+            "ppa_laufzeit_jahre": p.ppa_laufzeit_jahre,
+            "ppa_indexierung_pct_pa": p.ppa_indexierung_pct_pa * 100,
             "capex_epc_eur": p.capex.epc_eur,
             "capex_netzanschluss_eur": p.capex.netzanschluss_eur,
             "capex_trasse_eur": p.capex.trasse_eur,
@@ -547,6 +706,13 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                     if pd.notna(r["projektflaeche_ha"])
                     else None
                 ),
+                # Hybride Vermarktung - fehlen die Spalten (aeltere
+                # Exportdatei), rechnet das Projekt rein merchant.
+                ppa_anteil_pct=_zahl(r, "ppa_anteil_pct") / 100,
+                ppa_preis_eur_mwh=_zahl(r, "ppa_preis_eur_mwh", 65.0),
+                ppa_start_jahr=int(_zahl(r, "ppa_start_jahr", 1)) or 1,
+                ppa_laufzeit_jahre=int(_zahl(r, "ppa_laufzeit_jahre", 10)),
+                ppa_indexierung_pct_pa=_zahl(r, "ppa_indexierung_pct_pa") / 100,
                 capex=CapexBreakdown(
                     epc_eur=float(r["capex_epc_eur"]),
                     netzanschluss_eur=float(r["capex_netzanschluss_eur"]),

@@ -48,9 +48,11 @@ from .models import (
     NegativeStundenRegel,
     OpexItem,
     PachtModus,
+    PraemienModell,
     PVProject,
     TaxModus,
     TilgungsArt,
+    Zeitaufloesung,
     ZinsMethode,
 )
 from .pipeline import (
@@ -102,9 +104,11 @@ __all__ = [
     "OpexItem",
     "PVProject",
     "PachtModus",
+    "PraemienModell",
     "TaxModus",
     "TilgungsArt",
     "ValuationResult",
+    "Zeitaufloesung",
     "ZinsMethode",
     "resolve_assumptions",
     "run_valuation",

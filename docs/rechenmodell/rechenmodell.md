@@ -383,6 +383,16 @@ indiziert, Degradation und Kostenindexierung nach Betriebsjahr.
 | $\nu_t$ | Erzeugungsanteil in Stunden negativer Preise | – | Szenariokurve |
 | $w$ | Gewichtung des Negativstunden-Effekts | – | global |
 | $R_t$ | Erlös gesamt | € | Schritt 3 |
+| $\theta_j$ | Einspeisekurve: Anteil des Monats $j$ an der Jahreserzeugung | – | global |
+| $E_{t,j}$ | Stromproduktion im Jahr $t$, Monat $j$ | kWh | Schritt 2 |
+| $u_t$ | Rückzahlung je kWh (Überförderung) | ct/kWh | Schritt 3 |
+| $\beta$ | Toleranzband über dem anzulegenden Wert | – | global |
+| $\rho$ | Rückzahlungsanteil oberhalb des Bandes | – | global |
+| $P_{\min}$ | Engpassleistung, ab der zurückzuzahlen ist | MW | global |
+| $\alpha$ | Anteil der Menge unter PPA | – | Projekt |
+| $q_0$, $q_t$ | PPA-Preis (vereinbart / im Jahr $t$) | €/MWh, ct/kWh | Projekt |
+| $t_{\mathrm{PPA}}$, $L$ | Startjahr und Laufzeit des PPA | Jahre | Projekt |
+| $\eta$ | Indexierung des PPA-Preises | – | Projekt |
 | $C_t$ | Betriebskosten gesamt | € | Schritt 4 |
 | $\kappa$ | Allgemeine Kosteninflation | – | global |
 | $\iota$ | Inflation der Marktpreiskurven | – | global |
@@ -615,7 +625,34 @@ $$ E_t = E^{\mathrm{basis}} \cdot \phi_t \cdot \pi_t \cdot (1 - \sigma) $$
 > Zeitreihe aber interpretierbar (der ausgewiesene Degradationsfaktor
 > enthält keinen Risikoabschlag).
 
-**Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr.
+## 6.3 Monatsaufteilung (optionale Zeitauflösung)
+
+Wird in den globalen Annahmen die **Monatsauflösung** gewählt, wird die
+Jahresmenge über eine **Einspeisekurve** $\theta_1,\dots,\theta_{12}$
+verteilt. Sie gibt den Anteil der Jahreserzeugung je Kalendermonat an und
+wird vor der Anwendung normiert, damit gerundete Prozentangaben die
+Jahresmenge nicht verändern:
+
+$$ \hat{\theta}_j = \frac{\theta_j}{\sum_{i=1}^{12}\theta_i}, \qquad j = 1,\dots,12 $$
+
+$$ E_{t,j} = E^{\mathrm{basis}} \cdot \phi_t \cdot (1-\sigma) \cdot \hat{\theta}_j \cdot \mathbf{1}_{[\,t>1 \;\vee\; j \geq j_0\,]} $$
+
+Dabei ist $j_0$ der Inbetriebnahmemonat. Der Anteilsfaktor $\pi_t$ des
+Anlaufjahres entfällt in dieser Auflösung: Statt eines taggenauen
+Bruchteils zählen genau die Monate ab Inbetriebnahme mit ihrem
+tatsächlichen Ertragsanteil. Für eine im Juli in Betrieb gehende Anlage
+sind das nicht die halben, sondern rund 60 % der Jahresmenge – die
+ertragreichen Monate liegen im Sommer. Für alle weiteren Jahre gilt
+
+$$ \sum_{j=1}^{12} E_{t,j} = E_t, $$
+
+die Monatsebene ist also eine reine Verteilung. Alle nachgelagerten
+Schritte (Betriebskosten, Finanzierung, Steuern, Kennzahlen) rechnen
+unverändert auf Jahresscheiben; die Monatsebene wirkt ausschließlich in
+Schritt 3 (Abschnitt 7.9).
+
+**Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr, in der
+Monatsauflösung zusätzlich $E_{t,j}$.
 
 # 7 Schritt 3 – Erlöse nach dem Marktprämienmodell
 
@@ -627,6 +664,14 @@ Markterlös und Marktprämie.
 In diesem Modul werden die zentralen marktseitigen Berechnungsregeln
 zusammengeführt. Die Berechnung gliedert sich in fünf Teilschritte: Kalenderjahr-Zuordnung, Kurvenzugriff,
 Inflationierung, Vergütungssatz, Mengenwirkung negativer Preise.
+
+Drei Erweiterungen setzen darauf auf und sind voneinander unabhängig:
+das **Prämienmodell** (Abschnitt 7.7) bestimmt, was oberhalb des
+anzulegenden Werts geschieht; die **hybride Vermarktung** (Abschnitt 7.8)
+teilt die Menge zwischen PPA und Spotmarkt auf; die **Monatsauflösung**
+(Abschnitt 7.9) führt Menge und Preis auf Monatsebene zusammen. Die
+Abschnitte 7.1 bis 7.6 beschreiben den Grundfall: einseitiger CfD, reine
+Merchant-Vermarktung, Jahresauflösung.
 
 ## 7.1 Kalenderjahr-Zuordnung
 
@@ -741,8 +786,123 @@ sich insbesondere die Abhängigkeit des Projektwerts von der Förderdauer
 quantifizieren. In der grafischen Darstellung entspricht die Differenz
 zwischen Vergütungssatz und Marktwert der Marktprämie.
 
+## 7.7 Marktprämienmodelle
+
+Abschnitt 7.4 beschreibt den **einseitigen** Differenzvertrag: Der
+Betreiber erhält den höheren von Marktwert und anzulegendem Wert. Zwei
+weitere Vertragsformen sind wählbar; sie unterscheiden sich
+ausschließlich im Bereich $m_t > z$. Unterhalb des anzulegenden Werts
+zahlen alle drei Modelle identisch auf.
+
+Neben der Prämie $p_t$ tritt dafür eine **Rückzahlung** $u_t$ je kWh –
+eine Zahlung in die Gegenrichtung, an die Förderstelle:
+
+$$
+u_t = \mathbf{1}_{[t\leq F]} \cdot
+\begin{cases}
+0, & \text{einseitiger CfD},\\[2pt]
+\left(m_t-z\right)^+, & \text{zweiseitiger CfD},\\[2pt]
+\rho\cdot\left(m_t-z\,(1+\beta)\right)^+\cdot\mathbf{1}_{[P\geq P_{\min}]}, & \text{Toleranzband (EAG)}.
+\end{cases}
+$$
+
+Der Vergütungssatz wird damit
+
+$$ s_t = m_t + p_t - u_t. $$
+
+- **Einseitiger CfD.** $u_t \equiv 0$; der Betreiber behält jeden
+  Übergewinn. Grundform der EAG-Marktprämie und Voreinstellung des
+  Modells.
+- **Zweiseitiger CfD.** $s_t = z$ während der gesamten Förderdauer: kein
+  Preisrisiko nach unten, keine Preischance nach oben. Diese Form liegt
+  der deutschen EEG-Reform 2027 zugrunde.
+- **Toleranzband (§ 10 EAG).** Eine Rückzahlung entsteht erst, wenn der
+  Referenzmarktwert den anzulegenden Wert um mehr als $\beta$ übersteigt;
+  zurückzuzahlen ist der Anteil $\rho$ des darüber liegenden Betrags. Die
+  Pflicht gilt erst ab einer Engpassleistung $P_{\min}$. Gesetzliche
+  Werte für Photovoltaik: $\beta = 40\,\%$, $\rho = 66\,\%$,
+  $P_{\min} = 5\ \mathrm{MW}$. Alle drei sind einstellbar, da sie
+  Gegenstand laufender Novellen sind; verglichen wird mit der
+  Nennleistung $P$ des Projekts.
+
+Die Rückzahlung wird auf derselben Menge bemessen wie die Prämie
+(Abschnitt 7.5) und mindert den Erlös:
+
+$$ R^{\mathrm{r\ddot{u}ck}}_t = \frac{E_t\,(1-\nu_t)\,u_t}{100}, \qquad R_t = R^{\mathrm{markt}}_t + R^{\mathrm{pr\ddot{a}mie}}_t - R^{\mathrm{r\ddot{u}ck}}_t $$
+
+Prämie und Rückzahlung werden getrennt ausgewiesen und nicht saldiert:
+Es sind zwei Zahlungsrichtungen, und nur getrennt ist erkennbar, welcher
+Teil des Ergebnisses aus einer Abschöpfung stammt.
+
+## 7.8 Hybride Vermarktung (PPA und Merchant)
+
+Ein Anteil $\alpha \in [0,1]$ der vermarkteten Menge wird zu einem festen
+Preis $q_t$ abgenommen, der Rest zum Marktwert verkauft. Der PPA-Preis
+gilt zwischen dem Startjahr $t_{\mathrm{PPA}}$ und dem Ende der Laufzeit
+$L$ und wird ab dem zweiten Vertragsjahr mit $\eta$ indexiert:
+
+$$
+q_t =
+\begin{cases}
+\dfrac{q_0}{10}\,(1+\eta)^{\,t-t_{\mathrm{PPA}}}, & t_{\mathrm{PPA}} \leq t \leq t_{\mathrm{PPA}}+L-1,\\[6pt]
+0, & \text{sonst},
+\end{cases}
+$$
+
+mit $q_0$ in €/MWh und $q_t$ in ct/kWh. Mit $E^{\mathrm{verm}}_t$ als der
+vermarkteten Menge nach Abschnitt 7.5 gilt
+
+$$ R^{\mathrm{ppa}}_t = \frac{\alpha\,E^{\mathrm{verm}}_t\,q_t}{100}, \qquad R^{\mathrm{merch}}_t = \frac{(1-\alpha)\,E^{\mathrm{verm}}_t\,m_t}{100}, $$
+
+$$ R^{\mathrm{markt}}_t = R^{\mathrm{ppa}}_t + R^{\mathrm{merch}}_t. $$
+
+Entscheidend ist die Unabhängigkeit von der Förderung: Prämie $p_t$ und
+Rückzahlung $u_t$ bemessen sich unverändert am **Referenzmarktwert**
+$m_t$, nicht am tatsächlich erzielten Preis. Wer unterhalb des
+Referenzwerts verkauft, trägt die Differenz selbst; wer darüber verkauft,
+behält sie. Das entspricht der Konstruktion der gleitenden Marktprämie
+und ist zugleich der Grund, warum ein PPA die Erlösverteilung verschiebt,
+ohne den Förderanspruch zu berühren.
+
+## 7.9 Monatsauflösung
+
+In der Monatsauflösung (Abschnitt 6.3) tragen alle Kurven einen
+Monatsindex: Marktwert $m_{t,j}$ und Negativmengenanteil $\nu_{t,j}$
+werden aus Monatsreihen des Szenarios gelesen. Liegt für ein Kalenderjahr
+keine Monatsreihe vor, gilt dessen Jahreswert für alle zwölf Monate – ein
+Szenario bleibt damit auch dann rechenbar, wenn nur ein Teil der Jahre in
+Monatsauflösung vorliegt.
+
+Sämtliche Vorschriften der Abschnitte 7.3 bis 7.8 werden je Monatsscheibe
+$(t,j)$ ausgewertet; die Inflationierung verwendet dabei unverändert das
+Kalenderjahr $y_t$. Die Verdichtung auf Jahreswerte erfolgt anschließend:
+
+$$ R_t = \sum_{j=1}^{12} R_{t,j}, \qquad
+m_t = \frac{\sum_{j=1}^{12} E_{t,j}\, m_{t,j}}{\sum_{j=1}^{12} E_{t,j}} $$
+
+Beträge werden **summiert**, Preise **mengengewichtet** gemittelt. Die
+Gewichtung ist keine Feinheit: Der Jahresmarktwert einer PV-Anlage ist
+der Wert, den *ihre* Kilowattstunden erlösen. Ein ungewichteter
+Monatsdurchschnitt wäre für Photovoltaik systematisch zu hoch, weil die
+ertragsstarken Monate die preisschwachen sind.
+
+Der wirtschaftliche Unterschied beider Auflösungen entsteht aus zwei
+Effekten mit gegenläufigem Vorzeichen:
+
+1. **Erlösprofil.** Erzeugung und Preis sind negativ korreliert; eine
+   Jahresrechnung überschätzt den Merchant-Erlös. Ist die Jahreskurve
+   bereits ein erzeugungsgewichteter Marktwert Solar, ist dieser Effekt
+   in ihr enthalten und die Monatsauflösung reproduziert ihn.
+2. **Konvexität der Förderung.** Prämie und Rückzahlung sind abgeschnittene
+   Funktionen von $m_t$. Nach der jensenschen Ungleichung ist der
+   Erwartungswert der Prämie über streuende Monatswerte größer als die
+   Prämie des Mittelwerts – der einseitige CfD gewinnt an Wert, je
+   stärker die Monatspreise streuen. Erst die Monatsauflösung macht
+   diesen Optionswert sichtbar.
+
 **Ausgang.** $y_t$, $m^{\mathrm{real}}_t$, $m_t$, $s_t$, $R_t$,
-$R^{\mathrm{markt}}_t$, $R^{\text{Prämie}}_t$.
+$R^{\mathrm{markt}}_t$, $R^{\text{Prämie}}_t$, $R^{\mathrm{ppa}}_t$,
+$R^{\mathrm{merch}}_t$, $R^{\mathrm{r\ddot{u}ck}}_t$.
 
 # 8 Schritt 4 – Betriebskosten
 
