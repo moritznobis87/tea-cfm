@@ -470,28 +470,47 @@ class PVProject(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-#: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
-#: (Januar bis Dezember), Summe 1.
+#: Monatsertrag einer 1-kWp-Anlage in kWh, Januar bis Dezember - die
+#: Quelle der Einspeisekurven. Ausgelesen aus PVGIS je Bauform,
+#: derselbe Standort und dieselbe Konfiguration; die Jahressummen sind
+#: 1.148 kWh/kWp (Pult) und 1.429 kWh/kWp (Tracker), also 24,5 %
+#: Nachfuehrgewinn.
 #:
-#: Abgeleitet aus zwei Stundenreihen desselben Standorts und desselben
-#: Wetterjahrs (8.760 Werte, data/lastgang/pult.csv bzw. tracker.csv):
-#: monatsweise summiert und auf 1 normiert - die Ableitung steht in
-#: engine/io_lastgang.py und wird in tests/test_lastgang.py gegen diese
-#: Zahlen geprueft. Nur die Form der Reihe zaehlt; die Jahresmenge
-#: kommt weiterhin aus Leistung und Vollbenutzungsstunden des Projekts.
-#:
-#: Der Tracker verschiebt Erzeugung aus dem Hochsommer in die
-#: Uebergangszeit: Bei nachgefuehrten Modulen liegt die Sonne auch
-#: morgens und abends guenstig, was die flachen Monate anhebt.
-EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
+#: Die Werte stehen hier in ihrer Rohform und nicht schon normiert, weil
+#: sie damit nachpruefbar bleiben: Wer die PVGIS-Abfrage wiederholt,
+#: vergleicht Zahl fuer Zahl. Fuer die Rechnung zaehlt nur ihr
+#: Verhaeltnis - die Jahresmenge kommt aus Leistung und
+#: Vollbenutzungsstunden des Projekts, nicht von hier.
+PVGIS_MONATSERTRAG_KWH_KWP: dict[str, list[float]] = {
     "Pult": [
-        0.021630, 0.045764, 0.072472, 0.136310, 0.120248, 0.119668,
-        0.125485, 0.139141, 0.102668, 0.049251, 0.028465, 0.038899,
+        69.69, 87.20, 112.98, 113.01, 111.01, 113.67,
+        122.11, 110.76, 96.59, 88.06, 63.89, 59.50,
     ],
     "Tracker": [
-        0.019621, 0.044177, 0.069323, 0.131418, 0.125751, 0.128575,
-        0.130982, 0.137865, 0.098824, 0.050023, 0.026408, 0.037032,
+        85.42, 108.20, 139.14, 141.25, 137.08, 144.45,
+        157.08, 139.65, 118.34, 108.10, 78.07, 72.57,
     ],
+}
+
+
+def _normiert(werte: list[float]) -> list[float]:
+    """Anteile mit Summe 1 - die Hoehe der Reihe ist gleichgueltig."""
+    gesamt = sum(werte)
+    return [w / gesamt for w in werte]
+
+
+#: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
+#: (Januar bis Dezember), Summe 1. Normiert aus den PVGIS-Monatsertraegen
+#: darueber.
+#:
+#: Der Tracker verschiebt Erzeugung in die langen Tage: Sein
+#: Nachfuehrgewinn liegt im Juli bei 28,6 %, im Dezember nur bei 22,0 %.
+#: Seine Kurve ist deshalb etwas sommerlastiger als die der
+#: Pultaufstaenderung - fuer die Monatsrechnung wesentlich, weil die
+#: Sommermonate die niedrigeren Marktwerte tragen.
+EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
+    bauform: _normiert(werte)
+    for bauform, werte in PVGIS_MONATSERTRAG_KWH_KWP.items()
 }
 
 #: Bauform der Standardkurve - Pult, wie auch beim Aurora-Import
