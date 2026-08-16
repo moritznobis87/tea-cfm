@@ -813,3 +813,48 @@ class TestBeschriftungsplaetze:
         ])
         assert plaetze["a"] == ""
         assert plaetze["b"]
+
+
+class TestLegendennamen:
+    """Aus einer Arbeitsmappe entstehen Szenarien mit gemeinsamem Stamm
+    („Aurora Q3/26 GER · Pult · Central"). In der Legende steht sonst
+    dreimal dieselbe Herkunft und einmal der Unterschied."""
+
+    def test_gemeinsamer_stamm_faellt_weg(self):
+        from app.components.charts import _legendennamen
+
+        namen = [
+            "Aurora Q3/26 GER · Pult · Central",
+            "Aurora Q3/26 GER · Pult · Low",
+            "Aurora Q3/26 GER · Tracker · Central",
+        ]
+        assert list(_legendennamen(namen).values()) == [
+            "Pult · Central", "Pult · Low", "Tracker · Central",
+        ]
+
+    def test_ohne_gemeinsamen_stamm_bleibt_alles_stehen(self):
+        from app.components.charts import _legendennamen
+
+        namen = ["Enervis 2025", "Aurora 6/26"]
+        assert _legendennamen(namen) == {n: n for n in namen}
+
+    def test_einzelne_reihe_bleibt_unveraendert(self):
+        from app.components.charts import _legendennamen
+
+        assert _legendennamen(["Aurora 6/26"]) == {"Aurora 6/26": "Aurora 6/26"}
+
+    def test_teilname_bleibt_unterscheidbar(self):
+        """Ist ein Name Anfang des anderen, darf die Kuerzung die beiden
+        nicht zusammenfallen lassen."""
+        from app.components.charts import _legendennamen
+
+        kurz = _legendennamen(["Aurora 6/26", "Aurora 6/26 · Pult"])
+        assert len(set(kurz.values())) == 2
+        assert all(k for k in kurz.values())
+
+    def test_leere_kuerzung_wird_verworfen(self):
+        """Bliebe von einem Namen nichts uebrig, bleiben alle voll."""
+        from app.components.charts import _legendennamen
+
+        namen = ["Aurora · Pult · ", "Aurora · Pult · Central"]
+        assert _legendennamen(namen) == {n: n for n in namen}

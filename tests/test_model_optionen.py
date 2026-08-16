@@ -294,6 +294,76 @@ class TestAurora626Standarddaten:
         assert max(a.marktwert_solar_ct_kwh_je_kalenderjahr) == 2060
 
 
+class TestAuroraQ326Szenarien:
+    """Die ausgelieferte Q3/26-Sammlung: drei Preisszenarien mal zwei
+    Bauformen, mit Grosshandelspreisen. Sie ist die Grundlage der
+    Sensitivitaeten - fehlt eine Reihe, faellt es sonst erst in der
+    Auswertung auf."""
+
+    @pytest.fixture
+    def ausgeliefert(self):
+        from pathlib import Path as _P
+
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        return load_global_assumptions_yaml(
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
+        )
+
+    def test_sechs_kombinationen(self, ausgeliefert):
+        namen = {s.name for s in ausgeliefert.marktpreisszenarien}
+        for bauform in ("Pult", "Tracker"):
+            for szenario in ("Central", "Low", "High"):
+                assert f"Aurora Q3/26 GER · {bauform} · {szenario}" in namen
+
+    def _q326(self, ga, bauform, szenario):
+        return [s for s in ga.marktpreisszenarien
+                if s.name == f"Aurora Q3/26 GER · {bauform} · {szenario}"][0]
+
+    def test_grosshandelspreise_jaehrlich_und_monatlich(self, ausgeliefert):
+        for bauform in ("Pult", "Tracker"):
+            for szenario in ("Central", "Low", "High"):
+                s = self._q326(ausgeliefert, bauform, szenario)
+                assert len(s.baseload_ct_kwh_je_kalenderjahr) >= 30
+                assert len(s.baseload_ct_kwh_je_monat) >= 30
+                assert all(len(m) == 12 for m in s.baseload_ct_kwh_je_monat.values())
+
+    def test_grosshandelspreis_haengt_nicht_von_der_bauform_ab(self, ausgeliefert):
+        """Der Baseload ist ein Systempreis - Pult und Tracker teilen
+        ihn. Unterschiedliche Kurven waeren ein Importfehler."""
+        pult = self._q326(ausgeliefert, "Pult", "Central")
+        tracker = self._q326(ausgeliefert, "Tracker", "Central")
+        assert (pult.baseload_ct_kwh_je_kalenderjahr
+                == pytest.approx(tracker.baseload_ct_kwh_je_kalenderjahr))
+
+    def test_marktwert_liegt_unter_dem_grosshandelspreis(self, ausgeliefert):
+        """Kannibalisierung: PV erloest weniger als der Baseload -
+        typisch 45 bis 70 % (Capture Rate)."""
+        for bauform in ("Pult", "Tracker"):
+            s = self._q326(ausgeliefert, bauform, "Central")
+            for jahr, baseload in s.baseload_ct_kwh_je_kalenderjahr.items():
+                quote = s.marktwert_solar_ct_kwh_je_kalenderjahr[jahr] / baseload
+                assert 0.3 < quote < 0.9
+
+    def test_tracker_erloest_mehr_als_pult(self, ausgeliefert):
+        """Die Nachfuehrung trifft die preisschwachen Mittagsstunden
+        weniger stark - sonst waere die Unterscheidung folgenlos."""
+        for szenario in ("Central", "Low", "High"):
+            pult = self._q326(ausgeliefert, "Pult", szenario)
+            tracker = self._q326(ausgeliefert, "Tracker", szenario)
+            for jahr, wert in pult.marktwert_solar_ct_kwh_je_kalenderjahr.items():
+                assert tracker.marktwert_solar_ct_kwh_je_kalenderjahr[jahr] > wert
+
+    def test_preisszenarien_liegen_auseinander(self, ausgeliefert):
+        niedrig = self._q326(ausgeliefert, "Pult", "Low")
+        mittel = self._q326(ausgeliefert, "Pult", "Central")
+        hoch = self._q326(ausgeliefert, "Pult", "High")
+        for jahr in mittel.baseload_ct_kwh_je_kalenderjahr:
+            assert (niedrig.baseload_ct_kwh_je_kalenderjahr[jahr]
+                    < mittel.baseload_ct_kwh_je_kalenderjahr[jahr]
+                    < hoch.baseload_ct_kwh_je_kalenderjahr[jahr])
+
+
 class TestKostenInflation:
     """Die globale Kosteninflation wirkt auf ALLE Kostenpositionen ohne
     eigene Preislogik: Pacht, Gemeindeabgabe und Direktvermarktung

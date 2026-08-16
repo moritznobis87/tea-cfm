@@ -218,6 +218,22 @@ class TestGrosshandelspreis:
         return szenario.name, jahre
 
     def test_ohne_kurve_steht_ein_hinweis(self, _ga_datei_gesichert):
+        """Aeltere Szenarien fuehren keinen Grosshandelspreis - dann
+        soll ein Hinweis stehen und kein leeres Diagramm."""
+        from engine.io_yaml import (
+            load_global_assumptions_yaml,
+            save_global_assumptions_yaml,
+        )
+
+        ga = load_global_assumptions_yaml(_GA_PFAD)
+        for szenario in ga.marktpreisszenarien:
+            szenario.baseload_ct_kwh_je_kalenderjahr = {}
+            szenario.baseload_ct_kwh_je_monat = {}
+        save_global_assumptions_yaml(ga, _GA_PFAD)
+        from app import services
+
+        services._load_global_assumptions_cached.clear()
+
         at = _app()
         _navigiere(at, "nav_annahmen")
         assert not at.exception, at.exception

@@ -10,6 +10,8 @@ Vorteile dieser Trennung:
 
 from __future__ import annotations
 
+import os as _os
+
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -304,6 +306,29 @@ def equity_waterfall_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def _legendennamen(namen: list[str]) -> dict[str, str]:
+    """Kuerzt die gemeinsame Herkunft aus den Legendennamen heraus.
+
+    Aus einer Aurora-Arbeitsmappe entstehen Szenarien wie „Aurora Q3/26
+    GER · Pult · Central": In der Legende steht dreimal derselbe Stamm
+    und einmal der Unterschied, auf den es ankommt. Gekuerzt wird nur an
+    einer Trennstelle („·" oder Leerzeichen) und nur, wenn alle Namen
+    danach noch verschieden und nicht leer sind - sonst waere die
+    Zuordnung dahin.
+    """
+    if len(namen) < 2:
+        return {n: n for n in namen}
+    gemeinsam = _os.path.commonprefix(namen)
+    schnitt = max(gemeinsam.rfind("·"), gemeinsam.rfind(" "))
+    if schnitt < 0:
+        return {n: n for n in namen}
+    stamm = gemeinsam[: schnitt + 1]
+    gekuerzt = {n: n[len(stamm):].strip() for n in namen}
+    if any(not k for k in gekuerzt.values()) or len(set(gekuerzt.values())) != len(namen):
+        return {n: n for n in namen}
+    return gekuerzt
+
+
 def szenarien_linien_chart(
     reihen: list[tuple[str, dict[int, float]]],
     y_titel: str,
@@ -322,21 +347,28 @@ def szenarien_linien_chart(
     uebergangen; ein Szenario ohne Kurve hat nichts zu zeigen.
     """
     fig = go.Figure()
-    for i, (name, kurve) in enumerate(reihen):
-        if not kurve:
-            continue
+    gezeigt = [(name, kurve) for name, kurve in reihen if kurve]
+    kuerzel = _legendennamen([name for name, _ in gezeigt])
+    for i, (name, kurve) in enumerate(gezeigt):
         jahre = sorted(kurve)
         fig.add_scatter(
             x=jahre, y=[kurve[j] * faktor for j in jahre], mode="lines",
-            name=name, line=dict(color=Colors.SERIES[i % len(Colors.SERIES)],
-                                 width=2.2),
+            name=kuerzel[name],
+            line=dict(color=Colors.SERIES[i % len(Colors.SERIES)], width=2.2),
             hovertemplate=(
+                # Im Tooltip der volle Name: Die Legende kuerzt nur die
+                # gemeinsame Herkunft weg, die Zuordnung muss eindeutig
+                # bleiben.
                 f"{name}<br>%{{x}}: %{{y:,.{nachkommastellen}f}} {einheit}"
                 "<extra></extra>"
             ),
         )
     fig.update_layout(
-        height=320, xaxis_title=txt("diagramme.achse_kalenderjahr"),
+        # Die Legende steht ueber dem Bild und braucht je vier Eintraege
+        # eine Zeile mehr - ohne Zuschlag schrumpfte die Zeichenflaeche
+        # mit jedem weiteren Szenario.
+        height=320 + 18 * max(0, (len(gezeigt) - 1) // 2),
+        xaxis_title=txt("diagramme.achse_kalenderjahr"),
         # Prozentzeichen an die Achse, andere Einheiten nicht: "20"
         # allein liest sich wie eine absolute Menge, waehrend "5 ct/kWh"
         # an jedem Strich nur die Einheit aus dem Achsentitel

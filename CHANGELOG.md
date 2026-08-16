@@ -26,6 +26,17 @@
   Großhandelspreis-Kurven eines Szenarios verloren, sobald dessen Zahlen
   aufgeklappt waren – das Szenario wurde aus der Tabelle neu gebaut, die
   Baseload-Reihen kannte die Tabelle aber nicht.
+- **Sechs Aurora-Q3/26-Szenarien ausgeliefert**: Central, Low und High,
+  je einmal für Pult und Tracker, mit Marktwerten, Abregelungsquoten und
+  Großhandelspreisen – jährlich und monatlich, 2027 bis 2060. Damit steht
+  die Preisspanne als Sensitivität bereit, ohne dass jeder Anwender die
+  Arbeitsmappe selbst importieren muss. Die bisherigen Szenarien bleiben
+  unverändert bestehen, damit vorhandene Projekte weiter rechnen.
+- **Legende der Szenariendiagramme** kürzt die gemeinsame Herkunft weg:
+  Aus „Aurora Q3/26 GER · Pult · Central" wird „Pult · Central", wenn
+  alle gezeigten Kurven denselben Stamm tragen. Der Tooltip nennt
+  weiterhin den vollen Namen, und die Bildhöhe wächst mit der Zahl der
+  Legendenzeilen.
 - **Prämienmodell folgt dem Länderschalter**: Österreich rechnet mit dem
   zweiseitigen CfD mit Toleranzband (§ 10 EAG), Deutschland mit dem
   einseitigen CfD des EEG. Beides bleibt danach frei wählbar. Die
