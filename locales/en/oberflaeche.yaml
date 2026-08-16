@@ -235,6 +235,9 @@ annahmen_freibetrag_label: "Allowance (€/year)"
 annahmen_afa_pauschal_hinweis: "Depreciation and allowance are not applied in flat-rate mode. The loss carryforward still applies."
 annahmen_col_kalenderjahr: "Calendar year"
 annahmen_col_marktwert_solar: "Market value solar (ct/kWh)"
+annahmen_col_baseload: "Wholesale price (ct/kWh)"
+annahmen_col_baseload_hilfe: "Baseload price of the scenario. It is the reference for direct-marketing costs in the mode “share of the wholesale price” and the benchmark for the solar capture price: the gap between the two is PV cannibalisation."
+annahmen_kein_baseload: "No wholesale price is stored for this scenario. It comes from the Aurora workbook import or can be entered in the table below. Without it, direct-marketing costs in the mode “share of the wholesale price” fall back to the solar capture price."
 annahmen_col_neg6h: "Generation volume, negative hours 6h (%)"
 annahmen_col_neg1h: "Generation volume, negative hours 1h (%)"
 annahmen_col_position: "Item"
@@ -643,7 +646,7 @@ formular_ppa_start_hilfe: "1 = from commissioning. Higher values model the first
 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Scenarios compared**"
-annahmen_szenarien_plot_hinweis: "Solar market value and generation during negative-price hours, one line per scenario. The second chart follows the rule selected above (6h/1h). The numbers behind them are in the tabs below."
+annahmen_szenarien_plot_hinweis: "Solar market value, wholesale price (baseload) and generation during negative-price hours, one line per scenario. The gap between the first two curves is PV cannibalisation; the third follows the rule selected above (6h/1h). The numbers behind them are in the tabs below."
 annahmen_szenario_umfang: "{jahre} calendar years stored, {monatsjahre} of them with monthly values."
 annahmen_zahlen_zeigen: "Edit numbers"
 annahmen_zahlen_zeigen_hilfe: "Shows this scenario's annual values as a table. Monthly series are maintained via the Excel round trip — 432 values per scenario are not a job for a form."

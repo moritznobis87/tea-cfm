@@ -14,6 +14,18 @@
   Marktwerte tragen.
   Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` im Modell und
   bleiben damit gegen eine wiederholte PVGIS-Abfrage prüfbar.
+- **Großhandelspreis sichtbar**: Er wurde seit v5.6 aus der
+  Aurora-Arbeitsmappe importiert und trägt die Direktvermarktungskosten
+  im Modus „Anteil am Großhandelspreis" – in den globalen Annahmen war er
+  aber nirgends zu sehen. Jetzt steht er als eigenes Szenariendiagramm
+  neben dem Marktwert Solar (der Abstand der beiden Kurven ist die
+  Kannibalisierung) und als Spalte in der Zahlentabelle, dort auch
+  editierbar. Fehlt er einem Szenario, sagt das ein Hinweis statt eines
+  leeren Diagramms.
+- **Fehler behoben**: Beim Speichern der globalen Annahmen gingen die
+  Großhandelspreis-Kurven eines Szenarios verloren, sobald dessen Zahlen
+  aufgeklappt waren – das Szenario wurde aus der Tabelle neu gebaut, die
+  Baseload-Reihen kannte die Tabelle aber nicht.
 - **Prämienmodell folgt dem Länderschalter**: Österreich rechnet mit dem
   zweiseitigen CfD mit Toleranzband (§ 10 EAG), Deutschland mit dem
   einseitigen CfD des EEG. Beides bleibt danach frei wählbar. Die

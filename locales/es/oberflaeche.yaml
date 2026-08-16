@@ -235,6 +235,9 @@ annahmen_freibetrag_label: "Deducción (€/año)"
 annahmen_afa_pauschal_hinweis: "La amortización fiscal y la deducción no se aplican en el modo a tanto alzado. El arrastre de pérdidas se aplica de todos modos."
 annahmen_col_kalenderjahr: "Año natural"
 annahmen_col_marktwert_solar: "Valor de mercado solar (ct/kWh)"
+annahmen_col_baseload: "Precio mayorista (ct/kWh)"
+annahmen_col_baseload_hilfe: "Precio baseload del escenario. Es la referencia de los costes de comercialización directa en el modo «parte del precio mayorista» y la medida del valor de mercado solar: la diferencia entre ambos es la canibalización de la FV."
+annahmen_kein_baseload: "No hay precio mayorista guardado para este escenario. Procede de la importación del libro de Aurora o puede introducirse en la tabla siguiente. Sin él, los costes de comercialización directa en el modo «parte del precio mayorista» recurren al valor de mercado solar."
 annahmen_col_neg6h: "Cantidad producida horas negativas 6h (%)"
 annahmen_col_neg1h: "Cantidad producida horas negativas 1h (%)"
 annahmen_col_position: "Partida"
@@ -643,7 +646,7 @@ formular_ppa_start_hilfe: "1 = desde la puesta en marcha. Valores mayores reflej
 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Escenarios comparados**"
-annahmen_szenarien_plot_hinweis: "Valor de mercado solar y generación en horas de precio negativo, una línea por escenario. El segundo gráfico sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
+annahmen_szenarien_plot_hinweis: "Valor de mercado solar, precio mayorista (baseload) y generación en horas de precio negativo, una línea por escenario. La diferencia entre las dos primeras curvas es la canibalización de la FV; la tercera sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
 annahmen_szenario_umfang: "{jahre} años naturales registrados, {monatsjahre} de ellos con valores mensuales."
 annahmen_zahlen_zeigen: "Editar cifras"
 annahmen_zahlen_zeigen_hilfe: "Muestra los valores anuales de este escenario como tabla. Las series mensuales se mantienen mediante el intercambio con Excel: 432 valores por escenario no son tarea de un formulario."

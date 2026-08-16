@@ -503,7 +503,7 @@ def render_assumptions() -> None:
             # Kurven bleiben editierbar, aber einen Schalter entfernt.
             st.markdown(txt("oberflaeche.annahmen_szenarien_plot_titel"))
             st.caption(txt("oberflaeche.annahmen_szenarien_plot_hinweis"))
-            col_preis, col_negativ = st.columns(2)
+            col_preis, col_baseload, col_negativ = st.columns(3)
             with col_preis:
                 st.plotly_chart(
                     charts.szenarien_linien_chart(
@@ -515,6 +515,26 @@ def render_assumptions() -> None:
                     ),
                     width="stretch", key="szenarien_marktwert",
                 )
+            with col_baseload:
+                # Der Grosshandelspreis ist die Bezugsgroesse der
+                # Direktvermarktungskosten und der Massstab, an dem sich
+                # der Marktwert Solar messen laesst (Kannibalisierung).
+                # Er kommt aus dem Aurora-Import; aeltere Szenarien
+                # fuehren ihn nicht.
+                if any(s.baseload_ct_kwh_je_kalenderjahr
+                       for s in ga.marktpreisszenarien):
+                    st.plotly_chart(
+                        charts.szenarien_linien_chart(
+                            [
+                                (s.name, s.baseload_ct_kwh_je_kalenderjahr)
+                                for s in ga.marktpreisszenarien
+                            ],
+                            txt("diagramme.serie_baseload"), "ct/kWh",
+                        ),
+                        width="stretch", key="szenarien_baseload",
+                    )
+                else:
+                    st.info(txt("oberflaeche.annahmen_kein_baseload"))
             with col_negativ:
                 st.plotly_chart(
                     charts.szenarien_linien_chart(
@@ -538,6 +558,7 @@ def render_assumptions() -> None:
                 with tab:
                     jahre = sorted(
                         set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+                        | set(szenario.baseload_ct_kwh_je_kalenderjahr)
                         | set(szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr)
                         | set(szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr)
                     )
@@ -546,6 +567,10 @@ def render_assumptions() -> None:
                             "Kalenderjahr": jahre,
                             "Marktwert Solar (ct/kWh)": [
                                 szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(j)
+                                for j in jahre
+                            ],
+                            "Großhandelspreis (ct/kWh)": [
+                                szenario.baseload_ct_kwh_je_kalenderjahr.get(j)
                                 for j in jahre
                             ],
                             "Erzeugungsmenge neg. Stunden 6h (%)": [
@@ -595,6 +620,10 @@ def render_assumptions() -> None:
                             ),
                             "Marktwert Solar (ct/kWh)": st.column_config.NumberColumn(
                                 txt("oberflaeche.annahmen_col_marktwert_solar"),
+                            ),
+                            "Großhandelspreis (ct/kWh)": st.column_config.NumberColumn(
+                                txt("oberflaeche.annahmen_col_baseload"),
+                                help=txt("oberflaeche.annahmen_col_baseload_hilfe"),
                             ),
                             "Erzeugungsmenge neg. Stunden 6h (%)":
                                 st.column_config.NumberColumn(
@@ -974,6 +1003,13 @@ def render_assumptions() -> None:
                     erzeugungsmenge_negativ_1h_pct_je_monat=(
                         szenario.erzeugungsmenge_negativ_1h_pct_je_monat
                     ),
+                    baseload_ct_kwh_je_monat=szenario.baseload_ct_kwh_je_monat,
+                    baseload_ct_kwh_je_kalenderjahr={
+                        int(r["Kalenderjahr"]): float(r["Großhandelspreis (ct/kWh)"])
+                        for _, r in edited.iterrows()
+                        if pd.notna(r["Kalenderjahr"])
+                        and pd.notna(r["Großhandelspreis (ct/kWh)"])
+                    },
                     marktwert_solar_ct_kwh_je_kalenderjahr={
                         int(r["Kalenderjahr"]): float(r["Marktwert Solar (ct/kWh)"])
                         for _, r in edited.iterrows()

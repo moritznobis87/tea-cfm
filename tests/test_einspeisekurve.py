@@ -191,6 +191,71 @@ class TestUmschalter:
         )
 
 
+class TestGrosshandelspreis:
+    """Der Grosshandelspreis kommt aus dem Aurora-Import und traegt die
+    Direktvermarktungskosten im Modus RELATIV_GROSSHANDEL - er muss
+    sichtbar sein und darf beim Speichern nicht verschwinden."""
+
+    def _mit_grosshandelspreis(self):
+        """Ein Szenario mit Grosshandelspreis vorbereiten - die
+        ausgelieferten stammen aus der Zeit davor."""
+        from engine.io_yaml import (
+            load_global_assumptions_yaml,
+            save_global_assumptions_yaml,
+        )
+
+        ga = load_global_assumptions_yaml(_GA_PFAD)
+        szenario = ga.marktpreisszenarien[0]
+        jahre = sorted(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)[:3]
+        szenario.baseload_ct_kwh_je_kalenderjahr = {
+            j: 8.0 + i for i, j in enumerate(jahre)
+        }
+        szenario.baseload_ct_kwh_je_monat = {jahre[0]: [8.0] * 12}
+        save_global_assumptions_yaml(ga, _GA_PFAD)
+        from app import services
+
+        services._load_global_assumptions_cached.clear()
+        return szenario.name, jahre
+
+    def test_ohne_kurve_steht_ein_hinweis(self, _ga_datei_gesichert):
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        assert not at.exception, at.exception
+        assert [i for i in at.info if "Großhandelspreis" in i.value]
+
+    def test_kurve_wird_geplottet(self, _ga_datei_gesichert):
+        self._mit_grosshandelspreis()
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        assert not at.exception, at.exception
+        # Drei Diagramme statt zwei: Marktwert, Grosshandelspreis,
+        # Anteil negativer Stunden.
+        assert len(at.get("plotly_chart")) >= 3
+        assert not [i for i in at.info if "Großhandelspreis" in i.value]
+
+    def test_speichern_verliert_die_kurven_nicht(self, _ga_datei_gesichert):
+        """Der Editor zeigt nur Jahreswerte; das Szenario wird beim
+        Speichern daraus neu gebaut. Die Monatsreihe muss dabei
+        mitgenommen werden - sonst faellt sie still heraus."""
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        name, jahre = self._mit_grosshandelspreis()
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        # Erst mit aufgeklappten Zahlen wird das Szenario neu gebaut.
+        at.session_state[f"kurven_zahlen_{name}"] = True
+        at.run()
+        [b for b in at.button if "peichern" in (b.label or "")][0].click()
+        at.run()
+        assert not at.exception, at.exception
+
+        gelesen = load_global_assumptions_yaml(_GA_PFAD)
+        neu = [s for s in gelesen.marktpreisszenarien if s.name == name][0]
+        assert neu.baseload_ct_kwh_je_kalenderjahr[jahre[0]] == pytest.approx(8.0)
+        assert neu.baseload_ct_kwh_je_kalenderjahr[jahre[2]] == pytest.approx(10.0)
+        assert neu.baseload_ct_kwh_je_monat[jahre[0]] == pytest.approx([8.0] * 12)
+
+
 class TestMarktsystemSetztPraemienmodell:
     """Oesterreich rechnet mit dem Toleranzband des EAG, Deutschland mit
     dem einseitigen CfD des EEG - der Laenderschalter stellt das mit um."""
