@@ -1,9 +1,9 @@
 id: template-agri
 name: Template Agri
 variante: ''
-standort: ''
-leitvariante: false
-aktiv: true
+standort: Template Agri
+leitvariante: true
+aktiv: false
 inbetriebnahme_jahr: 2027
 inbetriebnahme_monat: 1
 anlagentyp: agri_pv

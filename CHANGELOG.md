@@ -44,6 +44,16 @@
   alle gezeigten Kurven denselben Stamm tragen. Der Tooltip nennt
   weiterhin den vollen Namen, und die Bildhöhe wächst mit der Zahl der
   Legendenzeilen.
+- **Projektdaten aktualisiert**: Die ausgelieferte Projektsammlung
+  entspricht jetzt dem Stand der Arbeitsmappe `projekte_24.xlsx` –
+  vierzehn Projekte an neun Standorten (85,7 MWp Leitvarianten) plus die
+  beiden Vorlagen.
+- **Fehler behoben**: Das Projektformular reichte die Leitfall-Markierung
+  nicht durch. Ein frisch geöffneter Leitfall meldete deshalb „1
+  ungespeicherte Änderung", und ein Speichern aus der Parameterspalte
+  hätte die Markierung stillschweigend gelöscht – der Standort wäre
+  danach mit seiner ersten Variante statt der gewählten ins Portfolio
+  eingegangen.
 - **Prämienmodell folgt dem Länderschalter**: Österreich rechnet mit dem
   zweiseitigen CfD mit Toleranzband (§ 10 EAG), Deutschland mit dem
   einseitigen CfD des EEG. Beides bleibt danach frei wählbar. Die

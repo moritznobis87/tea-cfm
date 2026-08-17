@@ -1,0 +1,39 @@
+id: stmk-schaeffern
+name: STMK_Schäffern
+variante: ''
+standort: Schäffern
+leitvariante: true
+aktiv: true
+inbetriebnahme_jahr: 2027
+inbetriebnahme_monat: 1
+anlagentyp: agri_pv
+nennleistung_kwp: 27923.0
+vollbenutzungsstunden_kwh_kwp: 1139.0
+pacht_eur_kwp_jahr: 3.115711062564911
+pacht_modus: fix
+pacht_umsatzbeteiligung_pct: 0.055
+pacht_mindestpacht_eur_ha_jahr: 0.0
+fremdkapitalzins_pct: 0.042
+eigenkapitalquote_pct: 0.2
+eag_zuschlagswert_ct_kwh: 6.8
+gemeindeabgabe_eur_mwh: 2.0
+direktvermarktungskosten_eur_mwh: 1.0
+ppa_anteil_pct: 0.0
+ppa_preis_eur_mwh: 65.0
+ppa_start_jahr: 1
+ppa_laufzeit_jahre: 10
+ppa_indexierung_pct_pa: 0.0
+capex:
+  epc_eur: 11999909.25
+  netzanschluss_eur: 1814995.0
+  trasse_eur: 1535765.0
+  widmung_eur: 27923.0
+  genehmigung_eur: 223384.0
+  sonstige_extern_eur: 88795.14
+  agm_eur: 167538.0
+  m_and_a_eur: 111692.0
+  poenale_puffer_eur: 419961.92
+  zusatzpositionen: []
+zusatz_opex: []
+marktpreisszenario: Aurora 6/26
+projektflaeche_ha: 29.0

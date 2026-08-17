@@ -1,0 +1,39 @@
+id: stmk-loedersdorf-wagner-agri-kopie
+name: STMK_Lödersdorf_Wagner
+variante: konventionell
+standort: Lödersdorf
+leitvariante: false
+aktiv: true
+inbetriebnahme_jahr: 2027
+inbetriebnahme_monat: 1
+anlagentyp: konventionell
+nennleistung_kwp: 2400.0
+vollbenutzungsstunden_kwh_kwp: 1191.0
+pacht_eur_kwp_jahr: 3.333333333333333
+pacht_modus: fix
+pacht_umsatzbeteiligung_pct: 0.055
+pacht_mindestpacht_eur_ha_jahr: 0.0
+fremdkapitalzins_pct: 0.046799999999999994
+eigenkapitalquote_pct: 0.1
+eag_zuschlagswert_ct_kwh: 6.1
+gemeindeabgabe_eur_mwh: 0.0
+direktvermarktungskosten_eur_mwh: 5.0
+ppa_anteil_pct: 0.0
+ppa_preis_eur_mwh: 65.0
+ppa_start_jahr: 1
+ppa_laufzeit_jahre: 10
+ppa_indexierung_pct_pa: 0.0
+capex:
+  epc_eur: 1032000.0
+  netzanschluss_eur: 120000.0
+  trasse_eur: 40080.0
+  widmung_eur: 0.0
+  genehmigung_eur: 0.0
+  sonstige_extern_eur: 14400.0
+  agm_eur: 0.0
+  m_and_a_eur: 18240.0
+  poenale_puffer_eur: 0.0
+  zusatzpositionen: []
+zusatz_opex: []
+marktpreisszenario: Aurora 6/26
+projektflaeche_ha: 2.0

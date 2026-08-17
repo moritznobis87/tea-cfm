@@ -1,0 +1,39 @@
+id: ooe-st-agatha-scheiterbauer
+name: OÖ_St.Agatha_Scheiterbauer
+variante: ''
+standort: St. Agatha
+leitvariante: true
+aktiv: true
+inbetriebnahme_jahr: 2028
+inbetriebnahme_monat: 1
+anlagentyp: agri_pv
+nennleistung_kwp: 7830.0
+vollbenutzungsstunden_kwh_kwp: 1277.14
+pacht_eur_kwp_jahr: 1.915708812260536
+pacht_modus: fix
+pacht_umsatzbeteiligung_pct: 0.055
+pacht_mindestpacht_eur_ha_jahr: 0.0
+fremdkapitalzins_pct: 0.047
+eigenkapitalquote_pct: 0.2
+eag_zuschlagswert_ct_kwh: 6.7
+gemeindeabgabe_eur_mwh: 2.0
+direktvermarktungskosten_eur_mwh: 1.0
+ppa_anteil_pct: 0.0
+ppa_preis_eur_mwh: 65.0
+ppa_start_jahr: 1
+ppa_laufzeit_jahre: 10
+ppa_indexierung_pct_pa: 0.0
+capex:
+  epc_eur: 4071600.0
+  netzanschluss_eur: 508950.0
+  trasse_eur: 391500.0
+  widmung_eur: 7830.0
+  genehmigung_eur: 62640.0
+  sonstige_extern_eur: 0.0
+  agm_eur: 46980.0
+  m_and_a_eur: 31320.0
+  poenale_puffer_eur: 54810.0
+  zusatzpositionen: []
+zusatz_opex: []
+marktpreisszenario: Aurora 6/26
+projektflaeche_ha: 5.0
