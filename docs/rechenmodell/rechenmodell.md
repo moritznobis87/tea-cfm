@@ -1153,7 +1153,10 @@ gegebenenfalls im CAPEX zu erfassen.
 - Zinsen eines Jahres fallen auf den **Jahresanfangsstand** $B_t$ an.
 - Tilgung fließt **nachschüssig** am Jahresende.
 - Der Schuldendienst endet nach $n$ Tilgungsraten (bei tilgungsfreiem
-  Anlaufjahr entsprechend ein Jahr später).
+  Anlaufjahr sowie bei unterjährigem Anlaufjahr entsprechend ein Jahr
+  später).
+- **Keine Zahlung ohne Schuld**: Tilgung und Zins sind auf den offenen
+  Saldo begrenzt.
 
 $$ B_1 = D, \qquad B_{t+1} = \left(B_t - T_t\right)^{+} $$
 
@@ -1164,7 +1167,7 @@ $$ Z_t = B_t \cdot i \cdot \left(f \cdot \mathbf{1}_{[t=1]} + \mathbf{1}_{[t>1]}
 Dabei ist $f$ der Zins-Anteilsfaktor des Anlaufjahres aus Abschnitt 5.3
 (act/365 oder 30/360) und
 
-$$ t^{\mathrm{ende}} = n + \mathbf{1}_{[\text{tilgungsfreies Anlaufjahr}]} $$
+$$ t^{\mathrm{ende}} = n + \mathbf{1}_{[\text{tilgungsfreies Anlaufjahr}]} + \mathbf{1}_{[f<1 \;\wedge\; \text{kein tilgungsfreies Anlaufjahr}]} $$
 
 ## 9.4 Tilgung
 
@@ -1173,11 +1176,12 @@ $$ t^{\mathrm{ende}} = n + \mathbf{1}_{[\text{tilgungsfreies Anlaufjahr}]} $$
 
 $$ \mathrm{Ann} = D \cdot \frac{i}{1 - (1+i)^{-n}} $$
 
-$$ T_t = \mathrm{Ann} - Z_t $$
+$$ T_t = \min\!\left(\left(\mathrm{Ann} \cdot \pi^{Z}_t - Z_t\right)^{+},\; B_t\right),
+\qquad \pi^{Z}_t = f \cdot \mathbf{1}_{[t=1]} + \mathbf{1}_{[t>1]} $$
 
 **Lineare Tilgung.** Konstante Tilgungsrate, fallender Schuldendienst:
 
-$$ T_t = \frac{D}{n} $$
+$$ T_t = \min\!\left(\frac{D}{n} \cdot \pi^{Z}_t,\; B_t\right) $$
 
 **Tilgungsfreies Anlaufjahr.** Ist es aktiviert, gilt $T_1 = 0$; die
 Tilgung beginnt in Jahr 2. Die **Anzahl** der Raten bleibt $n$; der Schuldendienstzeitraum verlängert
@@ -1192,16 +1196,31 @@ $$ \mathrm{DS}_t = Z_t + T_t $$
 
 ## 9.5 Wechselwirkung mit dem unterjährigen Anlaufjahr
 
-Der Anteilsfaktor $f$ reduziert **ausschließlich die Zinslast** des
-ersten Jahres. Die Tilgung folgt unverändert der Annuitäts- bzw.
-Linearformel. Bei Annuitätentilgung bedeutet das: Weil von der fixen Rate
-im ersten Jahr weniger Zins abgeht, wird entsprechend mehr getilgt; das
-Darlehen kann dadurch geringfügig vor Ablauf der nominellen Laufzeit
-vollständig getilgt sein. Dieser Effekt ergibt sich systematisch aus einem unterjährigen ersten
-Zinszeitraum und stellt keine numerische Approximation dar.
+Der Anteilsfaktor $f$ wirkt auf den **gesamten Schuldendienst** des
+Anlaufjahres, nicht nur auf die Zinslast: Wer das Darlehen im Dezember
+abruft, zahlt einen Dezember und kein Jahr.
 
-Die Kappung $B_{t+1} = (B_t - T_t)^{+}$ verhindert in jedem Fall einen
-negativen Darlehensstand.
+$$ \mathrm{DS}_1 = \mathrm{Ann} \cdot f \qquad\text{bzw.}\qquad
+\mathrm{DS}_1 = \left(\frac{D}{n} + B_1 \cdot i\right) \cdot f $$
+
+> **Korrektur gegenüber Version 5.15.** Zuvor reduzierte $f$ nur den
+> Zins. Bei Annuitätentilgung ist die Rate aber fix und die Tilgung der
+> Rest — ein kleinerer Zins ließ die Tilgung um genau denselben Betrag
+> *wachsen*. Ein im Dezember angeschlossenes Projekt tilgte dadurch im
+> Rumpfjahr nahezu eine volle Jahresrate, während es rund 5 % einer
+> Jahresmenge erzeugte. Für KTN\_Völkermarkt (Inbetriebnahme 12/2027)
+> fiel der Schuldendienst des ersten Jahres von 117.461 € auf 9.976 €;
+> der minimale DSCR stieg von 0,08 auf 0,99, die Eigenkapitalrendite
+> von 15,26 % auf 19,79 %.
+
+Weil im Anlaufjahr entsprechend weniger getilgt wird, verschiebt sich der
+Ratenplan: Die Laufzeit zählt ab Abruf, das Darlehen endet also ebenfalls
+unterjährig ein Jahr später. Die letzte Rate ist auf den Restsaldo
+begrenzt, sodass die Summe der Tilgungen exakt $D$ ergibt.
+
+Die Kappung $T_t \le B_t$ verhindert außerdem eine Rate ohne Schuld:
+Zuvor konnte der Plan eine Annuität mehr ausweisen, als das Darlehen groß
+war — der Saldo stand bereits auf null, die Zahlung floss dennoch ab.
 
 **Ausgang.** $Z_t$, $T_t$, $\mathrm{DS}_t$, $B_t$ (Jahresanfang) und
 $B_{t+1}$ (Jahresende).
@@ -2215,7 +2234,7 @@ interpretiert, sollte diese Liste kennen.
 | --- | --- | --- |
 | A9 | Keine Bauzeitzinsen, keine Zwischenfinanzierung, kein Disagio | Solche Kosten müssen im CAPEX erfasst werden |
 | A10 | Ein Kredit, feste Kondition über die gesamte Laufzeit | Keine Zinsbindungsfristen, keine Anschlussfinanzierung |
-| A11 | Der Anteilsfaktor des Anlaufjahres reduziert nur den Zins, nicht die Tilgung | Bei Annuität wird im Anlaufjahr modellgemäß ein höherer Tilgungsanteil angesetzt |
+| A11 | Der Schuldendienst des Anlaufjahres wird taggenau anteilig gerechnet, der Restbetrag verschiebt sich ans Laufzeitende | Das Darlehen endet bei unterjähriger Inbetriebnahme ein Jahr später mit einer Restrate |
 | A12 | Keine Liquiditätsreserve, kein Schuldendienstreservekonto | DSCR wird ausgewiesen, aber nicht als Nebenbedingung erzwungen |
 | A13 | Kein Restwert und keine Rückbaukosten am Ende der Betriebsdauer | Beides ist gegebenenfalls über CAPEX bzw. eine OPEX-Position abzubilden |
 | A13a | DSCR-Kovenanten wirken nicht auf die Cashflow-Rechnung zurück | Cash Trap und Equity Cure werden als Prüfung ausgewertet, nicht als Zahlungsstrom gebucht |

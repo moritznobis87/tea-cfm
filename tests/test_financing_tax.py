@@ -49,6 +49,80 @@ class TestFinancing:
         assert (fin["schuldendienst_eur"].iloc[20:] == 0.0).all()
 
 
+class TestRumpfjahrSchuldendienst:
+    """Gemeldet am Projekt Voelkermarkt (Inbetriebnahme Dezember 2027):
+    Die Zinsen des Rumpfjahres waren anteilig, die Tilgung aber nicht -
+    bei Annuitaet wuchs sie sogar, weil die Rate fix ist und der Rest
+    nach Abzug des kleineren Zinses uebrig bleibt. Ein im Dezember
+    angeschlossenes Projekt tilgte dadurch fast eine volle Jahresrate.
+    """
+
+    #: Inbetriebnahme im Dezember - 31 von 365 Tagen.
+    FAKTOR = 31 / 365
+
+    def _fin(self, tilgungsart, faktor, **kw):
+        felder = dict(
+            investitionsvolumen_eur=1_000_000.0,
+            eigenkapitalquote_pct=0.2,
+            fremdkapitalzins_pct=0.04,
+            kreditlaufzeit_jahre=20,
+            tilgungsart=tilgungsart,
+            erstjahr_zins_faktor=faktor,
+        )
+        felder.update(kw)
+        return calculate_financing(build_timeline(date(2027, 12, 1), 25), **felder)
+
+    @pytest.mark.parametrize(
+        "tilgungsart", [TilgungsArt.ANNUITAET, TilgungsArt.LINEAR]
+    )
+    def test_schuldendienst_folgt_dem_zeitanteil(self, tilgungsart):
+        """Wer im Dezember abruft, zahlt einen Dezember - nicht ein Jahr."""
+        rumpf = self._fin(tilgungsart, self.FAKTOR)
+        voll = self._fin(tilgungsart, 1.0)
+        assert rumpf["schuldendienst_eur"].iloc[0] == pytest.approx(
+            voll["schuldendienst_eur"].iloc[0] * self.FAKTOR
+        )
+        assert rumpf["tilgung_eur"].iloc[0] == pytest.approx(
+            voll["tilgung_eur"].iloc[0] * self.FAKTOR
+        )
+
+    def test_tilgung_waechst_nicht_durch_den_kleineren_zins(self):
+        """Der eigentliche Fehler: Bei Annuitaet war die Tilgung des
+        Rumpfjahres GROESSER als die eines vollen Jahres."""
+        rumpf = self._fin(TilgungsArt.ANNUITAET, self.FAKTOR)
+        assert rumpf["tilgung_eur"].iloc[0] < rumpf["tilgung_eur"].iloc[1]
+
+    @pytest.mark.parametrize(
+        "tilgungsart", [TilgungsArt.ANNUITAET, TilgungsArt.LINEAR]
+    )
+    def test_darlehen_wird_genau_getilgt(self, tilgungsart):
+        """Der Rest des Rumpfjahres wandert ans Ende - die Summe der
+        Tilgungen bleibt die Kreditsumme, kein Cent mehr."""
+        fin = self._fin(tilgungsart, self.FAKTOR)
+        assert fin["tilgung_eur"].sum() == pytest.approx(800_000.0)
+        assert fin["darlehensstand_eop_eur"].iloc[-1] == pytest.approx(0.0, abs=1e-6)
+
+    def test_keine_zahlung_ohne_schuld(self):
+        """Zweiter Fehler an derselben Stelle: Der Plan zahlte eine Rate
+        mehr, als das Darlehen gross war - der Saldo stand laengst auf
+        null, die Rate floss trotzdem ab."""
+        fin = self._fin(TilgungsArt.ANNUITAET, self.FAKTOR)
+        getilgt = fin[fin["darlehensstand_bop_eur"] <= 0]
+        assert (getilgt["schuldendienst_eur"] == 0).all()
+
+    def test_tilgungsfreies_anlaufjahr_bleibt_tilgungsfrei(self):
+        """Der Zeitanteil darf im tilgungsfreien Anlaufjahr nichts
+        aufloesen - dort wird ohnehin nicht getilgt."""
+        fin = self._fin(
+            TilgungsArt.ANNUITAET, self.FAKTOR, tilgungsfreies_anlaufjahr=True
+        )
+        assert fin["tilgung_eur"].iloc[0] == 0.0
+        assert fin["zinsen_eur"].iloc[0] == pytest.approx(
+            800_000.0 * 0.04 * self.FAKTOR
+        )
+        assert fin["tilgung_eur"].sum() == pytest.approx(800_000.0)
+
+
 def _tax_fuer(ebt_je_jahr: list[float], **kwargs) -> pd.DataFrame:
     """Hilfskonstrukt: Steuerrechnung fuer eine vorgegebene EBT-Reihe
     (Erloese = EBT, OPEX/Zinsen = 0)."""

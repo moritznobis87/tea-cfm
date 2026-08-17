@@ -13,15 +13,26 @@ Konventionen:
   erste Jahr ungetilgt bleibt, faellt auch im zweiten Jahr der Zins noch
   auf die volle Kreditsumme an (Jahresanfangsstand).
 - Unterjaehriges erstes Betriebsjahr (Inbetriebnahme nicht am 1.
-  Januar): `erstjahr_zins_faktor` (siehe engine.timeline.
-  erstjahr_zins_pro_rata, ZinsMethode) reduziert NUR die Zinslast des
-  ersten Jahres anteilig - die Tilgung folgt unveraendert derselben
-  Annuitaeten-/Linear-Formel wie fuer ein volles Jahr. Bei Annuitaet
-  fuehrt das dazu, dass im ersten Jahr etwas mehr getilgt wird als in
-  einem "normalen" Jahr (da weniger Zins von der fixen Rate abgeht);
-  das Darlehen ist dadurch ggf. minimal vor Ablauf der nominellen
-  Laufzeit vollstaendig getilgt - ein realistischer, in der Praxis
-  gaengiger Effekt bei einem unterjaehrigen ersten Zinszeitraum.
+  Januar): Der GESAMTE Schuldendienst des Rumpfjahres wird mit
+  `erstjahr_zins_faktor` anteilig gerechnet (siehe engine.timeline.
+  erstjahr_zins_pro_rata, ZinsMethode) - Zins und Tilgung gemeinsam.
+  Wer das Darlehen im Dezember abruft, zahlt einen Dezember, nicht ein
+  Jahr.
+
+  Frueher wirkte der Faktor nur auf die Zinsen. Bei Annuitaet ist die
+  Rate aber fix, und die Tilgung ergibt sich als Rest: Ein kleinerer
+  Zins liess die Tilgung genau um denselben Betrag WACHSEN. Ein im
+  Dezember angeschlossenes Projekt tilgte dadurch im Rumpfjahr fast
+  eine volle Jahresrate, waehrend es rund 5 % einer Jahresmenge
+  erzeugte.
+
+  Weil im Rumpfjahr weniger getilgt wird, verschiebt sich der
+  Ratenplan: Die Laufzeit zaehlt ab Abruf, das Darlehen endet also
+  ebenfalls unterjaehrig ein Jahr spaeter. Die letzte Rate ist auf den
+  Restsaldo begrenzt.
+- Keine Zahlung ohne Schuld: Tilgung und Zins sind auf den offenen
+  Saldo begrenzt. Ohne diese Grenze zahlte der Plan in bestimmten
+  Konstellationen eine Rate mehr, als das Darlehen gross war.
 """
 
 from __future__ import annotations
@@ -57,8 +68,15 @@ def calculate_financing(
     # wird unveraendert ueber `kreditlaufzeit_jahre` Raten berechnet - das
     # Anlaufjahr verschiebt den Ratenplan nur um ein Jahr nach hinten.
     erstes_tilgungsjahr = 2 if tilgungsfreies_anlaufjahr else 1
-    letztes_schuldendienstjahr = kreditlaufzeit_jahre + (
-        1 if tilgungsfreies_anlaufjahr else 0
+    # Ein anteiliges Rumpfjahr tilgt weniger als eine volle Rate; der Rest
+    # wandert ans Ende. Nur wenn im ersten Jahr ueberhaupt getilgt wird -
+    # bei tilgungsfreiem Anlaufjahr ist der Ratenplan ohnehin schon
+    # verschoben.
+    rumpfjahr = erstjahr_zins_faktor < 1.0 and not tilgungsfreies_anlaufjahr
+    letztes_schuldendienstjahr = (
+        kreditlaufzeit_jahre
+        + (1 if tilgungsfreies_anlaufjahr else 0)
+        + (1 if rumpfjahr else 0)
     )
 
     if tilgungsart == TilgungsArt.ANNUITAET:
@@ -72,16 +90,25 @@ def calculate_financing(
     balance = fremdkapital_eur
     for _, period in timeline.iterrows():
         jahr = int(period["jahr"])
-        if jahr <= letztes_schuldendienstjahr:
-            zins_faktor = erstjahr_zins_faktor if jahr == 1 else 1.0
-            zinsen = balance * fremdkapitalzins_pct * zins_faktor
+        # Ohne offene Schuld gibt es nichts zu zahlen - auch dann nicht,
+        # wenn der Ratenplan rechnerisch noch ein Jahr laufen wuerde.
+        if jahr <= letztes_schuldendienstjahr and balance > 0:
+            # Der Zeitanteil des Rumpfjahres gilt fuer den GANZEN
+            # Schuldendienst, nicht nur fuer den Zins.
+            anteil = erstjahr_zins_faktor if jahr == 1 else 1.0
+            zinsen = balance * fremdkapitalzins_pct * anteil
             if jahr < erstes_tilgungsjahr:
                 # Tilgungsfreies Anlaufjahr: nur Zinsen.
                 tilgung = 0.0
             elif tilgungsart == TilgungsArt.ANNUITAET:
-                tilgung = annuitaet_eur - zinsen
+                # Anteilige Rate, davon der anteilige Zins - die Tilgung
+                # des Rumpfjahres ist damit derselbe Bruchteil eines
+                # vollen ersten Jahres wie die Zinslast.
+                tilgung = annuitaet_eur * anteil - zinsen
             else:
-                tilgung = tilgung_linear_eur
+                tilgung = tilgung_linear_eur * anteil
+            # Die letzte Rate zahlt nur noch den Restsaldo.
+            tilgung = min(max(tilgung, 0.0), balance)
             schuldendienst = tilgung + zinsen
         else:
             zinsen = 0.0

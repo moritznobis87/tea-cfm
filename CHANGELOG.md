@@ -1,5 +1,30 @@
 # Changelog
 
+## v5.16 – Schuldendienst im Rumpfjahr (2026-08)
+
+Gemeldet am Projekt Völkermarkt (Inbetriebnahme Dezember 2027):
+Die Zinsen des Anlaufjahres waren seit jeher anteilig, die **Tilgung**
+aber nicht — bei Annuität wuchs sie sogar. Die Rate ist fix, die Tilgung
+der Rest: Ein kleinerer Zins ließ sie um genau denselben Betrag steigen.
+Das Projekt tilgte im Dezember-Rumpfjahr 111.467 €, während es 5,2 %
+einer Jahresmenge erzeugte.
+
+- **Der Zeitanteil gilt jetzt für den gesamten Schuldendienst.** Wer im
+  Dezember abruft, zahlt einen Dezember: Schuldendienst Jahr 1
+  9.976 € statt 117.461 €.
+- **Der Ratenplan verschiebt sich entsprechend.** Die Laufzeit zählt ab
+  Abruf, das Darlehen endet also ebenfalls unterjährig ein Jahr später;
+  die letzte Rate zahlt nur noch den Restsaldo. Die Summe der Tilgungen
+  bleibt exakt die Kreditsumme.
+- **Keine Rate ohne Schuld.** An derselben Stelle fiel ein zweiter
+  Fehler auf: Der Plan wies eine Annuität mehr aus, als das Darlehen
+  groß war — der Saldo stand bereits auf null, die Zahlung floss
+  dennoch ab.
+
+Für Völkermarkt steigt die EK-Rendite dadurch von 15,26 % auf 19,79 %,
+der minimale DSCR von 0,08 auf 0,99. Projekte mit Inbetriebnahme im
+Januar sind unberührt.
+
 ## v5.15 – Die Bauform gehört zum Projekt (2026-08)
 
 Pult oder Tracker stand bisher im Szenarionamen („Aurora Q3/26 · Pult ·
