@@ -158,38 +158,65 @@ def _scheiben(
     Eine Zeile je Jahr oder je Jahr und Monat - alles Weitere rechnet auf
     genau diesen Spalten und muss die Aufloesung nicht mehr kennen.
     """
-    monatlich = assumptions.zeitaufloesung == Zeitaufloesung.MONAT
-    if monatlich:
-        df = calculate_energy_production_monatlich(timeline, assumptions)[
+    def monatsscheiben(nur_jahr: int | None = None) -> pd.DataFrame:
+        roh = calculate_energy_production_monatlich(timeline, assumptions)[
             ["jahr", "monat", "kalenderjahr", "produktion_kwh"]
         ].copy()
-        marktwert_real = _monatskurve_nachschlagen(
-            df["kalenderjahr"], df["monat"],
+        if nur_jahr is not None:
+            roh = roh[roh["jahr"] == nur_jahr].reset_index(drop=True)
+        roh["marktwert_real"] = _monatskurve_nachschlagen(
+            roh["kalenderjahr"], roh["monat"],
             assumptions.marktwert_solar_ct_kwh_je_monat,
         )
-        negativ = _monatskurve_nachschlagen(
-            df["kalenderjahr"], df["monat"],
+        roh["negativ"] = _monatskurve_nachschlagen(
+            roh["kalenderjahr"], roh["monat"],
             assumptions.anteil_negativer_stunden_pct_je_monat,
         )
-        baseload_real = _monatskurve_nachschlagen(
-            df["kalenderjahr"], df["monat"],
+        roh["baseload_real"] = _monatskurve_nachschlagen(
+            roh["kalenderjahr"], roh["monat"],
             assumptions.baseload_ct_kwh_je_monat,
         )
-    else:
-        df = timeline[["jahr"]].copy()
-        df["monat"] = 0
-        df["kalenderjahr"] = assumptions.inbetriebnahme_jahr + (df["jahr"] - 1)
-        df["produktion_kwh"] = energy["produktion_kwh"].to_numpy()
-        marktwert_real = _kurve_nachschlagen(
-            df["kalenderjahr"], assumptions.marktwert_solar_ct_kwh_je_kalenderjahr
+        return roh
+
+    def jahresscheiben(ab_jahr: int = 1) -> pd.DataFrame:
+        roh = timeline[["jahr"]].copy()
+        roh["monat"] = 0
+        roh["kalenderjahr"] = assumptions.inbetriebnahme_jahr + (roh["jahr"] - 1)
+        roh["produktion_kwh"] = energy["produktion_kwh"].to_numpy()
+        roh = roh[roh["jahr"] >= ab_jahr].reset_index(drop=True)
+        roh["marktwert_real"] = _kurve_nachschlagen(
+            roh["kalenderjahr"], assumptions.marktwert_solar_ct_kwh_je_kalenderjahr
         )
-        negativ = _kurve_nachschlagen(
-            df["kalenderjahr"],
+        roh["negativ"] = _kurve_nachschlagen(
+            roh["kalenderjahr"],
             assumptions.anteil_negativer_stunden_pct_je_kalenderjahr,
         )
-        baseload_real = _kurve_nachschlagen(
-            df["kalenderjahr"], assumptions.baseload_ct_kwh_je_kalenderjahr
+        roh["baseload_real"] = _kurve_nachschlagen(
+            roh["kalenderjahr"], assumptions.baseload_ct_kwh_je_kalenderjahr
         )
+        return roh
+
+    if assumptions.zeitaufloesung == Zeitaufloesung.MONAT:
+        df = monatsscheiben()
+    elif assumptions.inbetriebnahme_monat > 1:
+        # Das ANLAUFJAHR rechnet immer monatlich, auch in der
+        # Jahresaufloesung. Eine im Dezember in Betrieb gegangene Anlage
+        # erloest den Dezembermarktwert fuer die Dezembermenge - der
+        # Jahresmarktwert und ein Tagesanteil beantworten die Frage
+        # "was kommt im ersten Rumpfjahr herum" nicht einmal
+        # naeherungsweise. Ab dem ersten vollen Kalenderjahr bleibt es
+        # bei der gewaehlten Jahresaufloesung; die Monatsebene dort ist
+        # eine Entscheidung des Anwenders, keine Notwendigkeit.
+        df = pd.concat(
+            [monatsscheiben(nur_jahr=1), jahresscheiben(ab_jahr=2)],
+            ignore_index=True,
+        )
+    else:
+        df = jahresscheiben()
+
+    marktwert_real = df.pop("marktwert_real").to_numpy()
+    negativ = df.pop("negativ").to_numpy()
+    baseload_real = df.pop("baseload_real").to_numpy()
 
     # Inflationsfaktor bewusst auf Basis des TATSAECHLICHEN Kalenderjahres
     # (nicht des ggf. am Kurvenrand geklemmten Nachschlagejahres) - auch
@@ -267,7 +294,11 @@ def calculate_revenue(
     # Bericht gegen den Marktwert gestellt.
     df["verguetungssatz_ct_kwh"] = mw + praemie_je_kwh - rueckzahlung_je_kwh
 
-    if assumptions.zeitaufloesung != Zeitaufloesung.MONAT:
+    # Verdichtet wird, sobald Monatsscheiben im Spiel sind - in der
+    # Monatsaufloesung ueberall, in der Jahresaufloesung nur im
+    # Anlaufjahr. Fuer reine Jahresscheiben ist die Verdichtung eine
+    # Identitaet, aber sie kostet unnoetig Zeit.
+    if (df["monat"] == 0).all():
         return df[REVENUE_COLUMNS]
 
     return _verdichte_auf_jahre(df)
