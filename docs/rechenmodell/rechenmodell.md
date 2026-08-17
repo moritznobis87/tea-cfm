@@ -310,20 +310,55 @@ Zirkelbezüge werden dadurch ausgeschlossen.
 
 ## 2.4 Parametrisierungsebenen
 
-Das Modell unterscheidet zwischen projektbezogenen und globalen Parametern:
+Das Modell kennt drei Ebenen:
 
 - Die **Projektparameter** (`PVProject`) enthalten projektspezifische Größen,
-  insbesondere Leistung, spezifischen Ertrag, Investitionskosten,
-  Standortkosten, Finanzierungskonditionen und Zuschlagswert.
+  insbesondere Leistung, spezifischen Ertrag, Bauform, Investitionskosten,
+  Standortkosten, Finanzierungskonditionen und Zuschlagswert. Für sie gibt es
+  keine sinnvolle Vorgabe — jedes Projekt muss sie nennen.
 - Die **globalen Annahmen** (`GlobalAssumptions`) enthalten übergreifende
   Modellparameter, darunter Preiszeitreihen, Standardbetriebskosten,
   Förder- und Betriebsdauer, Steuerregeln, Degradation und Marktsystematik.
+  Sie sind **Vorgaben**, keine Festlegungen.
+- Die **Projektabweichungen** (`Projektannahmen`, Feld `PVProject.annahmen`)
+  überschreiben eine globale Vorgabe für ein einzelnes Projekt.
 
-Die Funktion `resolve_assumptions()` führt beide Ebenen zum vollständig
+**Regel der Vererbung.** Ein nicht gesetztes Abweichungsfeld ist `None` und
+bedeutet *folgt der Vorgabe*. Ein Projekt speichert also nie den globalen
+Wert, sondern nur, dass es ihm folgt:
+
+$$ x^{\mathrm{eff}} = \begin{cases}
+x^{\mathrm{projekt}} & \text{falls } x^{\mathrm{projekt}} \neq \texttt{None} \\
+x^{\mathrm{global}} & \text{sonst}
+\end{cases} $$
+
+Die Unterscheidung ist wesentlich: Würde ein Projekt beim Anlegen den
+globalen Wert kopieren, erreichte eine spätere Änderung der Vorgabe kein
+Projekt mehr. Geprüft wird deshalb auf `None` und nicht auf den
+Wahrheitswert — eine abweichende 0 % oder ein abweichendes *nein* sind
+Eingaben, keine fehlenden Angaben.
+
+Überschreibbar sind alle Regelgrößen: Kreditvertrag (Laufzeit, Tilgungsart,
+tilgungsfreies Anlaufjahr, Zinsmethode, DSCR-Schwellen), Steuern (Modell,
+Satz, AfA-Dauer, Freibeträge, Verlustvortragsgrenze), Fördermodell
+(Prämienmodell, Förderdauer, Rückzahlung, Regel und Verhalten bei negativen
+Preisen, Direktvermarktung), Ertragsannahmen (Degradation,
+Sicherheitsabschlag, Betrachtungsdauer), die beiden Inflationspfade sowie
+die Basiswerte der Standard-Betriebskostenpositionen. Nicht überschreibbar
+sind der Datenbestand (Preisszenarien, Einspeisekurven je Bauform) und die
+Zeitauflösung — Ersteres ist Datenhaltung, Letzteres ein Rechenmodus.
+
+Die Funktion `resolve_assumptions()` führt alle Ebenen zum vollständig
 spezifizierten Parametersatz `EffectiveAssumptions` zusammen. Sämtliche
 nachgelagerten Rechenmodule verwenden ausschließlich diesen aufgelösten Satz.
 Dadurch bleibt jede Ergebnisgröße eindeutig auf ihre Parametrisierung
 zurückführbar.
+
+> **Praktische Folge.** Sobald ein Projekt abweicht, wirkt eine spätere
+> Änderung der globalen Vorgabe dort nicht mehr. Das ist der Zweck der
+> Abweichung, aber auch ihre Gefahr; die Oberfläche weist deshalb je Block
+> aus, wie viele Größen abweichen, und die Variantentabelle führt sie als
+> eigene Zeilen.
 
 ## 2.5 Marktsystemabhängige Regelkonfiguration
 
@@ -342,6 +377,12 @@ Die Einzelparameter bleiben nach Auswahl des Marktsystems veränderbar. Der
 Länderschalter stellt somit eine konsistente Vorbelegung dar, ohne die
 Parametrisierung der Einzelregeln einzuschränken. Die grundlegende
 Cashflow-Systematik bleibt in beiden Marktsystemen unverändert.
+
+Derselbe Schalter steht **je Projekt** zur Verfügung: Er setzt Zinsmethode,
+Steuermodell, Prämienmodell und Negativstundenregel als Paket in die
+Abweichungen dieses Projekts. Ein deutsches Projekt lässt sich damit in
+einem überwiegend österreichischen Portfolio rechnen, ohne die globalen
+Annahmen umzustellen.
 
 # 3 Notation, Einheiten und Konventionen
 

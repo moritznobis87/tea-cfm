@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 from datetime import datetime
+from enum import Enum
 
 import pandas as pd
 import streamlit as st
@@ -34,12 +35,22 @@ from engine import (
     CapexBreakdown,
     CapexPosition,
     DirektvermarktungsModus,
+    NegativeStundenModus,
+    NegativeStundenRegel,
     OpexItem,
     PachtModus,
+    PraemienModell,
     PVProject,
+    TaxModus,
+    TilgungsArt,
+    ZinsMethode,
 )
 from engine.io_aurora import szenario_auswahl
-from engine.models import EINSPEISEKURVEN_JE_BAUFORM, pruefe_positionsname
+from engine.models import (
+    EINSPEISEKURVEN_JE_BAUFORM,
+    Projektannahmen,
+    pruefe_positionsname,
+)
 from texte import txt
 
 
@@ -240,8 +251,550 @@ def _abschnitt(im_popover: bool, knopf: str, hilfe: str):
     return st.popover(knopf, width="stretch", help=hilfe)
 
 
-#: EPC-Vorbelegung je Anlagentyp in €/kWp (Erfahrungswerte 2025/26).
+#: Rueckfall der EPC-Vorbelegung je Anlagentyp in €/kWp. Gepflegt wird sie
+#: in den globalen Annahmen (epc_eur_kwp_vorschlag_je_anlagentyp); diese
+#: Werte greifen nur, wenn dort ein Anlagentyp fehlt.
 EPC_DEFAULT_EUR_KWP = {"Agri-PV": 520.0, "Konventionell": 430.0}
+
+
+# ---------------------------------------------------------------------------
+# Erbfelder - "leer heisst: folgt der Vorgabe"
+# ---------------------------------------------------------------------------
+# Jeder Parameter der globalen Annahmen laesst sich im Projekt
+# ueberschreiben (siehe engine/models.py::Projektannahmen). Entscheidend
+# fuer die Bedienung ist, dass daraus KEIN zweites Bedienelement je Feld
+# wird - ein "Abweichen?"-Schalter neben jedem Wert haette die Zahl der
+# Bedienelemente verdoppelt. Stattdessen traegt das Feld selbst beide
+# Zustaende:
+#
+#   Zahlen:   ein leeres Zahlenfeld, der Platzhalter nennt die Vorgabe.
+#             Leeren heisst zurueck zur Vorgabe.
+#   Auswahl:  eine zusaetzliche erste Option "Vorgabe (Annuität)". Sie
+#             ist einem grauen Platzhalter vorzuziehen, weil sie den
+#             geerbten Wert MITLIEST und sich immer wieder waehlen
+#             laesst - ein Selectbox-Platzhalter ist nach der ersten
+#             Wahl nicht mehr erreichbar.
+#   Ja/Nein:  dieselbe Loesung mit drei Optionen.
+
+
+def _vorgabe_label(wert) -> str:
+    """Beschriftung der Vorgabe-Option: "Vorgabe (Annuität)"."""
+    return txt("oberflaeche.erbfeld_vorgabe", wert=_lesbar(wert))
+
+
+def _lesbar(wert) -> str:
+    """Ein Wert so, wie er in der Oberflaeche steht."""
+    if isinstance(wert, bool):
+        return txt("oberflaeche.projekt_ja" if wert else "oberflaeche.projekt_nein")
+    if isinstance(wert, Enum):
+        # Fehlt die Uebersetzung, gibt txt() den Schluessel zurueck - dann
+        # ist der Rohwert die bessere Anzeige als "oberflaeche.wert_...".
+        schluessel = f"oberflaeche.wert_{wert.value}"
+        beschriftung = txt(schluessel)
+        return wert.value if beschriftung == schluessel else beschriftung
+    if isinstance(wert, float):
+        return fmt_number(wert, 2)
+    return str(wert)
+
+
+def _erbe_zahl(
+    ziel, form_key: str, schluessel: str, label: str, vorgabe: float,
+    gesetzt: float | None, *, faktor: float = 1.0, nachkomma: int = 2,
+    hilfe: str | None = None, **kw,
+) -> float | None:
+    """Ein Zahlenfeld, das leer bleiben darf.
+
+    `faktor` rechnet zwischen Modell und Anzeige um (Anteile werden als
+    Prozent eingegeben). Rueckgabe ist der MODELLWERT oder None fuer
+    "folgt der Vorgabe".
+    """
+    wert = ziel.number_input(
+        label,
+        value=None if gesetzt is None else gesetzt * faktor,
+        placeholder=txt("oberflaeche.erbfeld_platzhalter",
+                        wert=fmt_number(vorgabe * faktor, nachkomma)),
+        key=f"{form_key}_{schluessel}", help=hilfe, **kw,
+    )
+    return None if wert is None else float(wert) / faktor
+
+
+def _erbe_ganzzahl(
+    ziel, form_key: str, schluessel: str, label: str, vorgabe: int,
+    gesetzt: int | None, *, hilfe: str | None = None, **kw,
+) -> int | None:
+    """Wie _erbe_zahl, nur ganzzahlig (Jahre)."""
+    wert = ziel.number_input(
+        label, value=gesetzt, step=1,
+        placeholder=txt("oberflaeche.erbfeld_platzhalter",
+                        wert=fmt_number(vorgabe, 0)),
+        key=f"{form_key}_{schluessel}", help=hilfe, **kw,
+    )
+    return None if wert is None else int(wert)
+
+
+def _erbe_wahl(
+    ziel, form_key: str, schluessel: str, label: str, typ,
+    vorgabe, gesetzt, *, hilfe: str | None = None,
+):
+    """Eine Auswahl mit vorangestellter Vorgabe-Option."""
+    optionen = [_vorgabe_label(vorgabe)] + [_lesbar(w) for w in typ]
+    werte = [None] + list(typ)
+    gewaehlt = ziel.selectbox(
+        label, optionen,
+        index=werte.index(gesetzt) if gesetzt in werte else 0,
+        key=f"{form_key}_{schluessel}", help=hilfe,
+    )
+    return werte[optionen.index(gewaehlt)]
+
+
+def _erbe_janein(
+    ziel, form_key: str, schluessel: str, label: str,
+    vorgabe: bool, gesetzt: bool | None, *, hilfe: str | None = None,
+) -> bool | None:
+    """Ein dreiwertiges Ja/Nein - der dritte Wert ist die Vorgabe."""
+    ja = txt("oberflaeche.projekt_ja")
+    nein = txt("oberflaeche.projekt_nein")
+    optionen = [_vorgabe_label(vorgabe), ja, nein]
+    werte = [None, True, False]
+    gewaehlt = ziel.radio(
+        label, optionen, index=werte.index(gesetzt),
+        key=f"{form_key}_{schluessel}", help=hilfe,
+    )
+    return werte[optionen.index(gewaehlt)]
+
+
+#: Was ein Land als Paket festlegt - dieselben Zuordnungen wie beim
+#: globalen Schalter (app/views/assumptions.py::_wechsle_markt_system).
+LAENDER: dict[str, dict] = {
+    "Österreich": {
+        "zinsmethode": ZinsMethode.OESTERREICH,
+        "tax_modus": TaxModus.AFA_KOERPERSCHAFTSTEUER,
+        "praemien_modell": PraemienModell.EAG_TOLERANZBAND,
+        "negative_stunden_regel": NegativeStundenRegel.SECHS_STUNDEN,
+    },
+    "Deutschland": {
+        "zinsmethode": ZinsMethode.DEUTSCH,
+        "tax_modus": TaxModus.GEWERBESTEUER_DE,
+        "praemien_modell": PraemienModell.EINSEITIG_CFD,
+        "negative_stunden_regel": NegativeStundenRegel.EINE_STUNDE,
+    },
+}
+
+
+def _land_schalter(form_key: str, global_assumptions, spaltig: bool) -> None:
+    """Setzt Zinsmethode, Steuermodell, Praemienmodell und
+    Negativstunden-Regel in einem Zug.
+
+    Der Knopf schreibt die Werte in den Zustand der Erbfelder, BEVOR
+    diese weiter unten im selben Durchlauf entstehen - dieselbe Technik
+    wie beim Einheiten-Umschalter der Investkosten (siehe Modulkopf).
+    Danach zeigen die vier Felder ihre Werte und lassen sich einzeln
+    weiter aendern; der Schalter haelt keinen eigenen Zustand.
+    """
+    spalten = st.columns(len(LAENDER)) if spaltig else st.columns(
+        [1] * len(LAENDER) + [3]
+    )
+    for spalte, (land, felder) in zip(spalten, LAENDER.items(), strict=False):
+        with spalte:
+            if st.button(land, key=f"{form_key}_land_{land}", width="stretch",
+                         help=txt("oberflaeche.formular_land_hilfe")):
+                for feld, wert in felder.items():
+                    # Der Zustand der Erbfelder ist die Beschriftung der
+                    # gewaehlten Option, nicht der Wert selbst.
+                    st.session_state[f"{form_key}_abw_{feld}"] = _lesbar(wert)
+
+
+#: Beschriftung je Abweichungsfeld - fuer die Zaehlzeile unter dem Block.
+_ABWEICHUNG_LABEL: dict[str, str] = {
+    "kreditlaufzeit_jahre": "oberflaeche.formular_kreditlaufzeit_label",
+    "tilgungsart": "oberflaeche.formular_tilgungsart_label",
+    "tilgungsfreies_anlaufjahr": "oberflaeche.formular_anlaufjahr_label",
+    "zinsmethode": "oberflaeche.formular_zinsmethode_label",
+    "dscr_cash_trap": "oberflaeche.formular_dscr_cash_trap_label",
+    "dscr_event_of_default": "oberflaeche.formular_dscr_default_label",
+    "tax_modus": "oberflaeche.formular_tax_modus_label",
+    "steuersatz_pct": "oberflaeche.formular_steuersatz_label",
+    "afa_nutzungsdauer_jahre": "oberflaeche.formular_afa_label",
+    "freibetrag_eur": "oberflaeche.formular_freibetrag_label",
+    "gewerbesteuer_hebesatz_pct": "oberflaeche.formular_gewst_hebesatz_label",
+    "gewerbesteuer_freibetrag_eur": "oberflaeche.formular_gewst_freibetrag_label",
+    "verlustvortrag_verrechnungsgrenze_pct": (
+        "oberflaeche.formular_verlustvortrag_label"
+    ),
+    "kosten_inflation_pct_pa": "oberflaeche.formular_kosteninflation_label",
+    "praemien_modell": "oberflaeche.formular_praemienmodell_label",
+    "eag_foerderdauer_jahre": "oberflaeche.formular_foerderdauer_label",
+    "eag_rueckzahlung_ab_mw": "oberflaeche.formular_rueckzahlung_ab_label",
+    "eag_rueckzahlung_toleranzband_pct": "oberflaeche.formular_toleranzband_label",
+    "eag_rueckzahlung_anteil_pct": (
+        "oberflaeche.formular_rueckzahlung_anteil_label"
+    ),
+    "negative_stunden_regel": "oberflaeche.formular_negativregel_label",
+    "negative_stunden_modus": "oberflaeche.formular_negativmodus_label",
+    "negative_stunden_gewichtung_pct": (
+        "oberflaeche.formular_negativgewichtung_label"
+    ),
+    "direktvermarktung_modus": "oberflaeche.formular_dv_modus_label",
+    "direktvermarktung_pct_marktwert": "oberflaeche.formular_dv_pct_label",
+    "marktpreis_inflation_pct_pa": "oberflaeche.formular_marktinflation_label",
+    "marktpreis_inflation_basisjahr": (
+        "oberflaeche.formular_marktinflation_basisjahr_label"
+    ),
+    "degradation_pct_pa": "oberflaeche.formular_degradation_label",
+    "sicherheitsabschlag_pct": "oberflaeche.formular_sicherheitsabschlag_label",
+    "betriebsdauer_jahre": "oberflaeche.formular_betriebsdauer_label",
+}
+
+#: Abweichungsfelder, die die Maske noch nicht anbietet. Sie werden
+#: unveraendert aus dem gespeicherten Projekt uebernommen - sonst
+#: loeschte jedes Speichern eine von Hand in der YAML gepflegte
+#: Abweichung stillschweigend.
+_NOCH_NICHT_IN_DER_MASKE: tuple[str, ...] = tuple(
+    feld for feld in Projektannahmen.model_fields
+    if feld not in _ABWEICHUNG_LABEL and feld != "opex_standard_eur_kwp"
+)
+
+
+def _beschriftungen(werte: dict) -> list[str]:
+    """Die Beschriftungen der tatsaechlich gesetzten Felder."""
+    return [
+        _kurzlabel(txt(_ABWEICHUNG_LABEL[feld]))
+        for feld, wert in werte.items()
+        if wert is not None and feld in _ABWEICHUNG_LABEL
+    ]
+
+
+def _kurzlabel(label: str) -> str:
+    """Beschriftung ohne Einheitenklammer - in der Zaehlzeile stehen
+    Namen, keine Einheiten."""
+    return label.split(" (")[0]
+
+
+def _kreditvertrag_felder(
+    form_key: str, global_assumptions, abweichung, spaltig: bool
+) -> dict:
+    """Die Konditionen des Darlehens - alles mit Vorgabe.
+
+    Eigenkapitalanteil und Zins stehen offen darueber; Laufzeit,
+    Tilgungsart, Anlaufjahr, Zinsmethode und die beiden DSCR-Schwellen
+    sind Vertragsdetails, die einmal feststehen und danach nicht mehr
+    angefasst werden.
+    """
+    st.markdown(f"**{txt('oberflaeche.formular_kreditvertrag_knopf')}**")
+    st.caption(txt("oberflaeche.erbfeld_hinweis"))
+    links, rechts = (st.columns(2) if spaltig else st.columns(2))
+    return {
+        "kreditlaufzeit_jahre": _erbe_ganzzahl(
+            links, form_key, "abw_kreditlaufzeit_jahre",
+            txt("oberflaeche.formular_kreditlaufzeit_label"),
+            global_assumptions.kreditlaufzeit_jahre,
+            abweichung.kreditlaufzeit_jahre, min_value=1,
+        ),
+        "tilgungsart": _erbe_wahl(
+            rechts, form_key, "abw_tilgungsart",
+            txt("oberflaeche.formular_tilgungsart_label"), TilgungsArt,
+            global_assumptions.tilgungsart, abweichung.tilgungsart,
+        ),
+        "tilgungsfreies_anlaufjahr": _erbe_janein(
+            st, form_key, "abw_tilgungsfreies_anlaufjahr",
+            txt("oberflaeche.formular_anlaufjahr_label"),
+            global_assumptions.tilgungsfreies_anlaufjahr,
+            abweichung.tilgungsfreies_anlaufjahr,
+            hilfe=txt("oberflaeche.formular_anlaufjahr_hilfe"),
+        ),
+        "zinsmethode": _erbe_wahl(
+            st, form_key, "abw_zinsmethode",
+            txt("oberflaeche.formular_zinsmethode_label"), ZinsMethode,
+            global_assumptions.zinsmethode, abweichung.zinsmethode,
+        ),
+        "dscr_cash_trap": _erbe_zahl(
+            links, form_key, "abw_dscr_cash_trap",
+            txt("oberflaeche.formular_dscr_cash_trap_label"),
+            global_assumptions.dscr_cash_trap, abweichung.dscr_cash_trap,
+            min_value=0.0, step=0.05,
+        ),
+        "dscr_event_of_default": _erbe_zahl(
+            rechts, form_key, "abw_dscr_event_of_default",
+            txt("oberflaeche.formular_dscr_default_label"),
+            global_assumptions.dscr_event_of_default,
+            abweichung.dscr_event_of_default, min_value=0.0, step=0.05,
+        ),
+    }
+
+
+def _steuer_felder(
+    form_key: str, global_assumptions, abweichung, spaltig: bool
+) -> dict:
+    """Steuermodell und seine Parameter - alles mit Vorgabe.
+
+    Die Felder der jeweils anderen Steuerart bleiben sichtbar statt zu
+    verschwinden: Widgets, die zwischen Durchlaeufen kommen und gehen,
+    sind in Streamlit ein Risikomuster (siehe Modulkopf), und man soll
+    sehen, welche Angaben ein Wechsel braucht.
+    """
+    st.markdown(f"**{txt('oberflaeche.formular_steuern_titel')}**")
+    st.caption(txt("oberflaeche.erbfeld_hinweis"))
+    links, rechts = st.columns(2)
+    werte = {
+        "tax_modus": _erbe_wahl(
+            st, form_key, "abw_tax_modus",
+            txt("oberflaeche.formular_tax_modus_label"), TaxModus,
+            global_assumptions.tax_modus, abweichung.tax_modus,
+        ),
+        "steuersatz_pct": _erbe_zahl(
+            links, form_key, "abw_steuersatz_pct",
+            txt("oberflaeche.formular_steuersatz_label"),
+            global_assumptions.steuersatz_pct, abweichung.steuersatz_pct,
+            faktor=100.0, nachkomma=1, min_value=0.0, max_value=100.0, step=1.0,
+        ),
+        "afa_nutzungsdauer_jahre": _erbe_ganzzahl(
+            rechts, form_key, "abw_afa_nutzungsdauer_jahre",
+            txt("oberflaeche.formular_afa_label"),
+            global_assumptions.afa_nutzungsdauer_jahre or 0,
+            abweichung.afa_nutzungsdauer_jahre, min_value=1,
+        ),
+        "freibetrag_eur": _erbe_zahl(
+            links, form_key, "abw_freibetrag_eur",
+            txt("oberflaeche.formular_freibetrag_label"),
+            global_assumptions.freibetrag_eur, abweichung.freibetrag_eur,
+            nachkomma=0, min_value=0.0, step=500.0,
+        ),
+        "verlustvortrag_verrechnungsgrenze_pct": _erbe_zahl(
+            rechts, form_key, "abw_verlustvortrag_verrechnungsgrenze_pct",
+            txt("oberflaeche.formular_verlustvortrag_label"),
+            global_assumptions.verlustvortrag_verrechnungsgrenze_pct,
+            abweichung.verlustvortrag_verrechnungsgrenze_pct,
+            faktor=100.0, nachkomma=0, min_value=0.0, max_value=100.0, step=5.0,
+        ),
+        "gewerbesteuer_hebesatz_pct": _erbe_zahl(
+            links, form_key, "abw_gewerbesteuer_hebesatz_pct",
+            txt("oberflaeche.formular_gewst_hebesatz_label"),
+            global_assumptions.gewerbesteuer_hebesatz_pct,
+            abweichung.gewerbesteuer_hebesatz_pct,
+            nachkomma=0, min_value=0.0, step=10.0,
+        ),
+        "gewerbesteuer_freibetrag_eur": _erbe_zahl(
+            rechts, form_key, "abw_gewerbesteuer_freibetrag_eur",
+            txt("oberflaeche.formular_gewst_freibetrag_label"),
+            global_assumptions.gewerbesteuer_freibetrag_eur,
+            abweichung.gewerbesteuer_freibetrag_eur,
+            nachkomma=0, min_value=0.0, step=500.0,
+        ),
+    }
+    # Der AfA-Modus braucht eine Nutzungsdauer. Weicht das Projekt auf
+    # ihn ab, ohne dass global eine hinterlegt waere, faellt die
+    # Rechnung sonst erst in der Steuerfunktion um.
+    braucht_afa = (
+        werte["tax_modus"] or global_assumptions.tax_modus
+    ) in (TaxModus.AFA_KOERPERSCHAFTSTEUER, TaxModus.GEWERBESTEUER_DE)
+    if (braucht_afa and werte["afa_nutzungsdauer_jahre"] is None
+            and not global_assumptions.afa_nutzungsdauer_jahre):
+        st.warning(txt("oberflaeche.formular_afa_fehlt"))
+    return werte
+
+
+def _foerdermodell_felder(
+    form_key: str, global_assumptions, abweichung
+) -> dict:
+    """Das Regelwerk, unter dem dieses Projekt verguetet wird.
+
+    Praemienmodell und Foerderdauer haengen am Land und am Jahrgang der
+    Ausschreibung, die Negativstunden-Regel an der Rechtslage, die
+    Direktvermarktung am Dienstleistervertrag. Alles Groessen, die man
+    einmal setzt - deshalb hinter einem Popover und nicht offen neben
+    dem Zuschlagswert.
+    """
+    st.markdown(f"**{txt('oberflaeche.formular_foerdermodell_knopf')}**")
+    st.caption(txt("oberflaeche.erbfeld_hinweis"))
+    links, rechts = st.columns(2)
+    werte = {
+        "praemien_modell": _erbe_wahl(
+            st, form_key, "abw_praemien_modell",
+            txt("oberflaeche.formular_praemienmodell_label"), PraemienModell,
+            global_assumptions.praemien_modell, abweichung.praemien_modell,
+        ),
+        "eag_foerderdauer_jahre": _erbe_ganzzahl(
+            links, form_key, "abw_eag_foerderdauer_jahre",
+            txt("oberflaeche.formular_foerderdauer_label"),
+            global_assumptions.eag_foerderdauer_jahre,
+            abweichung.eag_foerderdauer_jahre, min_value=1,
+        ),
+        "eag_rueckzahlung_ab_mw": _erbe_zahl(
+            rechts, form_key, "abw_eag_rueckzahlung_ab_mw",
+            txt("oberflaeche.formular_rueckzahlung_ab_label"),
+            global_assumptions.eag_rueckzahlung_ab_mw,
+            abweichung.eag_rueckzahlung_ab_mw,
+            nachkomma=1, min_value=0.0, step=0.5,
+        ),
+        "eag_rueckzahlung_toleranzband_pct": _erbe_zahl(
+            links, form_key, "abw_eag_rueckzahlung_toleranzband_pct",
+            txt("oberflaeche.formular_toleranzband_label"),
+            global_assumptions.eag_rueckzahlung_toleranzband_pct,
+            abweichung.eag_rueckzahlung_toleranzband_pct,
+            faktor=100.0, nachkomma=0, min_value=0.0, step=5.0,
+        ),
+        "eag_rueckzahlung_anteil_pct": _erbe_zahl(
+            rechts, form_key, "abw_eag_rueckzahlung_anteil_pct",
+            txt("oberflaeche.formular_rueckzahlung_anteil_label"),
+            global_assumptions.eag_rueckzahlung_anteil_pct,
+            abweichung.eag_rueckzahlung_anteil_pct,
+            faktor=100.0, nachkomma=0, min_value=0.0, max_value=100.0, step=1.0,
+        ),
+        "negative_stunden_regel": _erbe_wahl(
+            st, form_key, "abw_negative_stunden_regel",
+            txt("oberflaeche.formular_negativregel_label"),
+            NegativeStundenRegel, global_assumptions.negative_stunden_regel,
+            abweichung.negative_stunden_regel,
+        ),
+        "negative_stunden_modus": _erbe_wahl(
+            st, form_key, "abw_negative_stunden_modus",
+            txt("oberflaeche.formular_negativmodus_label"),
+            NegativeStundenModus, global_assumptions.negative_stunden_modus,
+            abweichung.negative_stunden_modus,
+        ),
+        "negative_stunden_gewichtung_pct": _erbe_zahl(
+            links, form_key, "abw_negative_stunden_gewichtung_pct",
+            txt("oberflaeche.formular_negativgewichtung_label"),
+            global_assumptions.negative_stunden_gewichtung_pct,
+            abweichung.negative_stunden_gewichtung_pct,
+            faktor=100.0, nachkomma=0, min_value=0.0, max_value=100.0, step=5.0,
+        ),
+        "direktvermarktung_pct_marktwert": _erbe_zahl(
+            rechts, form_key, "abw_direktvermarktung_pct_marktwert",
+            txt("oberflaeche.formular_dv_pct_label"),
+            global_assumptions.direktvermarktung_pct_marktwert,
+            abweichung.direktvermarktung_pct_marktwert,
+            faktor=100.0, nachkomma=1, min_value=0.0, max_value=100.0, step=1.0,
+        ),
+        "direktvermarktung_modus": _erbe_wahl(
+            st, form_key, "abw_direktvermarktung_modus",
+            txt("oberflaeche.formular_dv_modus_label"),
+            DirektvermarktungsModus,
+            global_assumptions.direktvermarktung_modus,
+            abweichung.direktvermarktung_modus,
+        ),
+        "marktpreis_inflation_pct_pa": _erbe_zahl(
+            links, form_key, "abw_marktpreis_inflation_pct_pa",
+            txt("oberflaeche.formular_marktinflation_label"),
+            global_assumptions.marktpreis_inflation_pct_pa,
+            abweichung.marktpreis_inflation_pct_pa,
+            faktor=100.0, nachkomma=1, min_value=0.0, step=0.25,
+        ),
+        "marktpreis_inflation_basisjahr": _erbe_ganzzahl(
+            rechts, form_key, "abw_marktpreis_inflation_basisjahr",
+            txt("oberflaeche.formular_marktinflation_basisjahr_label"),
+            global_assumptions.marktpreis_inflation_basisjahr,
+            abweichung.marktpreis_inflation_basisjahr,
+            min_value=2000, max_value=2100,
+        ),
+    }
+    return werte
+
+
+def _ertrag_felder(form_key: str, global_assumptions, abweichung) -> dict:
+    """Degradation, Sicherheitsabschlag und Betrachtungsdauer.
+
+    Sie haengen an Modul, Ertragsgutachten und Pachtvertrag - alles
+    projektspezifisch, bisher aber nur global einstellbar.
+    """
+    st.markdown(f"**{txt('oberflaeche.formular_ertrag_knopf')}**")
+    st.caption(txt("oberflaeche.erbfeld_hinweis"))
+    links, rechts = st.columns(2)
+    return {
+        "degradation_pct_pa": _erbe_zahl(
+            links, form_key, "abw_degradation_pct_pa",
+            txt("oberflaeche.formular_degradation_label"),
+            global_assumptions.degradation_pct_pa,
+            abweichung.degradation_pct_pa,
+            faktor=100.0, nachkomma=2, min_value=0.0, step=0.05,
+        ),
+        "sicherheitsabschlag_pct": _erbe_zahl(
+            rechts, form_key, "abw_sicherheitsabschlag_pct",
+            txt("oberflaeche.formular_sicherheitsabschlag_label"),
+            global_assumptions.sicherheitsabschlag_pct,
+            abweichung.sicherheitsabschlag_pct,
+            faktor=100.0, nachkomma=1, min_value=0.0, max_value=100.0, step=0.5,
+        ),
+        "betriebsdauer_jahre": _erbe_ganzzahl(
+            st, form_key, "abw_betriebsdauer_jahre",
+            txt("oberflaeche.formular_betriebsdauer_label"),
+            global_assumptions.betriebsdauer_jahre,
+            abweichung.betriebsdauer_jahre, min_value=1,
+        ),
+    }
+
+
+def _standard_opex_tabelle(
+    form_key: str, global_assumptions, abweichung
+) -> dict[str, float]:
+    """Die globalen Standardpositionen mit den Werten dieses Projekts.
+
+    Frueh im Projekt sind das Erfahrungswerte, mit zunehmender Reife
+    werden daraus Angebote - und die unterscheiden sich von Standort zu
+    Standort erheblich. Bis v5.16 liessen sie sich nur global pflegen;
+    wer eine Position anpassen wollte, musste sie als Zusatzposition mit
+    Differenzbetrag nachbilden.
+
+    Eine Tabelle statt eines Feldes je Position: fuenf Zahlenfelder
+    untereinander kosteten in der schmalen Spalte mehr Platz, als sie
+    wert sind, und die Spalte "Vorgabe" daneben ist genau die
+    Information, die man beim Eintragen braucht.
+
+    Rueckgabe: nur die tatsaechlich abweichenden Positionen.
+    """
+    st.markdown(f"**{txt('oberflaeche.formular_opex_standard_titel')}**")
+    st.caption(txt("oberflaeche.formular_opex_standard_hilfe"))
+    eigen = abweichung.opex_standard_eur_kwp
+    tabelle = st.data_editor(
+        pd.DataFrame([
+            {
+                "Position": item.name,
+                "Vorgabe": item.basiswert_eur_kwp,
+                "Projekt": eigen.get(item.name),
+            }
+            for item in global_assumptions.opex_standard
+        ], columns=["Position", "Vorgabe", "Projekt"]),
+        width="stretch", hide_index=True, num_rows="fixed",
+        key=f"{form_key}_abw_opex_standard",
+        column_config={
+            "Position": st.column_config.TextColumn(
+                txt("oberflaeche.formular_zusatz_spalte_position"), disabled=True,
+            ),
+            # Die Vorgabe steht daneben, ist aber nicht hier zu aendern -
+            # dafuer sind die Globalen Annahmen da.
+            "Vorgabe": st.column_config.NumberColumn(
+                txt("oberflaeche.formular_opex_spalte_vorgabe"),
+                format="%.2f", disabled=True,
+            ),
+            "Projekt": st.column_config.NumberColumn(
+                txt("oberflaeche.formular_opex_spalte_projekt"),
+                format="%.2f", min_value=0.0,
+            ),
+        },
+    )
+    return {
+        str(zeile["Position"]): float(zeile["Projekt"])
+        for _, zeile in tabelle.iterrows()
+        if pd.notna(zeile["Projekt"])
+    }
+
+
+def _abweichungszeile(abweichungen: list[str]) -> None:
+    """Zeigt unter einem Block, ob und worin er von der Vorgabe abweicht.
+
+    Ohne sie faellt in einem halben Jahr niemandem mehr auf, dass dieses
+    Projekt einer spaeteren Aenderung der globalen Annahmen nicht mehr
+    folgt - das ist die eigentliche Gefahr an ueberschreibbaren
+    Vorgaben.
+    """
+    if not abweichungen:
+        st.caption(txt("oberflaeche.erbfeld_alles_vorgabe"))
+        return
+    st.caption(txt(
+        "oberflaeche.erbfeld_abweichungen",
+        anzahl=len(abweichungen),
+        felder=", ".join(abweichungen),
+    ))
 
 
 @contextlib.contextmanager
@@ -328,6 +881,13 @@ def _felder(
         st selbst verhaelt sich wie ein Spaltencontainer."""
         return st.columns(anzahl) if not spaltig else [st] * anzahl
 
+    global_assumptions = services.get_global_assumptions()
+    # Die gespeicherten Abweichungen dieses Projekts. Ohne Projekt (Neuanlage)
+    # ein leerer Block: Ein neues Projekt folgt in allem der Vorgabe.
+    gespeicherte_abweichung = (
+        existing.annahmen if existing else Projektannahmen()
+    )
+
     if not mit_stammdaten:
         # Kein Widget, keine Eingabe - die Werte kommen aus dem
         # gespeicherten Projekt und laufen unveraendert in den Entwurf.
@@ -370,16 +930,30 @@ def _felder(
             help=txt("oberflaeche.formular_variante_hilfe"),
         )
 
+    # --- Regelwerk des Standorts ------------------------------------------
+    # Zinsmethode, Steuerberechnung und Praemienmodell haengen am Land und
+    # wechseln gemeinsam. Sie einzeln in drei verschiedenen Popovern zu
+    # suchen, waere die haeufigste Aufgabe zur muehsamsten gemacht -
+    # deshalb steht hier ein Schalter, der alle drei auf einmal setzt.
+    #
+    # Bewusst KEIN eigenes Modellfeld: Der Schalter schreibt die drei
+    # Erbfelder und ist danach fertig. Ein gespeichertes "Land" waere
+    # eine vierte Wahrheit, die dem Inhalt der drei Felder widersprechen
+    # koennte, sobald jemand eines davon einzeln aendert.
+    _land_schalter(form_key, global_assumptions, spaltig)
+
     st.markdown("**Technische Anlagenparameter**")
     col1, col2 = spalten(2)
     nennleistung_kwp = col1.number_input(
         "Leistung (kWp)", min_value=0.0,
-        value=existing.nennleistung_kwp if existing else 5000.0,
+        value=(existing.nennleistung_kwp if existing
+               else global_assumptions.nennleistung_kwp_vorschlag),
         step=100.0, key=f"{form_key}_leistung_live",
     )
     vollbenutzungsstunden = col2.number_input(
         "Vollbenutzungsstunden (kWh/kWp)", min_value=0.0,
-        value=existing.vollbenutzungsstunden_kwh_kwp if existing else 1050.0,
+        value=(existing.vollbenutzungsstunden_kwh_kwp if existing
+               else global_assumptions.vollbenutzungsstunden_kwh_kwp_vorschlag),
         step=10.0, key=f"{form_key}_vbh_live",
     )
     # Die Bauform ist der zweite technische Grundzug neben der Leistung:
@@ -451,6 +1025,16 @@ def _felder(
         help=txt("oberflaeche.formular_ibn_monat_hilfe"),
     )
     inbetriebnahme_monat = monatsnamen.index(inbetriebnahme_monat_label) + 1
+
+    ertrag_zeile = st.container()
+    with _abschnitt(spaltig,
+                    knopf=txt("oberflaeche.formular_ertrag_knopf"),
+                    hilfe=txt("oberflaeche.formular_ertrag_hilfe")):
+        ertrag = _ertrag_felder(
+            form_key, global_assumptions, gespeicherte_abweichung
+        )
+    with ertrag_zeile:
+        _abweichungszeile(_beschriftungen(ertrag))
 
     def zusatz_capex_tabelle(darstellung: str):
         return _positionstabelle(
@@ -560,7 +1144,9 @@ def _felder(
         )
         return eingabe if absolut else eingabe * nennleistung_kwp
 
-    epc_default_eur_kwp = EPC_DEFAULT_EUR_KWP[anlagentyp_label]
+    epc_default_eur_kwp = global_assumptions.epc_eur_kwp_vorschlag_je_anlagentyp.get(
+        anlagentyp_label, EPC_DEFAULT_EUR_KWP[anlagentyp_label]
+    )
 
     def epc_feld(col):
         return capex_feld(
@@ -688,7 +1274,6 @@ def _felder(
     # Umschalter, und die duerfen nicht in st.form stehen (siehe
     # Modulkopf).
     st.markdown(f"**{txt('oberflaeche.formular_betriebskosten_titel')}**")
-    global_assumptions = services.get_global_assumptions()
     pachtmodus_fix = txt("oberflaeche.formular_pachtmodus_fix")
     pachtmodus_umsatz = txt("oberflaeche.formular_pachtmodus_umsatzbeteiligung")
 
@@ -851,6 +1436,18 @@ def _felder(
             gemeindeabgabe_mwh, direktvermarktungskosten_mwh = abgaben_felder(
                 col_abg1, col_abg2
             )
+            st.divider()
+            opex_standard = _standard_opex_tabelle(
+                form_key, global_assumptions, gespeicherte_abweichung
+            )
+            kosten_inflation = _erbe_zahl(
+                st, form_key, "abw_kosten_inflation_pct_pa",
+                txt("oberflaeche.formular_kosteninflation_label"),
+                global_assumptions.kosten_inflation_pct_pa,
+                gespeicherte_abweichung.kosten_inflation_pct_pa,
+                faktor=100.0, nachkomma=1, min_value=0.0, step=0.25,
+                hilfe=txt("oberflaeche.formular_kosteninflation_hilfe"),
+            )
         with hinweisbereich:
             st.caption(
                 txt("oberflaeche.formular_betriebskosten_zusammenfassung",
@@ -870,6 +1467,17 @@ def _felder(
         st.markdown(f"**{txt('oberflaeche.formular_abgaben_titel')}**")
         gemeindeabgabe_mwh, direktvermarktungskosten_mwh = abgaben_felder(
             *spalten(2)
+        )
+        opex_standard = _standard_opex_tabelle(
+            form_key, global_assumptions, gespeicherte_abweichung
+        )
+        kosten_inflation = _erbe_zahl(
+            st, form_key, "abw_kosten_inflation_pct_pa",
+            txt("oberflaeche.formular_kosteninflation_label"),
+            global_assumptions.kosten_inflation_pct_pa,
+            gespeicherte_abweichung.kosten_inflation_pct_pa,
+            faktor=100.0, nachkomma=1, min_value=0.0, step=0.25,
+            hilfe=txt("oberflaeche.formular_kosteninflation_hilfe"),
         )
 
     # Frei benannte Betriebskosten schliessen den Block ab: dieselbe
@@ -998,31 +1606,77 @@ def _felder(
             help=txt("oberflaeche.formular_ppa_start_hilfe"),
         )
 
-    with _formularrahmen(form_key, mit_formular):
-        # Die Finanzierung schliesst die Maske ab: Kapitalstruktur und
-        # Zins sind die letzte offene Frage, wenn Kosten und Erloese
-        # stehen. Sie ist der einzige Block, der noch im Formularrahmen
-        # liegt - alle uebrigen enthalten Umschalter oder Popover und
-        # muessen deshalb ausserhalb von st.form stehen (siehe Modulkopf).
-        st.markdown(f"**{txt('oberflaeche.formular_finanzierung_titel')}**")
-        # Zwei kurze Prozentfelder passen auch in der schmalen Spalte
-        # nebeneinander.
-        col_ek, col_fk = st.columns(2)
-        # Kurzbeschriftungen in der schmalen Spalte: "Eigenkapitalanteil"
-        # bricht auf halber Spaltenbreite mitten im Wort um.
-        ek_anteil = col_ek.number_input(
-            "EK-Anteil (%)" if spaltig else "Eigenkapitalanteil (%)",
-            min_value=0.0, max_value=100.0,
-            value=existing.eigenkapitalquote_pct * 100 if existing else 20.0,
-            step=1.0, key=f"{form_key}_ekanteil",
+    foerdermodell_zeile = st.container()
+    with _abschnitt(spaltig,
+                    knopf=txt("oberflaeche.formular_foerdermodell_knopf"),
+                    hilfe=txt("oberflaeche.formular_foerdermodell_hilfe")):
+        foerdermodell = _foerdermodell_felder(
+            form_key, global_assumptions, gespeicherte_abweichung
         )
-        fk_zins = col_fk.number_input(
-            "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
-            min_value=0.0,
-            value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
-            step=0.1, key=f"{form_key}_fkzins",
-        )
+    with foerdermodell_zeile:
+        _abweichungszeile(_beschriftungen(foerdermodell))
 
+    # --- Finanzierung -------------------------------------------------------
+    # Kapitalstruktur und Zins sind die letzte offene Frage, wenn Kosten
+    # und Erloese stehen. Der Block liegt - wie inzwischen alle -
+    # ausserhalb des Formularrahmens: Er enthaelt ein Popover, und
+    # Popover duerfen nicht in st.form stehen (siehe Modulkopf).
+    st.markdown(f"**{txt('oberflaeche.formular_finanzierung_titel')}**")
+    # Zwei kurze Prozentfelder passen auch in der schmalen Spalte
+    # nebeneinander.
+    col_ek, col_fk = st.columns(2)
+    # Kurzbeschriftungen in der schmalen Spalte: "Eigenkapitalanteil"
+    # bricht auf halber Spaltenbreite mitten im Wort um.
+    ek_anteil = col_ek.number_input(
+        "EK-Anteil (%)" if spaltig else "Eigenkapitalanteil (%)",
+        min_value=0.0, max_value=100.0,
+        value=((existing.eigenkapitalquote_pct if existing
+                else global_assumptions.eigenkapitalquote_pct_vorschlag) * 100),
+        step=1.0, key=f"{form_key}_ekanteil",
+    )
+    fk_zins = col_fk.number_input(
+        "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
+        min_value=0.0,
+        value=((existing.fremdkapitalzins_pct if existing
+                else global_assumptions.fremdkapitalzins_pct_vorschlag) * 100),
+        step=0.1, key=f"{form_key}_fkzins",
+    )
+    kreditvertrag_zeile = st.container()
+    with _abschnitt(spaltig,
+                    knopf=txt("oberflaeche.formular_kreditvertrag_knopf"),
+                    hilfe=txt("oberflaeche.formular_kreditvertrag_hilfe")):
+        kreditvertrag = _kreditvertrag_felder(
+            form_key, global_assumptions, gespeicherte_abweichung, spaltig
+        )
+    with kreditvertrag_zeile:
+        _abweichungszeile(_beschriftungen(kreditvertrag))
+
+    # --- Steuern ------------------------------------------------------------
+    # Bisher gab es diesen Block im Projekt gar nicht - die Steuer war
+    # ausschliesslich global. Sie haengt aber an Sitz und Rechtsform der
+    # Projektgesellschaft, nicht am Portfolio.
+    st.markdown(f"**{txt('oberflaeche.formular_steuern_titel')}**")
+    steuern_zeile = st.container()
+    with _abschnitt(spaltig,
+                    knopf=txt("oberflaeche.formular_steuern_knopf"),
+                    hilfe=txt("oberflaeche.formular_steuern_hilfe")):
+        steuern = _steuer_felder(
+            form_key, global_assumptions, gespeicherte_abweichung, spaltig
+        )
+    with steuern_zeile:
+        _abweichungszeile(_beschriftungen(steuern))
+
+    abweichungen = Projektannahmen(
+        **kreditvertrag, **steuern, **foerdermodell, **ertrag,
+        kosten_inflation_pct_pa=kosten_inflation,
+        opex_standard_eur_kwp=opex_standard,
+        **{
+            feld: getattr(gespeicherte_abweichung, feld)
+            for feld in _NOCH_NICHT_IN_DER_MASKE
+        },
+    )
+
+    with _formularrahmen(form_key, mit_formular):
         if mit_formular:
             button_label = (
                 txt("oberflaeche.formular_btn_speichern") if existing
@@ -1076,6 +1730,7 @@ def _felder(
         pacht_umsatzbeteiligung_pct=pacht_umsatzbeteiligung_pct,
         pacht_mindestpacht_eur_ha_jahr=pacht_mindestpacht_eur_ha_jahr,
         projektflaeche_ha=flaeche_ha,
+        annahmen=abweichungen,
         fremdkapitalzins_pct=fk_zins / 100,
         eigenkapitalquote_pct=ek_anteil / 100,
         eag_zuschlagswert_ct_kwh=eag_zuschlag,
