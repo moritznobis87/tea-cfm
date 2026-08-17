@@ -130,6 +130,14 @@ trägt.
   weiter. Ein Schalter entfernt es und verliert dabei unfertige Zeilen –
   in der Spalte, wo im Sekundentakt gerechnet wird, ist das der
   Unterschied zwischen sicher und ärgerlich.
+- **Der Pachtblock steht vollständig außerhalb des Formularrahmens** –
+  Wert, Vertragsform, Einheit, Fläche und Mindestpacht an einer Stelle.
+  Die Regel „Umschalter außerhalb von `st.form`" betrifft nur die
+  Umschalter; die Werte mitzuziehen war der Grund, warum Überschrift und
+  Felder früher weit auseinanderlagen. Die voreingestellte Einheit folgt
+  der hinterlegten Projektfläche: Ein Bestand ohne Fläche ist in €/kWp
+  gepflegt, und ihn in €/ha zu öffnen hieße, über eine erfundene Fläche
+  umzurechnen.
 - **Einheiten-Umschalter im Projektformular** (€/kWp ↔ €,
   €/kWp/Jahr ↔ €/ha/Jahr) liegen außerhalb von `st.form` und schreiben
   beim Umschalten den umgerechneten Wert in den Session-State, **bevor**

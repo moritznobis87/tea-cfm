@@ -27,7 +27,7 @@ import pandas as pd
 import streamlit as st
 
 from app import services
-from app.config import monate
+from app.config import monate, monate_kurz
 from app.formatting import fmt_number
 from engine import (
     AnlagenTyp,
@@ -87,7 +87,7 @@ def _positionstabelle(
     spalte_wert: str,
     einheit: str,
     vorhandene: list[dict],
-    im_popover: bool,
+    darstellung: str,
 ) -> list[dict]:
     """Frei benannte Kostenpositionen als dynamische Tabelle.
 
@@ -97,19 +97,23 @@ def _positionstabelle(
     die zwischen zwei Durchlaeufen erscheinen und verschwinden, sind in
     Streamlit ein bekanntes Risikomuster (siehe Modulkopf).
 
-    im_popover=True (Parameterspalte): Die Tabelle steht hinter einem
-    Popover, davor nur eine Zusammenfassung. Zusatzpositionen sind der
-    Ausnahmefall - in der schmalen Spalte kostete die Tabelle mehr Platz,
-    als sie im Alltag wert ist. Ein Popover ist dafuer das richtige
-    Mittel und kein Schalter: Sein Inhalt wird bei JEDEM Durchlauf
-    ausgefuehrt, das Widget existiert also auch zugeklappt weiter. Der
-    frueher benutzte Schalter erzeugte den Editor beim Aufklappen und
-    entfernte ihn beim Zuklappen - unfertige Zeilen gingen dabei
-    verloren.
+    darstellung="popover" (Parameterspalte): Die Tabelle steht hinter
+    einem Popover, davor nur eine Zusammenfassung. Zusatzpositionen sind
+    der Ausnahmefall - in der schmalen Spalte kostete die Tabelle mehr
+    Platz, als sie im Alltag wert ist. Ein Popover ist dafuer das
+    richtige Mittel und kein Schalter: Sein Inhalt wird bei JEDEM
+    Durchlauf ausgefuehrt, das Widget existiert also auch zugeklappt
+    weiter. Der frueher benutzte Schalter erzeugte den Editor beim
+    Aufklappen und entfernte ihn beim Zuklappen - unfertige Zeilen
+    gingen dabei verloren.
 
-    im_popover=False (Neuanlage): unveraendert ein Schalter, der die
-    Tabelle bei Bedarf einblendet - im breiten Formular ist Platz, und
-    dort wird nicht im Sekundentakt gerechnet.
+    darstellung="offen": Tabelle ohne eigene Huelle - fuer den Fall,
+    dass sie bereits IN einem Popover steht (Popover lassen sich nicht
+    schachteln).
+
+    darstellung="schalter" (Neuanlage): unveraendert ein Schalter, der
+    die Tabelle bei Bedarf einblendet - im breiten Formular ist Platz,
+    und dort wird nicht im Sekundentakt gerechnet.
 
     Rueckgabe: bereinigte Liste - Zeilen ohne Bezeichnung entfallen,
     Betraege ohne Wert zaehlen als 0 (siehe _bereinige_positionen).
@@ -130,7 +134,11 @@ def _positionstabelle(
             },
         )
 
-    if not im_popover:
+    if darstellung == "offen":
+        st.markdown(f"**{titel}**")
+        return _bereinige_positionen(editor())
+
+    if darstellung == "schalter":
         # Neuanlage: unveraendert ein Schalter, standardmaessig
         # zugeklappt. Sind bereits Positionen hinterlegt, startet er
         # eingeschaltet - sonst waeren sie beim Bearbeiten nicht
@@ -156,6 +164,64 @@ def _positionstabelle(
         st.markdown(f"**{titel}**")
         tabelle = editor()
     return _bereinige_positionen(tabelle)
+
+
+def _pacht_wertfeld(
+    ziel, form_key: str, existing, modus, einheit: str | None,
+    flaeche_ha: float | None, nennleistung_kwp: float,
+    mode_changed: bool, umsatzbeteiligung_pct: float,
+) -> tuple[float, float]:
+    """Der Pachtwert selbst - je nach Modus in €/ha, €/kWp oder Prozent.
+
+    Rueckgabe: (pacht_eur_kwp_jahr, umsatzbeteiligung_pct). Das Modell
+    fuehrt die Pacht immer in €/kWp/Jahr; die €/ha-Eingabe wird ueber
+    die Projektflaeche umgerechnet.
+    """
+    if modus == PachtModus.UMSATZBETEILIGUNG:
+        pct_key = f"{form_key}_pacht_umsatz_pct"
+        if mode_changed or pct_key not in st.session_state:
+            st.session_state[pct_key] = round(umsatzbeteiligung_pct * 100, 2)
+        anteil = ziel.number_input(
+            txt("oberflaeche.formular_pacht_umsatzbeteiligung_label"),
+            min_value=0.0, max_value=100.0, step=0.1, key=pct_key,
+            help=txt("oberflaeche.formular_pacht_umsatzbeteiligung_hilfe"),
+        ) / 100
+        # Bleibt fuer eine eventuelle spaetere Rueckschaltung auf FIX als
+        # sinnvoller Vorschlag erhalten statt auf 0 zu fallen.
+        return (existing.pacht_eur_kwp_jahr if existing else 4.0), anteil
+
+    if einheit == "€/ha/Jahr":
+        pacht_ha_key = f"{form_key}_pacht_ha"
+        if mode_changed or pacht_ha_key not in st.session_state:
+            # Zwei Nachkommastellen: Auf ganze Euro gerundet wich der
+            # zurueckgerechnete €/kWp-Wert so weit ab, dass die Seite
+            # eine Aenderung meldete, die niemand vorgenommen hatte.
+            st.session_state[pacht_ha_key] = (
+                round(
+                    existing.pacht_eur_kwp_jahr * existing.nennleistung_kwp
+                    / flaeche_ha,
+                    2,
+                )
+                if existing and flaeche_ha
+                else 500.0
+            )
+        pacht_eur_ha = ziel.number_input(
+            "Pacht (€/ha/Jahr)", min_value=0.0, step=10.0, key=pacht_ha_key,
+        )
+        return (
+            pacht_eur_ha * flaeche_ha / nennleistung_kwp
+            if nennleistung_kwp and flaeche_ha
+            else 0.0
+        ), umsatzbeteiligung_pct
+
+    pacht_kwp_key = f"{form_key}_pacht_kwp"
+    if mode_changed or pacht_kwp_key not in st.session_state:
+        st.session_state[pacht_kwp_key] = (
+            existing.pacht_eur_kwp_jahr if existing else 4.0
+        )
+    return ziel.number_input(
+        "Pacht (€/kWp/Jahr)", min_value=0.0, step=0.1, key=pacht_kwp_key,
+    ), umsatzbeteiligung_pct
 
 
 def _abschnitt(im_popover: bool, knopf: str, hilfe: str):
@@ -342,8 +408,12 @@ def _felder(
         monat_label = txt("oberflaeche.formular_ibn_monat_label")
         jahr_label = txt("oberflaeche.formular_ibn_jahr_label")
     col_ibn1, col_ibn2 = st.columns(2)
+    # In der halben Spaltenbreite passt "Dezember" nicht - die Auswahl
+    # zeigt dort die dreibuchstabige Kurzform, die ohnehin schon fuer
+    # Diagramme gepflegt ist.
+    monatsnamen = monate_kurz() if spaltig else monate()
     inbetriebnahme_monat_label = col_ibn1.selectbox(
-        monat_label, monate(),
+        monat_label, monatsnamen,
         index=(existing.inbetriebnahme_monat - 1) if existing else 0,
         key=f"{form_key}_ibn_monat_live",
         help=txt("oberflaeche.formular_ibn_monat_hilfe"),
@@ -354,7 +424,37 @@ def _felder(
         step=1, key=f"{form_key}_ibn_jahr_live",
         help=txt("oberflaeche.formular_ibn_monat_hilfe"),
     )
-    inbetriebnahme_monat = monate().index(inbetriebnahme_monat_label) + 1
+    inbetriebnahme_monat = monatsnamen.index(inbetriebnahme_monat_label) + 1
+
+    def zusatz_capex_tabelle(darstellung: str):
+        return _positionstabelle(
+            form_key=form_key,
+            schluessel="capex_zusatz",
+            titel=txt("oberflaeche.formular_capex_zusatz_titel"),
+            hilfe=txt("oberflaeche.formular_capex_zusatz_hilfe"),
+            spalte_wert=txt("oberflaeche.formular_capex_zusatz_betrag"),
+            einheit="€",
+            darstellung=darstellung,
+            vorhandene=[
+                {"Position": z.name, "Wert": z.betrag_eur}
+                for z in (existing.capex.zusatzpositionen if existing else [])
+            ],
+        )
+
+    def zusatz_opex_tabelle(darstellung: str):
+        return _positionstabelle(
+            form_key=form_key,
+            schluessel="opex_zusatz",
+            titel=txt("oberflaeche.formular_opex_zusatz_titel"),
+            hilfe=txt("oberflaeche.formular_opex_zusatz_hilfe"),
+            spalte_wert=txt("oberflaeche.formular_opex_zusatz_betrag"),
+            einheit="€/kWp/Jahr",
+            darstellung=darstellung,
+            vorhandene=[
+                {"Position": z.name, "Wert": z.basiswert_eur_kwp}
+                for z in (existing.zusatz_opex if existing else [])
+            ],
+        )
 
     st.markdown(txt("oberflaeche.formular_investkosten_titel"))
     capex_defaults = existing.capex if existing else CapexBreakdown()
@@ -512,6 +612,12 @@ def _felder(
             st.markdown(f"**{txt('oberflaeche.formular_capex_weitere_titel')}**")
             (widmung, genehmigung, sonstige_extern, agm, m_and_a,
              poenale) = weitere_capex_felder([st] * 6)
+            # Frei benannte Investkosten gehoeren in dieselbe Huelle wie
+            # die festen - es sind Investkosten. Hier offen und nicht
+            # hinter einem weiteren Popover: Popover lassen sich nicht
+            # schachteln.
+            st.divider()
+            zusatz_capex = zusatz_capex_tabelle("offen")
     else:
         summenzeile = None
         weitere = None
@@ -521,6 +627,7 @@ def _felder(
         trasse = trasse_feld(c3)
         (widmung, genehmigung, sonstige_extern, agm, m_and_a,
          poenale) = weitere_capex_felder(list(spalten(3)) + list(spalten(3)))
+        zusatz_capex = zusatz_capex_tabelle("schalter")
 
     if summenzeile is not None:
         gesamt = (epc + netzanschluss + trasse + widmung + genehmigung
@@ -544,61 +651,157 @@ def _felder(
                     if nennleistung_kwp else "–")
             )
 
-    zusatz_capex = _positionstabelle(
-        form_key=form_key,
-        schluessel="capex_zusatz",
-        titel=txt("oberflaeche.formular_capex_zusatz_titel"),
-        hilfe=txt("oberflaeche.formular_capex_zusatz_hilfe"),
-        spalte_wert=txt("oberflaeche.formular_capex_zusatz_betrag"),
-        einheit="€",
-        im_popover=spaltig,
-        vorhandene=[
-            {"Position": z.name, "Wert": z.betrag_eur}
-            for z in (existing.capex.zusatzpositionen if existing else [])
-        ],
-    )
-    zusatz_opex = _positionstabelle(
-        form_key=form_key,
-        schluessel="opex_zusatz",
-        titel=txt("oberflaeche.formular_opex_zusatz_titel"),
-        hilfe=txt("oberflaeche.formular_opex_zusatz_hilfe"),
-        spalte_wert=txt("oberflaeche.formular_opex_zusatz_betrag"),
-        einheit="€/kWp/Jahr",
-        im_popover=spaltig,
-        vorhandene=[
-            {"Position": z.name, "Wert": z.basiswert_eur_kwp}
-            for z in (existing.zusatz_opex if existing else [])
-        ],
-    )
-
+    # --- Pacht -----------------------------------------------------------
+    # Frueher standen Ueberschrift und Umschalter hier oben, die
+    # Wertfelder aber ganz unten im Formularrahmen: Man las "Pacht -
+    # Umsatzbeteiligung" und fand die zugehoerigen Felder erst nach dem
+    # halben Rest der Maske. Grund war die Regel "Umschalter ausserhalb
+    # von st.form" (siehe Modulkopf) - sie betrifft aber nur die
+    # Umschalter, nicht die Werte. Jetzt steht der ganze Block an einer
+    # Stelle, vollstaendig ausserhalb des Formularrahmens.
     st.markdown("**Pacht**")
     global_assumptions = services.get_global_assumptions()
     pachtmodus_fix = txt("oberflaeche.formular_pachtmodus_fix")
     pachtmodus_umsatz = txt("oberflaeche.formular_pachtmodus_umsatzbeteiligung")
-    pachtmodus_label = st.radio(
-        txt("oberflaeche.formular_pachtmodus_label"),
-        [pachtmodus_fix, pachtmodus_umsatz],
-        index=1 if existing and existing.pacht_modus == PachtModus.UMSATZBETEILIGUNG
-        else 0,
-        horizontal=True, key=f"{form_key}_pachtmodus",
-        help=txt("oberflaeche.formular_pachtmodus_hilfe"),
+
+    pacht_umsatzbeteiligung_pct = (
+        existing.pacht_umsatzbeteiligung_pct if existing
+        else global_assumptions.pacht_umsatzbeteiligung_pct_vorschlag
     )
-    pacht_modus = (
-        PachtModus.UMSATZBETEILIGUNG if pachtmodus_label == pachtmodus_umsatz
-        else PachtModus.FIX
+    pacht_mindestpacht_eur_ha_jahr = (
+        existing.pacht_mindestpacht_eur_ha_jahr if existing else 0.0
     )
 
-    pacht_einheit = None
-    if pacht_modus == PachtModus.FIX:
-        pacht_einheit = st.radio(
-            "Einheit", options=["€/ha/Jahr", "€/kWp/Jahr"], horizontal=True,
-            key=f"{form_key}_pacht_einheit",
+    def pacht_konfiguration():
+        """Modus, Einheit, Flaeche und Mindestpacht.
+
+        In der Live-Spalte hinter einem Popover: Das sind Vertragsform
+        und Bezugsgroessen, keine Zahlen, an denen man beim Durchspielen
+        dreht. Die Flaeche steht trotzdem als Bildunterschrift in der
+        Hauptansicht - ohne sie waere ein Wert in €/ha nicht einzuordnen.
+        """
+        modus_label = st.radio(
+            txt("oberflaeche.formular_pachtmodus_label"),
+            [pachtmodus_fix, pachtmodus_umsatz],
+            index=1 if existing
+            and existing.pacht_modus == PachtModus.UMSATZBETEILIGUNG else 0,
+            horizontal=not spaltig, key=f"{form_key}_pachtmodus",
+            help=txt("oberflaeche.formular_pachtmodus_hilfe"),
         )
-    pacht_mode_key = f"{form_key}_pacht_mode_prev"
-    pacht_mode_changed = st.session_state.get(pacht_mode_key) != (
-        pachtmodus_label, pacht_einheit
-    )
-    st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
+        modus = (PachtModus.UMSATZBETEILIGUNG if modus_label == pachtmodus_umsatz
+                 else PachtModus.FIX)
+        einheit = None
+        if modus == PachtModus.FIX:
+            # Vorbelegung aus dem Projekt: Ein Bestand ohne Flaeche ist in
+            # €/kWp gepflegt - ihn im €/ha-Modus zu oeffnen, rechnete den
+            # Wert ueber eine erfundene Flaeche um.
+            einheiten = ["€/ha/Jahr", "€/kWp/Jahr"]
+            einheit_key = f"{form_key}_pacht_einheit"
+            if einheit_key not in st.session_state:
+                st.session_state[einheit_key] = (
+                    "€/ha/Jahr"
+                    if not existing or existing.projektflaeche_ha
+                    else "€/kWp/Jahr"
+                )
+            einheit = st.radio(
+                "Einheit", options=einheiten, horizontal=True, key=einheit_key,
+            )
+        return modus_label, modus, einheit
+
+    def pacht_flaeche(schluessel: str, hilfe: str | None = None) -> float:
+        flaeche_key = f"{form_key}_{schluessel}"
+        if pacht_mode_changed or flaeche_key not in st.session_state:
+            st.session_state[flaeche_key] = (
+                existing.projektflaeche_ha
+                if existing and existing.projektflaeche_ha
+                else 10.0
+            )
+        return st.number_input(
+            txt("oberflaeche.formular_projektflaeche_label"),
+            min_value=0.01, step=0.5, key=flaeche_key, help=hilfe,
+        )
+
+    if spaltig:
+        wertbereich = st.container()
+        hinweisbereich = st.container()
+        with _abschnitt(True,
+                        knopf=txt("oberflaeche.formular_pacht_knopf"),
+                        hilfe=txt("oberflaeche.formular_pacht_hilfe")):
+            pachtmodus_label, pacht_modus, pacht_einheit = pacht_konfiguration()
+            pacht_mode_key = f"{form_key}_pacht_mode_prev"
+            pacht_mode_changed = st.session_state.get(pacht_mode_key) != (
+                pachtmodus_label, pacht_einheit
+            )
+            st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
+            if pacht_modus == PachtModus.UMSATZBETEILIGUNG:
+                flaeche_ha = pacht_flaeche(
+                    "flaeche_umsatz",
+                    txt("oberflaeche.formular_pacht_flaeche_umsatz_hilfe"),
+                )
+                min_key = f"{form_key}_pacht_mindest_ha"
+                if pacht_mode_changed or min_key not in st.session_state:
+                    st.session_state[min_key] = pacht_mindestpacht_eur_ha_jahr
+                pacht_mindestpacht_eur_ha_jahr = st.number_input(
+                    txt("oberflaeche.formular_pacht_mindestpacht_label"),
+                    min_value=0.0, step=50.0, key=min_key,
+                    help=txt("oberflaeche.formular_pacht_mindestpacht_hilfe"),
+                )
+            elif pacht_einheit == "€/ha/Jahr":
+                flaeche_ha = pacht_flaeche("flaeche")
+            else:
+                flaeche_ha = existing.projektflaeche_ha if existing else None
+        with wertbereich:
+            (pacht_eur_kwp_jahr,
+             pacht_umsatzbeteiligung_pct) = _pacht_wertfeld(
+                st, form_key, existing, pacht_modus, pacht_einheit,
+                flaeche_ha, nennleistung_kwp, pacht_mode_changed,
+                pacht_umsatzbeteiligung_pct,
+            )
+        with hinweisbereich:
+            st.caption(
+                txt("oberflaeche.formular_pacht_zusammenfassung",
+                    modus=txt(
+                        "oberflaeche.formular_pacht_kurz_umsatz"
+                        if pacht_modus == PachtModus.UMSATZBETEILIGUNG
+                        else "oberflaeche.formular_pacht_kurz_fix"
+                    ),
+                    flaeche=(fmt_number(flaeche_ha, 1) + " ha") if flaeche_ha
+                    else "–")
+            )
+    else:
+        pachtmodus_label, pacht_modus, pacht_einheit = pacht_konfiguration()
+        pacht_mode_key = f"{form_key}_pacht_mode_prev"
+        pacht_mode_changed = st.session_state.get(pacht_mode_key) != (
+            pachtmodus_label, pacht_einheit
+        )
+        st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
+        if pacht_modus == PachtModus.UMSATZBETEILIGUNG:
+            flaeche_ha = pacht_flaeche(
+                "flaeche_umsatz",
+                txt("oberflaeche.formular_pacht_flaeche_umsatz_hilfe"),
+            )
+            min_key = f"{form_key}_pacht_mindest_ha"
+            if pacht_mode_changed or min_key not in st.session_state:
+                st.session_state[min_key] = pacht_mindestpacht_eur_ha_jahr
+            pacht_mindestpacht_eur_ha_jahr = st.number_input(
+                txt("oberflaeche.formular_pacht_mindestpacht_label"),
+                min_value=0.0, step=50.0, key=min_key,
+                help=txt("oberflaeche.formular_pacht_mindestpacht_hilfe"),
+            )
+        elif pacht_einheit == "€/ha/Jahr":
+            flaeche_ha = pacht_flaeche("flaeche")
+        else:
+            flaeche_ha = existing.projektflaeche_ha if existing else None
+        (pacht_eur_kwp_jahr,
+         pacht_umsatzbeteiligung_pct) = _pacht_wertfeld(
+            st, form_key, existing, pacht_modus, pacht_einheit, flaeche_ha,
+            nennleistung_kwp, pacht_mode_changed, pacht_umsatzbeteiligung_pct,
+        )
+
+    # Weitere Betriebskosten stehen direkt unter der Pacht: Beides sind
+    # jaehrliche Kosten je kWp, und die Pacht ist selbst eine
+    # Betriebskostenposition.
+    zusatz_opex = zusatz_opex_tabelle("popover" if spaltig else "schalter")
 
     with _formularrahmen(form_key, mit_formular):
         # Finanzierung und Erloese sind zwei Fragen, keine gemeinsame:
@@ -616,14 +819,12 @@ def _felder(
             min_value=0.0, max_value=100.0,
             value=existing.eigenkapitalquote_pct * 100 if existing else 20.0,
             step=1.0, key=f"{form_key}_ekanteil",
-            help=txt("oberflaeche.formular_ekanteil_hilfe") if spaltig else None,
         )
         fk_zins = col_fk.number_input(
             "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
             min_value=0.0,
             value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
             step=0.1, key=f"{form_key}_fkzins",
-            help=txt("oberflaeche.formular_fkzins_hilfe") if spaltig else None,
         )
 
         st.markdown(f"**{txt('oberflaeche.formular_erloese_titel')}**")
@@ -784,93 +985,6 @@ def _felder(
             gemeindeabgabe_mwh, direktvermarktungskosten_mwh = abgaben_felder(
                 col_abg1, col_abg2
             )
-
-        pacht_umsatzbeteiligung_pct = (
-            existing.pacht_umsatzbeteiligung_pct if existing
-            else global_assumptions.pacht_umsatzbeteiligung_pct_vorschlag
-        )
-        pacht_mindestpacht_eur_ha_jahr = (
-            existing.pacht_mindestpacht_eur_ha_jahr if existing else 0.0
-        )
-
-        if pacht_modus == PachtModus.UMSATZBETEILIGUNG:
-            flaeche_key = f"{form_key}_flaeche_umsatz"
-            if pacht_mode_changed or flaeche_key not in st.session_state:
-                st.session_state[flaeche_key] = (
-                    existing.projektflaeche_ha
-                    if existing and existing.projektflaeche_ha
-                    else 10.0
-                )
-            flaeche_ha = st.number_input(
-                txt("oberflaeche.formular_projektflaeche_label"),
-                min_value=0.01, step=0.5, key=flaeche_key,
-                help=txt("oberflaeche.formular_pacht_flaeche_umsatz_hilfe"),
-            )
-            col_pct, col_min = spalten(2)
-            pct_key = f"{form_key}_pacht_umsatz_pct"
-            if pacht_mode_changed or pct_key not in st.session_state:
-                st.session_state[pct_key] = round(
-                    pacht_umsatzbeteiligung_pct * 100, 2
-                )
-            pacht_umsatzbeteiligung_pct = col_pct.number_input(
-                txt("oberflaeche.formular_pacht_umsatzbeteiligung_label"),
-                min_value=0.0, max_value=100.0, step=0.1, key=pct_key,
-                help=txt("oberflaeche.formular_pacht_umsatzbeteiligung_hilfe"),
-            ) / 100
-            min_key = f"{form_key}_pacht_mindest_ha"
-            if pacht_mode_changed or min_key not in st.session_state:
-                st.session_state[min_key] = pacht_mindestpacht_eur_ha_jahr
-            pacht_mindestpacht_eur_ha_jahr = col_min.number_input(
-                txt("oberflaeche.formular_pacht_mindestpacht_label"),
-                min_value=0.0, step=50.0, key=min_key,
-                help=txt("oberflaeche.formular_pacht_mindestpacht_hilfe"),
-            )
-            # Bleibt fuer eine eventuelle spaetere Rueckschaltung auf FIX
-            # als sinnvoller Vorschlag erhalten statt auf 0 zu fallen.
-            pacht_eur_kwp_jahr = existing.pacht_eur_kwp_jahr if existing else 4.0
-        elif pacht_einheit == "€/ha/Jahr":
-            flaeche_key = f"{form_key}_flaeche"
-            if pacht_mode_changed or flaeche_key not in st.session_state:
-                st.session_state[flaeche_key] = (
-                    existing.projektflaeche_ha
-                    if existing and existing.projektflaeche_ha
-                    else 10.0
-                )
-            flaeche_ha = st.number_input(
-                txt("oberflaeche.formular_projektflaeche_label"),
-                min_value=0.01, step=0.5, key=flaeche_key,
-            )
-
-            pacht_ha_key = f"{form_key}_pacht_ha"
-            if pacht_mode_changed or pacht_ha_key not in st.session_state:
-                st.session_state[pacht_ha_key] = (
-                    round(
-                        existing.pacht_eur_kwp_jahr
-                        * existing.nennleistung_kwp
-                        / flaeche_ha,
-                        0,
-                    )
-                    if existing and flaeche_ha
-                    else 500.0
-                )
-            pacht_eur_ha = st.number_input(
-                "Pacht (€/ha/Jahr)", min_value=0.0, step=10.0, key=pacht_ha_key,
-            )
-            pacht_eur_kwp_jahr = (
-                pacht_eur_ha * flaeche_ha / nennleistung_kwp
-                if nennleistung_kwp
-                else 0.0
-            )
-        else:
-            pacht_kwp_key = f"{form_key}_pacht_kwp"
-            if pacht_mode_changed or pacht_kwp_key not in st.session_state:
-                st.session_state[pacht_kwp_key] = (
-                    existing.pacht_eur_kwp_jahr if existing else 4.0
-                )
-            pacht_eur_kwp_jahr = st.number_input(
-                "Pacht (€/kWp/Jahr)", min_value=0.0, step=0.1, key=pacht_kwp_key,
-            )
-            flaeche_ha = existing.projektflaeche_ha if existing else None
 
         if mit_formular:
             button_label = (

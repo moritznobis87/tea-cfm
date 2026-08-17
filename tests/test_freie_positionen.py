@@ -261,9 +261,18 @@ class TestParameterspalte:
         assert f"param_{projekt_id}_capex_zusatz_anzeigen" not in schalter
         assert f"param_{projekt_id}_opex_zusatz_anzeigen" not in schalter
 
-    def test_zusammenfassung_steht_vor_dem_popover(self):
+    def test_freie_investkosten_stehen_im_investitions_popover(self):
+        """Frei benannte Investkosten gehoeren in dieselbe Huelle wie die
+        festen - es sind Investkosten. Ein eigener Knopf daneben war eine
+        Huelle zu viel."""
+        at, projekt_id = self._projektseite()
+        beschriftungen = [p.proto.popover.label for p in at.get("popover")]
+        assert any("Weitere Investkosten" in b for b in beschriftungen)
+        # Nur noch EIN Zusatzpositionen-Popover: das der Betriebskosten.
+        assert sum("Zusatzpositionen" in b for b in beschriftungen) == 1
+
+    def test_zusammenfassung_der_betriebskosten_steht_vor_dem_popover(self):
         at, _ = self._projektseite()
         zeilen = " ".join(c.value for c in at.caption)
-        assert "Weitere Investkosten" in zeilen
         assert "Weitere Betriebskosten" in zeilen
 
