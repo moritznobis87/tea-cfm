@@ -1,5 +1,67 @@
 # Changelog
 
+## v5.7 – Einspeisekurven je Bauform, Prämienmodell je Markt (2026-08)
+
+- **Zwei hinterlegte Einspeisekurven**: „Pult" und „Tracker", abgeleitet
+  aus PVGIS-Monatserträgen einer 1-kWp-Anlage (1.148 bzw.
+  1.429 kWh/kWp, also 24,5 % Nachführgewinn) und auf 100 % normiert. Sie
+  ersetzen die bisherige geschätzte Standardkurve. In den globalen
+  Annahmen wird zwischen beiden umgeschaltet; wer die Werte von Hand
+  ändert, landet bei „Eigene Kurve".
+  Der Nachführgewinn ist im Juli größer als im Dezember (28,6 % gegen
+  22,0 %), die Tracker-Kurve deshalb sommerlastiger – für die
+  Monatsrechnung wesentlich, weil die Sommermonate die niedrigeren
+  Marktwerte tragen.
+  Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` im Modell und
+  bleiben damit gegen eine wiederholte PVGIS-Abfrage prüfbar.
+- **Großhandelspreis sichtbar**: Er wurde seit v5.6 aus der
+  Aurora-Arbeitsmappe importiert und trägt die Direktvermarktungskosten
+  im Modus „Anteil am Großhandelspreis" – in den globalen Annahmen war er
+  aber nirgends zu sehen. Jetzt steht er als eigenes Szenariendiagramm
+  neben dem Marktwert Solar (der Abstand der beiden Kurven ist die
+  Kannibalisierung) und als Spalte in der Zahlentabelle, dort auch
+  editierbar. Fehlt er einem Szenario, sagt das ein Hinweis statt eines
+  leeren Diagramms.
+- **Fehler behoben**: Beim Speichern der globalen Annahmen gingen die
+  Großhandelspreis-Kurven eines Szenarios verloren, sobald dessen Zahlen
+  aufgeklappt waren – das Szenario wurde aus der Tabelle neu gebaut, die
+  Baseload-Reihen kannte die Tabelle aber nicht.
+- **Sechs Aurora-Q3/26-Szenarien ausgeliefert**: Central, Low und High,
+  je einmal für Pult und Tracker, mit Marktwerten, Abregelungsquoten und
+  Großhandelspreisen – jährlich und monatlich, 2027 bis 2060. Damit steht
+  die Preisspanne als Sensitivität bereit, ohne dass jeder Anwender die
+  Arbeitsmappe selbst importieren muss. Die bisherigen Szenarien bleiben
+  unverändert bestehen, damit vorhandene Projekte weiter rechnen.
+- **Fünf ältere Aurora-Jahrgänge** (Jan 25, Apr 25, Oct 25, Q1/26,
+  Q2/26) stehen als Central-Szenario je Bauform bereit – für die Frage,
+  wie sich die Prognose über die Ausgaben verschoben hat. Ihre realen
+  Preise sind dabei auf die globale Preisbasis 2025 umgerechnet (die
+  Mappen rechnen in Preisen von 2023 bzw. 2024); ohne diese Umrechnung
+  zeigte der Vergleich Inflation statt Prognoseänderung. Der Marktwert
+  Solar 2035 fällt über die Jahrgänge von 6,03 auf 4,31 ct/kWh.
+- **Legende der Szenariendiagramme** kürzt die gemeinsame Herkunft weg:
+  Aus „Aurora Q3/26 GER · Pult · Central" wird „Pult · Central", wenn
+  alle gezeigten Kurven denselben Stamm tragen. Der Tooltip nennt
+  weiterhin den vollen Namen, und die Bildhöhe wächst mit der Zahl der
+  Legendenzeilen.
+- **Projektdaten aktualisiert**: Die ausgelieferte Projektsammlung
+  entspricht jetzt dem Stand der Arbeitsmappe `projekte_24.xlsx` –
+  vierzehn Projekte an neun Standorten (85,7 MWp Leitvarianten) plus die
+  beiden Vorlagen.
+- **Fehler behoben**: Das Projektformular reichte die Leitfall-Markierung
+  nicht durch. Ein frisch geöffneter Leitfall meldete deshalb „1
+  ungespeicherte Änderung", und ein Speichern aus der Parameterspalte
+  hätte die Markierung stillschweigend gelöscht – der Standort wäre
+  danach mit seiner ersten Variante statt der gewählten ins Portfolio
+  eingegangen.
+- **Prämienmodell folgt dem Länderschalter**: Österreich rechnet mit dem
+  zweiseitigen CfD mit Toleranzband (§ 10 EAG), Deutschland mit dem
+  einseitigen CfD des EEG. Beides bleibt danach frei wählbar. Die
+  ausgelieferten globalen Annahmen (Marktsystem Österreich) stehen damit
+  auf dem Toleranzband – **das ändert Ergebnisse bestehender Projekte**,
+  sobald Marktwerte über dem anzulegenden Wert liegen und die Anlage die
+  5-MW-Schwelle erreicht.
+
 ## v5.6 – Aurora-Arbeitsmappe, Großhandelspreis, Bauform (2026-08)
 
 Der Aurora-Import liest jetzt die Arbeitsmappe, die Aurora ohnehin

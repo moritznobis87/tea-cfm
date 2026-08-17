@@ -235,6 +235,9 @@ annahmen_freibetrag_label: "Deducción (€/año)"
 annahmen_afa_pauschal_hinweis: "La amortización fiscal y la deducción no se aplican en el modo a tanto alzado. El arrastre de pérdidas se aplica de todos modos."
 annahmen_col_kalenderjahr: "Año natural"
 annahmen_col_marktwert_solar: "Valor de mercado solar (ct/kWh)"
+annahmen_col_baseload: "Precio mayorista (ct/kWh)"
+annahmen_col_baseload_hilfe: "Precio baseload del escenario. Es la referencia de los costes de comercialización directa en el modo «parte del precio mayorista» y la medida del valor de mercado solar: la diferencia entre ambos es la canibalización de la FV."
+annahmen_kein_baseload: "No hay precio mayorista guardado para este escenario. Procede de la importación del libro de Aurora o puede introducirse en la tabla siguiente. Sin él, los costes de comercialización directa en el modo «parte del precio mayorista» recurren al valor de mercado solar."
 annahmen_col_neg6h: "Cantidad producida horas negativas 6h (%)"
 annahmen_col_neg1h: "Cantidad producida horas negativas 1h (%)"
 annahmen_col_position: "Partida"
@@ -604,6 +607,12 @@ annahmen_einspeisekurve_hinweis: "Parte de la generación anual por mes. Se apli
 annahmen_einspeisekurve_summe: "Suma de las partes: {summe} % (se normaliza al 100 %)."
 annahmen_col_monat: "Mes"
 annahmen_col_anteil_jahreserzeugung: "Parte de la generación anual (%)"
+
+# --- Curva de inyección por tipo de estructura (v5.7) ------------------------
+annahmen_bauform_label: "Curvas guardadas"
+annahmen_bauform_eigene: "Curva propia"
+annahmen_bauform_hilfe: "«Pult» (fija) y «Tracker» se obtienen de series horarias del mismo emplazamiento y año meteorológico (8.760 valores, sumados por mes y normalizados al 100 %). La selección se aplica de inmediato y sustituye la tabla siguiente; «Curva propia» conserva los valores actuales y solo elimina la asignación a un tipo de estructura."
+
 annahmen_praemienmodell_titel: "**Modelo de prima de mercado**"
 annahmen_praemienmodell_hinweis: "Forma contractual entre operador y organismo de apoyo. Decide qué ocurre por encima del valor de referencia; por debajo, los tres modelos complementan."
 annahmen_praemienmodell_label: "Modelo"
@@ -637,7 +646,7 @@ formular_ppa_start_hilfe: "1 = desde la puesta en marcha. Valores mayores reflej
 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Escenarios comparados**"
-annahmen_szenarien_plot_hinweis: "Valor de mercado solar y generación en horas de precio negativo, una línea por escenario. El segundo gráfico sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
+annahmen_szenarien_plot_hinweis: "Valor de mercado solar, precio mayorista (baseload) y generación en horas de precio negativo, una línea por escenario. La diferencia entre las dos primeras curvas es la canibalización de la FV; la tercera sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
 annahmen_szenario_umfang: "{jahre} años naturales registrados, {monatsjahre} de ellos con valores mensuales."
 annahmen_zahlen_zeigen: "Editar cifras"
 annahmen_zahlen_zeigen_hilfe: "Muestra los valores anuales de este escenario como tabla. Las series mensuales se mantienen mediante el intercambio con Excel: 432 valores por escenario no son tarea de un formulario."

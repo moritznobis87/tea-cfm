@@ -1,0 +1,39 @@
+id: ooe-buchkirchen-silber-kopie-2
+name: OÖ_Buchkirchen_Silber
+variante: 8000er Pacht
+standort: Buchkirchen
+leitvariante: false
+aktiv: false
+inbetriebnahme_jahr: 2027
+inbetriebnahme_monat: 1
+anlagentyp: agri_pv
+nennleistung_kwp: 2800.0
+vollbenutzungsstunden_kwh_kwp: 1122.0
+pacht_eur_kwp_jahr: 8.571428571428571
+pacht_modus: fix
+pacht_umsatzbeteiligung_pct: 0.055
+pacht_mindestpacht_eur_ha_jahr: 0.0
+fremdkapitalzins_pct: 0.046799999999999994
+eigenkapitalquote_pct: 0.1
+eag_zuschlagswert_ct_kwh: 6.1
+gemeindeabgabe_eur_mwh: 0.0
+direktvermarktungskosten_eur_mwh: 5.0
+ppa_anteil_pct: 0.0
+ppa_preis_eur_mwh: 65.0
+ppa_start_jahr: 1
+ppa_laufzeit_jahre: 10
+ppa_indexierung_pct_pa: 0.0
+capex:
+  epc_eur: 1204000.0
+  netzanschluss_eur: 140000.0
+  trasse_eur: 201600.0
+  widmung_eur: 0.0
+  genehmigung_eur: 14000.0
+  sonstige_extern_eur: 84000.0
+  agm_eur: 0.0
+  m_and_a_eur: 21280.0
+  poenale_puffer_eur: 0.0
+  zusatzpositionen: []
+zusatz_opex: []
+marktpreisszenario: Aurora 6/26
+projektflaeche_ha: 3.0

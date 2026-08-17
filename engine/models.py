@@ -470,14 +470,57 @@ class PVProject(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-#: Standard-Einspeisekurve einer PV-Anlage in Mitteleuropa: Anteil der
-#: Jahreserzeugung je Monat (Januar bis Dezember). Platzhalter mit
-#: plausiblem Sommer-Winter-Verhaeltnis - die Kurve gehoert zum Standort
-#: und wird in den Globalen Annahmen gepflegt.
-EINSPEISEKURVE_STANDARD_PCT = [
-    0.025, 0.045, 0.085, 0.110, 0.130, 0.135,
-    0.135, 0.120, 0.095, 0.065, 0.033, 0.022,
-]
+#: Monatsertrag einer 1-kWp-Anlage in kWh, Januar bis Dezember - die
+#: Quelle der Einspeisekurven. Ausgelesen aus PVGIS je Bauform,
+#: derselbe Standort und dieselbe Konfiguration; die Jahressummen sind
+#: 1.148 kWh/kWp (Pult) und 1.429 kWh/kWp (Tracker), also 24,5 %
+#: Nachfuehrgewinn.
+#:
+#: Die Werte stehen hier in ihrer Rohform und nicht schon normiert, weil
+#: sie damit nachpruefbar bleiben: Wer die PVGIS-Abfrage wiederholt,
+#: vergleicht Zahl fuer Zahl. Fuer die Rechnung zaehlt nur ihr
+#: Verhaeltnis - die Jahresmenge kommt aus Leistung und
+#: Vollbenutzungsstunden des Projekts, nicht von hier.
+PVGIS_MONATSERTRAG_KWH_KWP: dict[str, list[float]] = {
+    "Pult": [
+        69.69, 87.20, 112.98, 113.01, 111.01, 113.67,
+        122.11, 110.76, 96.59, 88.06, 63.89, 59.50,
+    ],
+    "Tracker": [
+        85.42, 108.20, 139.14, 141.25, 137.08, 144.45,
+        157.08, 139.65, 118.34, 108.10, 78.07, 72.57,
+    ],
+}
+
+
+def _normiert(werte: list[float]) -> list[float]:
+    """Anteile mit Summe 1 - die Hoehe der Reihe ist gleichgueltig."""
+    gesamt = sum(werte)
+    return [w / gesamt for w in werte]
+
+
+#: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
+#: (Januar bis Dezember), Summe 1. Normiert aus den PVGIS-Monatsertraegen
+#: darueber.
+#:
+#: Der Tracker verschiebt Erzeugung in die langen Tage: Sein
+#: Nachfuehrgewinn liegt im Juli bei 28,6 %, im Dezember nur bei 22,0 %.
+#: Seine Kurve ist deshalb etwas sommerlastiger als die der
+#: Pultaufstaenderung - fuer die Monatsrechnung wesentlich, weil die
+#: Sommermonate die niedrigeren Marktwerte tragen.
+EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
+    bauform: _normiert(werte)
+    for bauform, werte in PVGIS_MONATSERTRAG_KWH_KWP.items()
+}
+
+#: Bauform der Standardkurve - Pult, wie auch beim Aurora-Import
+#: (io_aurora.TECHNOLOGIE_STANDARD).
+EINSPEISEKURVE_STANDARD_BAUFORM = "Pult"
+
+#: Standard-Einspeisekurve: die Pult-Kurve.
+EINSPEISEKURVE_STANDARD_PCT = list(
+    EINSPEISEKURVEN_JE_BAUFORM[EINSPEISEKURVE_STANDARD_BAUFORM]
+)
 
 MONATE = 12
 
@@ -674,12 +717,30 @@ class GlobalAssumptions(BaseModel):
     einspeisekurve_pct_je_monat: list[float] = Field(
         default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)
     )
+    #: Hinterlegte Kurven je Bauform ("Pult", "Tracker"), abgeleitet aus
+    #: Stundenreihen (siehe EINSPEISEKURVEN_JE_BAUFORM). Sie stehen zur
+    #: Auswahl, damit ein Wechsel der Bauform nicht bedeutet, zwoelf
+    #: Zahlen von Hand einzutragen. Gerechnet wird immer mit
+    #: einspeisekurve_pct_je_monat - der aktiven Kurve.
+    einspeisekurven_je_bauform: dict[str, list[float]] = Field(
+        default_factory=lambda: {k: list(v)
+                                 for k, v in EINSPEISEKURVEN_JE_BAUFORM.items()}
+    )
+    #: Welche Bauform die aktive Kurve liefert. Leer = von Hand
+    #: bearbeitete Kurve, die zu keiner der hinterlegten Bauformen mehr
+    #: passt.
+    einspeisekurve_bauform: str = EINSPEISEKURVE_STANDARD_BAUFORM
 
     # --- Marktpraemienmodell --------------------------------------------------
     # Welche Vertragsform zwischen Betreiber und Foerderstelle gilt -
     # siehe PraemienModell. Die Parameter darunter gelten nur fuer
-    # EAG_TOLERANZBAND.
-    praemien_modell: PraemienModell = PraemienModell.EINSEITIG_CFD
+    # EAG_TOLERANZBAND. Der Standard folgt dem Laenderschalter
+    # (markt_system, Vorbelegung Oesterreich): das EAG kennt das
+    # Toleranzband, das deutsche EEG den einseitigen CfD. Der Wechsel
+    # der Marktsystematik stellt das Modell mit um
+    # (app/views/assumptions.py::_wechsle_markt_system), danach bleibt
+    # es frei waehlbar.
+    praemien_modell: PraemienModell = PraemienModell.EAG_TOLERANZBAND
     #: Ab welcher Engpassleistung die Rueckzahlungspflicht greift
     #: (§ 10 EAG: Photovoltaik ab 5 MW).
     eag_rueckzahlung_ab_mw: float = Field(ge=0, default=5.0)

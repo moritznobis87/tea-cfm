@@ -35,8 +35,16 @@ VORLAGE = ROOT / "data" / "projects" / "template-agri.yaml"
 
 
 def _projekt(name: str, variante: str = "", pid: str | None = None) -> PVProject:
+    """Ein neutrales Projekt auf Grundlage der Vorlage.
+
+    Standort und Leitfall werden bewusst zurueckgesetzt: Die Vorlage ist
+    eine gepflegte Projektdatei und traegt beides: Wer hier nicht
+    aufraeumt, prueft am Ende die Vorlage statt der Logik.
+    """
     p = load_project_yaml(VORLAGE).model_copy(deep=True)
     p.name, p.variante = name, variante
+    p.standort = ""
+    p.leitvariante = False
     p.id = pid or f"{name}-{variante}".strip("-").lower().replace(" ", "-")
     return p
 
@@ -412,6 +420,28 @@ class TestLeitvariante:
         assert leit == sum(
             services.leitvariante_von(v).nennleistung_kwp
             for v in services.gruppiere_nach_standort().values()
+        )
+
+    def test_formular_traegt_die_marke_weiter(self):
+        """Das Formular kennt den Leitfall nicht - es darf ihn deshalb
+        auch nicht loeschen.
+
+        Sonst meldete schon das blosse Oeffnen eines Leitfalls eine
+        offene Aenderung, und ein Speichern aus der Parameterspalte
+        haette die Markierung stillschweigend weggeraeumt.
+        """
+        from streamlit.testing.v1 import AppTest
+
+        from app import services
+
+        leitfall = next(p for p in services.list_projects() if p.leitvariante)
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=300)
+        at.run()
+        [b for b in at.button if b.key == f"open_{leitfall.id}"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+        assert any("keine offenen Änderungen" in c.value for c in at.caption), (
+            "Ein frisch geoeffneter Leitfall meldet eine Aenderung"
         )
 
     def test_marke_ueberlebt_den_excel_rundlauf(self):
@@ -813,3 +843,48 @@ class TestBeschriftungsplaetze:
         ])
         assert plaetze["a"] == ""
         assert plaetze["b"]
+
+
+class TestLegendennamen:
+    """Aus einer Arbeitsmappe entstehen Szenarien mit gemeinsamem Stamm
+    („Aurora Q3/26 GER · Pult · Central"). In der Legende steht sonst
+    dreimal dieselbe Herkunft und einmal der Unterschied."""
+
+    def test_gemeinsamer_stamm_faellt_weg(self):
+        from app.components.charts import _legendennamen
+
+        namen = [
+            "Aurora Q3/26 GER · Pult · Central",
+            "Aurora Q3/26 GER · Pult · Low",
+            "Aurora Q3/26 GER · Tracker · Central",
+        ]
+        assert list(_legendennamen(namen).values()) == [
+            "Pult · Central", "Pult · Low", "Tracker · Central",
+        ]
+
+    def test_ohne_gemeinsamen_stamm_bleibt_alles_stehen(self):
+        from app.components.charts import _legendennamen
+
+        namen = ["Enervis 2025", "Aurora 6/26"]
+        assert _legendennamen(namen) == {n: n for n in namen}
+
+    def test_einzelne_reihe_bleibt_unveraendert(self):
+        from app.components.charts import _legendennamen
+
+        assert _legendennamen(["Aurora 6/26"]) == {"Aurora 6/26": "Aurora 6/26"}
+
+    def test_teilname_bleibt_unterscheidbar(self):
+        """Ist ein Name Anfang des anderen, darf die Kuerzung die beiden
+        nicht zusammenfallen lassen."""
+        from app.components.charts import _legendennamen
+
+        kurz = _legendennamen(["Aurora 6/26", "Aurora 6/26 · Pult"])
+        assert len(set(kurz.values())) == 2
+        assert all(k for k in kurz.values())
+
+    def test_leere_kuerzung_wird_verworfen(self):
+        """Bliebe von einem Namen nichts uebrig, bleiben alle voll."""
+        from app.components.charts import _legendennamen
+
+        namen = ["Aurora · Pult · ", "Aurora · Pult · Central"]
+        assert _legendennamen(namen) == {n: n for n in namen}

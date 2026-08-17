@@ -240,6 +240,9 @@ annahmen_afa_pauschal_hinweis: "AfA und Freibetrag werden im Pauschalmodus nicht
 # --- DataFrame-Spaltennamen bleiben unveraendert, siehe column_config) ---
 annahmen_col_kalenderjahr: "Kalenderjahr"
 annahmen_col_marktwert_solar: "Marktwert Solar (ct/kWh)"
+annahmen_col_baseload: "Großhandelspreis (ct/kWh)"
+annahmen_col_baseload_hilfe: "Baseload-Preis des Szenarios. Er ist die Bezugsgröße der Direktvermarktungskosten im Modus \u201eAnteil am Großhandelspreis\u201c und der Maßstab für den Marktwert Solar: Der Abstand zwischen beiden ist die Kannibalisierung der PV."
+annahmen_kein_baseload: "Für dieses Szenario ist kein Großhandelspreis hinterlegt. Er kommt aus dem Aurora-Import (Arbeitsmappe) oder kann in der Tabelle darunter eingetragen werden. Fehlt er, greifen die Direktvermarktungskosten im Modus \u201eAnteil am Großhandelspreis\u201c ersatzweise auf den Marktwert Solar zurück."
 annahmen_col_neg6h: "Erzeugungsmenge neg. Stunden 6h (%)"
 annahmen_col_neg1h: "Erzeugungsmenge neg. Stunden 1h (%)"
 annahmen_col_position: "Position"
@@ -605,6 +608,12 @@ annahmen_einspeisekurve_hinweis: "Anteil der Jahreserzeugung je Monat. Sie gilt 
 annahmen_einspeisekurve_summe: "Summe der Anteile: {summe} % (wird auf 100 % normiert)."
 annahmen_col_monat: "Monat"
 annahmen_col_anteil_jahreserzeugung: "Anteil Jahreserzeugung (%)"
+
+# --- Einspeisekurve je Bauform (v5.7) ----------------------------------------
+annahmen_bauform_label: "Hinterlegte Kurven"
+annahmen_bauform_eigene: "Eigene Kurve"
+annahmen_bauform_hilfe: "„Pult“ und „Tracker“ sind aus Stundenreihen desselben Standorts und Wetterjahrs abgeleitet (8.760 Werte, monatsweise summiert und auf 100 % normiert). Die Auswahl wirkt sofort und ersetzt die Tabelle darunter; „Eigene Kurve“ behält die aktuellen Werte und löst nur die Zuordnung zur Bauform."
+
 annahmen_praemienmodell_titel: "**Marktprämienmodell**"
 annahmen_praemienmodell_hinweis: "Vertragsform zwischen Betreiber und Förderstelle. Sie bestimmt, was bei Marktpreisen über dem anzulegenden Wert geschieht — unter ihm wird in allen drei Modellen aufgezahlt."
 annahmen_praemienmodell_label: "Modell"
@@ -638,7 +647,7 @@ formular_ppa_start_hilfe: "1 = ab Inbetriebnahme. Höhere Werte bilden ab, dass 
 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Szenarien im Vergleich**"
-annahmen_szenarien_plot_hinweis: "Marktwert Solar und Erzeugungsmenge in Stunden negativer Preise, je Szenario eine Linie. Die zweite Grafik folgt der oben gewählten Regel (6h/1h). Die Zahlen dahinter stehen in den Reitern darunter."
+annahmen_szenarien_plot_hinweis: "Marktwert Solar, Großhandelspreis (Baseload) und Erzeugungsmenge in Stunden negativer Preise, je Szenario eine Linie. Der Abstand der ersten beiden Kurven ist die Kannibalisierung der PV; die dritte folgt der oben gewählten Regel (6h/1h). Die Zahlen dahinter stehen in den Reitern darunter."
 annahmen_szenario_umfang: "{jahre} Kalenderjahre hinterlegt, davon {monatsjahre} mit Monatswerten."
 annahmen_zahlen_zeigen: "Zahlen bearbeiten"
 annahmen_zahlen_zeigen_hilfe: "Blendet die Jahreswerte dieses Szenarios als Tabelle ein. Monatsreihen werden über den Excel-Rundlauf gepflegt — 432 Werte je Szenario sind nichts für eine Eingabemaske."

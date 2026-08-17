@@ -165,6 +165,16 @@ Spaltenerkennung arbeitet über Teilbegriffe statt exakter Namen, weil
 sich Aurora-Exporte zwischen Marktgebieten in Kleinigkeiten
 unterscheiden.
 
+**Einspeisekurven je Bauform**: Die zwölf Monatsanteile stammen aus
+PVGIS-Monatserträgen einer 1-kWp-Anlage – je eine Reihe für Pult und
+Tracker. Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` in
+`engine/models.py` und werden dort beim Laden auf 1 normiert
+(`EINSPEISEKURVEN_JE_BAUFORM`); sie bleiben in ihrer Rohform stehen,
+damit eine wiederholte PVGIS-Abfrage Zahl für Zahl vergleichbar ist.
+`tests/test_einspeisekurve.py` prüft Rohwerte, Normierung und den
+Umschalter. In den globalen Annahmen wird nur zwischen den Bauformen
+umgeschaltet oder von Hand nachgebessert.
+
 **Standort und Variante:** Ein `PVProject` trägt zwei Namen – `name`
 (Standort) und `variante` (Sensitivität, leer = Grundfall). Mehrere
 Varianten desselben Standorts sind weiterhin eigenständige Projekte mit

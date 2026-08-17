@@ -691,6 +691,11 @@ def _felder(
         # Parameterspalte ein stillgelegtes Projekt wieder aktivieren -
         # der Aktiv-Schalter liegt im Ueberlaufmenue, nicht im Formular.
         aktiv=existing.aktiv if existing else True,
+        # Dasselbe fuer den Leitfall: Er wird in der Variantenreihe
+        # gesetzt, nicht hier. Ohne Uebernahme meldete schon das blosse
+        # Oeffnen eines Leitfalls eine offene Aenderung - und Speichern
+        # haette die Markierung stillschweigend geloescht.
+        leitvariante=existing.leitvariante if existing else False,
         inbetriebnahme_jahr=inbetriebnahme_jahr,
         inbetriebnahme_monat=inbetriebnahme_monat,
         anlagentyp=AnlagenTyp.AGRI_PV

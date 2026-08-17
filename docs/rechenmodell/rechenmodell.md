@@ -336,6 +336,7 @@ konsistentes Ausgangspaket:
 | Ertragsbesteuerung | Körperschaftsteuer mit AfA, Freibetrag und Verlustvortrag | Gewerbesteuer mit Freibetrag, ohne Verlustvortrag im Referenzmodell |
 | Zinsmethode im Anlaufjahr | taggenau Act/365 | kaufmännisch 30/360 |
 | Herkunft des anzulegenden Wertes | empirisches Ausschreibungsmodell nach Kapitel 15 | manuelle Vorgabe des erwarteten Zuschlags |
+| Marktprämienmodell | zweiseitiger CfD mit Toleranzband (§ 10 EAG) | einseitiger CfD – kein Rückfluss oberhalb des anzulegenden Wertes |
 
 Die Einzelparameter bleiben nach Auswahl des Marktsystems veränderbar. Der
 Länderschalter stellt somit eine konsistente Vorbelegung dar, ohne die
@@ -651,6 +652,44 @@ die Monatsebene ist also eine reine Verteilung. Alle nachgelagerten
 Schritte (Betriebskosten, Finanzierung, Steuern, Kennzahlen) rechnen
 unverändert auf Jahresscheiben; die Monatsebene wirkt ausschließlich in
 Schritt 3 (Abschnitt 7.9).
+
+### Herkunft der Einspeisekurve
+
+Die Kurve beschreibt die **Form** des Erzeugungsjahres, nicht seine Höhe;
+die Jahresmenge bleibt das Produkt aus Leistung und
+Vollbenutzungsstunden. Hinterlegt sind zwei Kurven, abgeleitet aus
+PVGIS-Monatserträgen einer 1-kWp-Anlage – je einmal für die
+Pultaufständerung und den Tracker, normiert auf
+$\sum_j \theta_j = 1$. Weil nur das Verhältnis der Monatswerte eingeht,
+ist die Einheit der Ausgangsreihe gleichgültig.
+
+| Monat | Pult (kWh/kWp) | Pult (%) | Tracker (kWh/kWp) | Tracker (%) |
+| --- | ---: | ---: | ---: | ---: |
+| Januar | 69,69 | 6,07 | 85,42 | 5,98 |
+| Februar | 87,20 | 7,59 | 108,20 | 7,57 |
+| März | 112,98 | 9,84 | 139,14 | 9,73 |
+| April | 113,01 | 9,84 | 141,25 | 9,88 |
+| Mai | 111,01 | 9,67 | 137,08 | 9,59 |
+| Juni | 113,67 | 9,90 | 144,45 | 10,11 |
+| Juli | 122,11 | 10,63 | 157,08 | 10,99 |
+| August | 110,76 | 9,64 | 139,65 | 9,77 |
+| September | 96,59 | 8,41 | 118,34 | 8,28 |
+| Oktober | 88,06 | 7,67 | 108,10 | 7,56 |
+| November | 63,89 | 5,56 | 78,07 | 5,46 |
+| Dezember | 59,50 | 5,18 | 72,57 | 5,08 |
+| **Jahr** | **1.148,47** | 100 | **1.429,35** | 100 |
+
+Die Nachführung bringt 24,5 % mehr Jahresertrag, verteilt über das Jahr
+aber ungleich: im Juli 28,6 %, im Dezember 22,0 %. Deshalb ist die
+Tracker-Kurve etwas sommerlastiger – für die Monatsrechnung wesentlich,
+weil gerade die Sommermonate die niedrigeren Marktwerte tragen.
+
+Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` in
+`engine/models.py`, die Normierung geschieht dort beim Laden;
+`tests/test_einspeisekurve.py` prüft Rohwerte, Normierung und
+Umschalter. In den globalen Annahmen wird zwischen beiden Bauformen
+umgeschaltet oder eine eigene Kurve eingetragen – letzteres ist der
+Regelfall, sobald für den Standort ein Ertragsgutachten vorliegt.
 
 **Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr, in der
 Monatsauflösung zusätzlich $E_{t,j}$.

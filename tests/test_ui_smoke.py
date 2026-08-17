@@ -29,12 +29,37 @@ def _gehe_zu(at: AppTest, key: str) -> AppTest:
     return at
 
 
-def _oeffne_projekt(at: AppTest) -> AppTest:
-    """Erstes Projekt ueber seine Karte im Portfolio oeffnen."""
-    [b for b in at.button if b.key and b.key.startswith("open_")][0].click()
+def _oeffne_projekt(at: AppTest, projekt_id: str | None = None) -> AppTest:
+    """Ein Projekt ueber seine Karte im Portfolio oeffnen.
+
+    Ohne Kennung das erste - fuer alles, was nur irgendein Projekt
+    braucht.
+    """
+    knoepfe = [b for b in at.button if b.key and b.key.startswith("open_")]
+    if projekt_id is not None:
+        knoepfe = [b for b in knoepfe if b.key == f"open_{projekt_id}"]
+        assert knoepfe, f"Projekt {projekt_id} steht nicht im Portfolio"
+    knoepfe[0].click()
     at.run()
     assert not at.exception
     return at
+
+
+def _unauffaelliges_projekt() -> str:
+    """Kennung eines Projekts, das seine DSCR-Schwellen einhaelt.
+
+    Welches das ist, haengt an den ausgelieferten Projektdaten - die
+    aendern sich mit jedem Datenstand. Deshalb wird es bestimmt und
+    nicht geraten.
+    """
+    from app import services
+
+    kandidaten = [
+        (services.get_valuation(p.id).kpis.dscr_min, p.id)
+        for p in services.list_projects() if p.aktiv
+    ]
+    assert kandidaten, "keine aktiven Projekte ausgeliefert"
+    return max(kandidaten)[1]
 
 
 def _kpi_markup(at: AppTest, gruppe: str) -> str:
@@ -339,7 +364,7 @@ class TestKovenantenStatus:
     def test_unauffaelliges_projekt_meldet_eingehaltene_schwellen(
         self, at: AppTest
     ):
-        at = _oeffne_projekt(at)
+        at = _oeffne_projekt(at, _unauffaelliges_projekt())
         assert not at.exception
         texte = [s.value for s in at.success]
         assert any("DSCR" in t for t in texte), texte
