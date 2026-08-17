@@ -513,7 +513,7 @@ def _felder(
                 wert=f"{eag_zuschlag * 0.75:.2f}",
             ))
 
-        szenario_namen = global_assumptions.szenario_namen or ["Aurora 10/25"]
+        szenario_namen = global_assumptions.szenario_namen or ["Aurora Q3/26 · Pult · Central"]
         default_szenario = existing.marktpreisszenario if existing else szenario_namen[0]
         szenario_index = (
             szenario_namen.index(default_szenario)

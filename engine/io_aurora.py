@@ -567,6 +567,28 @@ TECHNOLOGIE_STANDARD = "Pult"
 PREISSZENARIO_STANDARD = "Central"
 
 
+def zerlege_szenarioname(name: str) -> tuple[str, str, str]:
+    """Zerlegt "Aurora Q3/26 · Pult · Central" in seine drei Teile.
+
+    Rueckgabe: (Stamm, Bauform, Preisszenario). Was fehlt, kommt leer
+    zurueck - von Hand gepflegte Szenarien wie "Enervis 2025" bestehen
+    nur aus dem Stamm.
+
+    Erkannt wird an den Werten, nicht an der Position: Ein Stamm darf
+    Leerzeichen und Ziffern enthalten, und die Reihenfolge der beiden
+    Angaben ist nicht garantiert.
+    """
+    teile = [t.strip() for t in name.split("·") if t.strip()]
+    bauformen = {b.casefold(): b for b in SOLAR_TECHNOLOGIEN.values()}
+    bauform = next((bauformen[t.casefold()] for t in teile
+                    if t.casefold() in bauformen), "")
+    preisszenario = next((t for t in teile if t.casefold() in _SZENARIO_NAMEN), "")
+    stamm = " · ".join(
+        t for t in teile if t not in (bauform, preisszenario)
+    )
+    return stamm, bauform, preisszenario
+
+
 def ist_leitszenario(
     name: str,
     bauform: str = TECHNOLOGIE_STANDARD,
@@ -833,18 +855,36 @@ def lies_arbeitsmappe(inhalt: bytes, dateiname: str) -> AuroraArbeitsmappe:
     )
 
 
+#: Monat des Ausgabestands -> Quartal. Aurora hat die Ausgaben
+#: frueher nach Monat benannt ("Oct25") und benennt sie heute nach
+#: Quartal ("Q3_26"). Im Tool zaehlt eine einzige Schreibweise, sonst
+#: stehen "Oct 25" und "Q4/25" als zwei Jahrgaenge nebeneinander,
+#: obwohl sie dasselbe meinen.
+_MONAT_ZU_QUARTAL = {
+    "jan": 1, "feb": 1, "mar": 1,
+    "apr": 2, "may": 2, "jun": 2,
+    "jul": 3, "aug": 3, "sep": 3,
+    "oct": 4, "nov": 4, "dec": 4,
+}
+
+
 def _quartal_aus_name(dateiname: str) -> str:
-    """Ausgabestand aus dem Dateinamen ("Q3_26", "Oct25") - er macht den
-    Szenarionamen im Tool unterscheidbar."""
-    treffer = re.search(r"(Q[1-4][_ ]?\d{2})", dateiname, re.IGNORECASE)
+    """Ausgabestand aus dem Dateinamen als Quartal ("Q3/26").
+
+    Er macht den Szenarionamen im Tool unterscheidbar. Monatsbenannte
+    Ausgaben werden auf ihr Quartal umgeschrieben: "Jan25" wird "Q1/25",
+    "Oct25" wird "Q4/25".
+    """
+    treffer = re.search(r"(Q[1-4])[_ ]?(\d{2})", dateiname, re.IGNORECASE)
     if treffer:
-        return treffer.group(1).replace("_", "/").upper()
+        return f"{treffer.group(1).upper()}/{treffer.group(2)}"
     treffer = re.search(
         r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[_ ]?(\d{2})",
         dateiname, re.IGNORECASE,
     )
     if treffer:
-        return f"{treffer.group(1).title()} {treffer.group(2)}"
+        quartal = _MONAT_ZU_QUARTAL[treffer.group(1)[:3].lower()]
+        return f"Q{quartal}/{treffer.group(2)}"
     return ""
 
 

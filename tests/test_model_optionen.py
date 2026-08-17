@@ -259,39 +259,54 @@ class TestNegativeStundenRegel:
         assert geladen.negative_stunden_regel == NegativeStundenRegel.EINE_STUNDE
 
 
-class TestAurora626Standarddaten:
-    """Das ausgelieferte Aurora-6/26-Szenario: erstes (Standard-)Szenario
-    mit getrennten 6h/1h-Zeitreihen aus der Marktpreisstudie."""
+class TestAusgelieferteSzenarien:
+    """Die ausgelieferte Sammlung: sechs Aurora-Jahrgaenge in
+    Quartalsschreibweise plus ein von Hand gepflegter Bestand. Die
+    frueheren Kurzszenarien ("Aurora 6/26" und Geschwister) sind
+    entfallen - sie trugen weder Grosshandelspreis noch Bauform."""
 
     @pytest.fixture
     def ausgeliefert(self):
-        from pathlib import Path
+        from pathlib import Path as _P
 
         from engine.io_yaml import load_global_assumptions_yaml
 
         return load_global_assumptions_yaml(
-            Path(__file__).parent.parent / "data" / "global_assumptions.yaml"
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
         )
 
-    def test_aurora_626_ist_erstes_szenario(self, ausgeliefert):
-        assert ausgeliefert.marktpreisszenarien[0].name == "Aurora 6/26"
+    def test_standardszenario_ist_der_aktuelle_jahrgang(self, ausgeliefert):
+        assert (ausgeliefert.marktpreisszenarien[0].name
+                == "Aurora Q3/26 · Pult · Central")
 
-    def test_aurora_szenarien_vor_enervis(self, ausgeliefert):
-        namen = [s.name for s in ausgeliefert.marktpreisszenarien]
-        assert namen[-1] == "Enervis 2025"
-        assert all(n.startswith("Aurora") for n in namen[:-1])
+    def test_alte_kurzszenarien_sind_entfallen(self, ausgeliefert):
+        namen = {s.name for s in ausgeliefert.marktpreisszenarien}
+        assert not ({"Aurora 6/26", "Aurora 04/26", "Aurora 10/25"} & namen)
 
-    def test_aurora_626_stuetzwerte(self, ausgeliefert):
-        a = ausgeliefert.marktpreisszenarien[0]
-        assert a.marktwert_solar_ct_kwh_je_kalenderjahr[2027] == pytest.approx(4.25)
-        assert a.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr[2027] == pytest.approx(0.13)
-        assert a.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[2027] == pytest.approx(0.18)
-        # 1h erfasst nie weniger Menge als 6h
-        for jahr, wert_6h in a.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.items():
-            assert a.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr[jahr] >= wert_6h
-        # Voller Horizont (2025/2026 mit 2027-Werten aufgefuellt)
-        assert min(a.marktwert_solar_ct_kwh_je_kalenderjahr) == 2025
-        assert max(a.marktwert_solar_ct_kwh_je_kalenderjahr) == 2060
+    def test_kein_marktgebiet_im_namen(self, ausgeliefert):
+        """"GER" stand frueher im Namen und trug nichts bei, solange
+        alle Mappen dasselbe Gebiet betreffen."""
+        assert all("GER" not in s.name for s in ausgeliefert.marktpreisszenarien)
+
+    def test_jahrgaenge_in_quartalsschreibweise(self, ausgeliefert):
+        """Aurora benannte Ausgaben frueher nach Monat; im Tool zaehlt
+        eine Schreibweise, sonst stehen "Oct 25" und "Q4/25" als zwei
+        Jahrgaenge nebeneinander."""
+        namen = {s.name for s in ausgeliefert.marktpreisszenarien}
+        assert all(not any(m in n for m in ("Jan ", "Apr ", "Oct "))
+                   for n in namen)
+        for jahrgang in ("Q1/25", "Q2/25", "Q4/25", "Q1/26", "Q2/26", "Q3/26"):
+            assert f"Aurora {jahrgang} · Pult · Central" in namen
+
+    def test_alle_projekte_rechnen_mit_dem_standardszenario(self):
+        from app import services
+
+        vorhanden = {s.name for s in services.get_global_assumptions()
+                     .marktpreisszenarien}
+        for projekt in services.list_projects():
+            assert projekt.marktpreisszenario in vorhanden, (
+                f"{projekt.id} verweist auf ein Szenario, das es nicht gibt"
+            )
 
 
 class TestAuroraQ326Szenarien:
@@ -314,11 +329,11 @@ class TestAuroraQ326Szenarien:
         namen = {s.name for s in ausgeliefert.marktpreisszenarien}
         for bauform in ("Pult", "Tracker"):
             for szenario in ("Central", "Low", "High"):
-                assert f"Aurora Q3/26 GER · {bauform} · {szenario}" in namen
+                assert f"Aurora Q3/26 · {bauform} · {szenario}" in namen
 
     def _q326(self, ga, bauform, szenario):
         return [s for s in ga.marktpreisszenarien
-                if s.name == f"Aurora Q3/26 GER · {bauform} · {szenario}"][0]
+                if s.name == f"Aurora Q3/26 · {bauform} · {szenario}"][0]
 
     def test_grosshandelspreise_jaehrlich_und_monatlich(self, ausgeliefert):
         for bauform in ("Pult", "Tracker"):
@@ -379,24 +394,24 @@ class TestAuroraJahrgaenge:
             _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
         )
 
-    JAHRGAENGE = ["Jan 25", "Apr 25", "Oct 25", "Q1/26", "Q2/26", "Q3/26"]
+    JAHRGAENGE = ["Q1/25", "Q2/25", "Q4/25", "Q1/26", "Q2/26", "Q3/26"]
 
     def test_jeder_jahrgang_mit_beiden_bauformen(self, ausgeliefert):
         namen = {s.name for s in ausgeliefert.marktpreisszenarien}
         for jahrgang in self.JAHRGAENGE:
             for bauform in ("Pult", "Tracker"):
-                assert f"Aurora {jahrgang} GER · {bauform} · Central" in namen
+                assert f"Aurora {jahrgang} · {bauform} · Central" in namen
 
     def test_nur_der_aktuelle_jahrgang_fuehrt_low_und_high(self, ausgeliefert):
         namen = {s.name for s in ausgeliefert.marktpreisszenarien}
         for szenario in ("Low", "High"):
-            assert f"Aurora Q3/26 GER · Pult · {szenario}" in namen
-            assert f"Aurora Q2/26 GER · Pult · {szenario}" not in namen
+            assert f"Aurora Q3/26 · Pult · {szenario}" in namen
+            assert f"Aurora Q2/26 · Pult · {szenario}" not in namen
 
     def test_alle_jahrgaenge_mit_grosshandelspreis(self, ausgeliefert):
         for jahrgang in self.JAHRGAENGE:
             s = [x for x in ausgeliefert.marktpreisszenarien
-                 if x.name == f"Aurora {jahrgang} GER · Pult · Central"][0]
+                 if x.name == f"Aurora {jahrgang} · Pult · Central"][0]
             assert len(s.baseload_ct_kwh_je_kalenderjahr) >= 30
             assert len(s.baseload_ct_kwh_je_monat) >= 30
 
@@ -406,7 +421,7 @@ class TestAuroraJahrgaenge:
         Jahrgaenge vermutlich vertauscht oder falsch umbasiert."""
         werte = [
             [x for x in ausgeliefert.marktpreisszenarien
-             if x.name == f"Aurora {j} GER · Pult · Central"][0]
+             if x.name == f"Aurora {j} · Pult · Central"][0]
             .marktwert_solar_ct_kwh_je_kalenderjahr[2035]
             for j in self.JAHRGAENGE
         ]
@@ -422,7 +437,7 @@ class TestAuroraJahrgaenge:
         waehrend zwei Jahre Inflation 4 % ausmachen wuerden."""
         baseloads = [
             [x for x in ausgeliefert.marktpreisszenarien
-             if x.name == f"Aurora {j} GER · Pult · Central"][0]
+             if x.name == f"Aurora {j} · Pult · Central"][0]
             .baseload_ct_kwh_je_kalenderjahr[2035]
             for j in self.JAHRGAENGE
         ]
@@ -438,10 +453,10 @@ class TestUebersichtsauswahl:
     def test_leitszenario_ist_pult_und_central(self):
         from engine.io_aurora import ist_leitszenario
 
-        assert ist_leitszenario("Aurora Q3/26 GER · Pult · Central")
-        assert not ist_leitszenario("Aurora Q3/26 GER · Tracker · Central")
-        assert not ist_leitszenario("Aurora Q3/26 GER · Pult · Low")
-        assert not ist_leitszenario("Aurora Q3/26 GER · Pult · High")
+        assert ist_leitszenario("Aurora Q3/26 · Pult · Central")
+        assert not ist_leitszenario("Aurora Q3/26 · Tracker · Central")
+        assert not ist_leitszenario("Aurora Q3/26 · Pult · Low")
+        assert not ist_leitszenario("Aurora Q3/26 · Pult · High")
 
     def test_namen_ohne_schema_bleiben_sichtbar(self):
         """Ein von Hand gepflegter Bestand darf nicht aus der Uebersicht
@@ -460,7 +475,7 @@ class TestUebersichtsauswahl:
         from engine.io_aurora import ist_leitszenario
 
         assert ist_leitszenario(
-            "Aurora Q3/26 GER · Tracker · High",
+            "Aurora Q3/26 · Tracker · High",
             bauform="Tracker", preisszenario="High",
         )
 
@@ -476,8 +491,8 @@ class TestUebersichtsauswahl:
             _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
         )
         gezeigt = [s for s in ga.marktpreisszenarien if ist_leitszenario(s.name)]
-        assert len(gezeigt) == 10
-        assert len(ga.marktpreisszenarien) == 20
+        assert len(gezeigt) == 7
+        assert len(ga.marktpreisszenarien) == 17
         assert all("Tracker" not in s.name for s in gezeigt)
         assert all(" · Low" not in s.name and " · High" not in s.name
                    for s in gezeigt)

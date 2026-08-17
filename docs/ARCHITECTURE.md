@@ -175,6 +175,17 @@ damit eine wiederholte PVGIS-Abfrage Zahl für Zahl vergleichbar ist.
 Umschalter. In den globalen Annahmen wird nur zwischen den Bauformen
 umgeschaltet oder von Hand nachgebessert.
 
+**Szenarionamen** folgen dem Schema `Stamm · Bauform ·
+Preisszenario` (`Aurora Q3/26 · Pult · Central`).
+`io_aurora.zerlege_szenarioname()` zerlegt sie wieder – erkannt wird an
+den Werten, nicht an der Position. Darauf bauen drei Dinge auf: die
+Reiter der globalen Annahmen (einer je Stamm, Bauform und
+Preisszenario werden darin gewählt), die Legende der
+Szenariendiagramme (nennt nur, was sich unterscheidet) und die
+Übersichtsauswahl. Ausgabestände werden beim Import auf Quartale
+normiert (`Oct25` → `Q4/25`), damit derselbe Jahrgang nicht in zwei
+Schreibweisen nebeneinandersteht.
+
 **Übersicht und Auswahl:** Aus einer Arbeitsmappe entstehen bis zu sechs
 Szenarien je Jahrgang. Die Szenariendiagramme der globalen Annahmen
 zeigen deshalb je Familie eine Kurve – `io_aurora.ist_leitszenario()`

@@ -718,7 +718,7 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 marktpreisszenario=(
                     str(r["marktpreisszenario"])
                     if pd.notna(r["marktpreisszenario"])
-                    else "Aurora 10/25"
+                    else "Aurora Q3/26 · Pult · Central"
                 ),
                 projektflaeche_ha=(
                     float(r["projektflaeche_ha"])

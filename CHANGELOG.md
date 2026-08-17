@@ -1,5 +1,29 @@
 # Changelog
 
+## v5.9 – Szenarien aufgeräumt: Jahrgänge statt Kurzszenarien (2026-08)
+
+- **Drei Kurzszenarien entfallen** („Aurora 6/26", „Aurora 04/26",
+  „Aurora 10/25"). Sie trugen weder Großhandelspreis noch Bauform; die
+  Jahrgangsszenarien aus der Arbeitsmappe ersetzen sie vollständig.
+  **Alle Projekte rechnen jetzt mit „Aurora Q3/26 · Pult · Central"** –
+  dem aktuellen Jahrgang.
+- **Einheitliche Schreibweise der Jahrgänge**: Aurora benannte seine
+  Ausgaben früher nach Monat, heute nach Quartal. Im Tool zählt eine
+  Schreibweise, sonst stünden „Oct 25" und „Q4/25" als zwei Jahrgänge
+  nebeneinander. Aus Jan 25 wird **Q1/25**, aus Apr 25 **Q2/25**, aus
+  Oct 25 **Q4/25** – auch für künftige Importe alter Mappen.
+- **Kein Marktgebiet mehr im Namen**: „GER" trug nichts bei, solange
+  alle Mappen dasselbe Gebiet betreffen, und ließ die Legende
+  überlaufen.
+- **Legende nennt nur den Unterschied**: Bauform und Preisszenario
+  stehen dort nur noch, wenn sie sich zwischen den gezeigten Kurven
+  unterscheiden. In der Übersicht bleibt damit „Q3/26", „Q2/26" …
+  stehen statt dreimal derselbe Zusatz.
+- **Ein Reiter je Jahrgang** statt je Kurve: Bauform und Preisszenario
+  werden im Reiter gewählt, wo sie hingehören. Aus siebzehn Reitern
+  werden sieben, und der Vergleich Pult/Tracker ist ein Klick statt
+  eines Reiterwechsels.
+
 ## v5.8 – Übersicht auf die Leitszenarien beschränkt (2026-08)
 
 - Aus jeder Aurora-Arbeitsmappe entstehen bis zu sechs Szenarien je

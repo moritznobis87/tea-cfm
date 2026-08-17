@@ -161,10 +161,11 @@ def _aurora_arbeitsmappe(ga: GlobalAssumptions) -> None:
                if io_aurora.TECHNOLOGIE_STANDARD in mappe.technologien else 0),
         horizontal=True, help=txt("oberflaeche.aurora_bauform_hilfe"),
     )
-    vorschlag = " ".join(
-        teil for teil in ("Aurora", mappe.quartal, mappe.geografie[:3].upper())
-        if teil
-    )
+    # Nur Herausgeber und Ausgabestand: Das Marktgebiet stand frueher
+    # mit im Namen ("Aurora Q3/26 GER"), traegt aber nichts bei, solange
+    # alle Mappen dasselbe Gebiet betreffen - und laesst die Legende
+    # ueberlaufen.
+    vorschlag = " ".join(teil for teil in ("Aurora", mappe.quartal) if teil)
     basisname = col_name.text_input(
         txt("oberflaeche.aurora_basisname_label"), value=vorschlag,
         help=txt("oberflaeche.aurora_basisname_hilfe"),
@@ -368,6 +369,52 @@ def _aurora_csv(ga: GlobalAssumptions) -> None:
         ),
         width="stretch", key="aurora_vorschau",
     )
+
+
+def _waehle_aus_familie(stamm: str, geschwister: list[MarktpreisSzenario]):
+    """Bauform und Preisszenario innerhalb eines Jahrgangs waehlen.
+
+    Ein Reiter fuehrt den Jahrgang ("Aurora Q3/26"), nicht die einzelne
+    Kurve - sechs Szenarien je Jahrgang ergaeben sonst eine
+    Reiterleiste, die man scrollen muss. Traegt ein Jahrgang nur eine
+    Kurve (von Hand gepflegte Bestaende), entfaellt die Auswahl.
+    """
+    zerlegt = {
+        s.name: io_aurora.zerlege_szenarioname(s.name) for s in geschwister
+    }
+    bauformen = list(dict.fromkeys(
+        b for _, b, _ in zerlegt.values() if b
+    ))
+    preisszenarien = list(dict.fromkeys(
+        p for _, _, p in zerlegt.values() if p
+    ))
+    if len(geschwister) == 1:
+        return geschwister[0]
+
+    col_bauform, col_preis = st.columns(2)
+    bauform = bauformen[0] if bauformen else ""
+    if len(bauformen) > 1:
+        bauform = col_bauform.radio(
+            txt("oberflaeche.annahmen_familie_bauform_label"), bauformen,
+            horizontal=True, key=f"familie_bauform_{stamm}",
+        )
+    preisszenario = preisszenarien[0] if preisszenarien else ""
+    if len(preisszenarien) > 1:
+        preisszenario = col_preis.radio(
+            txt("oberflaeche.annahmen_familie_preis_label"), preisszenarien,
+            horizontal=True, key=f"familie_preis_{stamm}",
+            help=txt("oberflaeche.annahmen_familie_preis_hilfe"),
+        )
+    for s in geschwister:
+        _, b, p = zerlegt[s.name]
+        if b == bauform and p == preisszenario:
+            return s
+    # Nicht jede Kombination muss vorliegen - die aelteren Jahrgaenge
+    # fuehren nur Central. Dann gilt die erste passende Bauform.
+    for s in geschwister:
+        if zerlegt[s.name][1] == bauform:
+            return s
+    return geschwister[0]
 
 
 #: Kennung der frei bearbeiteten Kurve im Bauform-Umschalter - sie
@@ -577,9 +624,23 @@ def render_assumptions() -> None:
                     width="stretch", key="szenarien_negativ",
                 )
 
-            tabs = st.tabs([s.name for s in ga.marktpreisszenarien])
-            for tab, szenario in zip(tabs, ga.marktpreisszenarien, strict=True):
+            # Ein Reiter je Jahrgang statt je Szenario: Aus einer
+            # Arbeitsmappe entstehen sechs Szenarien, und sechs
+            # Jahrgaenge ergaeben sonst eine Reiterleiste, die man
+            # scrollen muss. Bauform und Preisszenario werden IM Reiter
+            # gewaehlt - dort, wo sie hingehoeren.
+            familien: dict[str, list] = {}
+            for s in ga.marktpreisszenarien:
+                familien.setdefault(
+                    io_aurora.zerlege_szenarioname(s.name)[0], []
+                ).append(s)
+
+            tabs = st.tabs(list(familien))
+            for tab, (stamm, geschwister) in zip(
+                tabs, familien.items(), strict=True
+            ):
                 with tab:
+                    szenario = _waehle_aus_familie(stamm, geschwister)
                     jahre = sorted(
                         set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
                         | set(szenario.baseload_ct_kwh_je_kalenderjahr)
@@ -627,9 +688,13 @@ def render_assumptions() -> None:
                     # Bewusst ein Schalter und kein Klappfeld: Klappfelder
                     # lassen sich in Streamlit nicht ineinander setzen,
                     # und dieser Block steckt bereits in einem.
+                    # Der Schalter haengt am Jahrgang, nicht an der
+                    # einzelnen Kurve: Wer zwischen Pult und Tracker
+                    # vergleicht, will die Zahlen nicht jedes Mal neu
+                    # aufklappen.
                     if not st.toggle(
                         txt("oberflaeche.annahmen_zahlen_zeigen"),
-                        key=f"kurven_zahlen_{szenario.name}",
+                        key=f"kurven_zahlen_{stamm}",
                         help=txt("oberflaeche.annahmen_zahlen_zeigen_hilfe"),
                     ):
                         continue

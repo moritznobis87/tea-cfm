@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = from commissioning. Higher values model the first
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Scenarios compared**"
 annahmen_szenarien_plot_hinweis: "Solar market value, wholesale price (baseload) and generation during negative-price hours, one line per scenario. The gap between the first two curves is PV cannibalisation; the third follows the rule selected above (6h/1h). The numbers behind them are in the tabs below."
+annahmen_familie_bauform_label: "Mounting type"
+annahmen_familie_preis_label: "Price scenario"
+annahmen_familie_preis_hilfe: "Central is the expected path, Low and High the range. Older vintages carry Central only."
 annahmen_szenarien_alle_zeigen: "Show all scenarios ({anzahl} more)"
 annahmen_szenarien_alle_zeigen_hilfe: "Also draws Low, High and the tracker variants. With many vintages the overview quickly becomes unreadable — but for the price range of a single vintage it is exactly right."
 annahmen_szenarien_auswahl_hinweis: "One curve per family is shown: {bauform} and {preisszenario}. Low, High and the other mounting types remain available in the tabs below and in the project selection."
@@ -694,7 +697,7 @@ aurora_mappe_hilfe: "The complete workbook with the sheets \"Central\"/\"Low\"/\
 aurora_mappe_gefunden: "Found: {titel} · {geografie} · price base real {basisjahr}."
 aurora_bauform_hilfe: "\"Pult\" is the south-facing fixed-tilt plant (Aurora: Fixed solar PV), \"Tracker\" the single-axis tracking one. The tracker generates more evenly across the day and is less exposed to the low-priced midday hours — its capture price is noticeably higher."
 aurora_basisname_label: "Scenario name stem"
-aurora_basisname_hilfe: "Scenarios are named \"stem · design · price scenario\", e.g. \"Aurora Q3/26 GER · Pult · Central\". That way they sit side by side in the project and can be run against each other as a sensitivity."
+aurora_basisname_hilfe: "Scenarios are named \"stem · design · price scenario\", e.g. \"Aurora Q3/26 · Pult · Central\". That way they sit side by side in the project and can be run against each other as a sensitivity."
 aurora_szenarien_label: "Price scenarios"
 aurora_szenarien_hilfe: "Each selected price scenario becomes its own market price scenario. Importing all three pays off: the scenario comparison in the \"Risk\" tab then runs the project across all of them and shows the price range as a chart."
 aurora_uebernimm_basisjahr: "Adopt price base"

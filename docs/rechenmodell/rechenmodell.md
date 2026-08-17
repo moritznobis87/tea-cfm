@@ -1474,7 +1474,7 @@ weiterhin dem Rechenergebnis entsprechen.
 | EAG-Zuschlagswert $z$ (Agri-PV, ohne Abschlag) | 6,50 ct/kWh |
 | Förderdauer $F$ / Betriebsdauer $N$ | 20 / 30 Jahre |
 | Degradation $d$ / Sicherheitsabschlag $\sigma$ | 0,25 %/a / 0 % |
-| Marktpreisszenario | Aurora 10/25 |
+| Marktpreisszenario | Aurora Q3/26 · Pult · Central |
 | Marktpreisinflation $\iota$ / Basisjahr $y_B$ | 2,0 % / 2025 |
 | Kosteninflation $\kappa$ | 2,0 % |
 | Steuermodus | Körperschaftsteuer, $\tau = 23\,\%$, $n_{\mathrm{AfA}} = 20$ |
@@ -1497,21 +1497,21 @@ $\pi_1 = 1$ und $f = 1$; Kalenderjahr $y_1 = 2027$.
 $$ E_1 = 3800 \cdot 1400 \cdot (1-0{,}0025)^0 \cdot 1 \cdot 1 = 5.320.000\ \mathrm{kWh} $$
 
 **Schritt 3 – Erlös.** Kurvenwert des Szenarios für 2027:
-$m^{\mathrm{real}}_1 = 4{,}133$ ct/kWh; Negativmengenanteil
-$\nu_1 = 0{,}222$.
+$m^{\mathrm{real}}_1 = 4{,}247$ ct/kWh; Negativmengenanteil
+$\nu_1 = 0{,}129$.
 
-$$ m_1 = 4{,}133 \cdot 1{,}02^{\,2027-2025} = 4{,}133 \cdot 1{,}0404 = 4{,}300\ \text{ct/kWh} $$
+$$ m_1 = 4{,}247 \cdot 1{,}02^{\,2027-2025} = 4{,}247 \cdot 1{,}0404 = 4{,}419\ \text{ct/kWh} $$
 
-$$ p_1 = (6{,}50 - 4{,}300)^{+} = 2{,}200\ \text{ct/kWh}, \qquad s_1 = 4{,}300 + 2{,}200 = 6{,}500\ \text{ct/kWh} $$
+$$ p_1 = (6{,}50 - 4{,}419)^{+} = 2{,}081\ \text{ct/kWh}, \qquad s_1 = 4{,}419 + 2{,}081 = 6{,}500\ \text{ct/kWh} $$
 
 Modus „Marktwert“: Der Markterlös bleibt für die gesamte Menge erhalten,
 nur die Prämie entfällt für den Anteil $\nu_1$.
 
-$$ R^{\mathrm{markt}}_1 = \frac{5.320.000 \cdot 4{,}300}{100} = 228.759\ \text{€} $$
+$$ R^{\mathrm{markt}}_1 = \frac{5.320.000 \cdot 4{,}419}{100} = 235.068\ \text{€} $$
 
-$$ R^{\text{Prämie}}_1 = \frac{5.320.000 \cdot (1 - 0{,}222) \cdot 2{,}200}{100} = 91.058\ \text{€} $$
+$$ R^{\text{Prämie}}_1 = \frac{5.320.000 \cdot (1 - 0{,}129) \cdot 2{,}081}{100} = 96.447\ \text{€} $$
 
-$$ R_1 = 319.817\ \text{€} $$
+$$ R_1 = 331.516\ \text{€} $$
 
 **Schritt 4 – Betriebskosten.** Im ersten Jahr ist
 $\Theta_1 = 1{,}02^0 = 1$, alle Indexexponenten sind null:
@@ -1536,24 +1536,24 @@ $$ T_1 = 174.651 - 97.947 = 76.704\ \text{€} $$
 
 **Schritt 6 – Steuern.**
 
-$$ \mathrm{EBT}^{\mathrm{vA}}_1 = 319.817 - 70.160 - 97.947 = 151.710\ \text{€} $$
+$$ \mathrm{EBT}^{\mathrm{vA}}_1 = 331.516 - 70.160 - 97.947 = 163.408\ \text{€} $$
 
 $$ A_1 = \frac{2.915.100}{20} = 145.755\ \text{€} $$
 
-$$ G_1 = 151.710 - 145.755 - 0 = 5.955\ \text{€} $$
+$$ G_1 = 163.408 - 145.755 - 0 = 17.653\ \text{€} $$
 
 Kein Vortragsbestand ($V_1 = 0$), also $U_1 = 0$ und
-$G^{\mathrm{st}}_1 = 5.955$ €:
+$G^{\mathrm{st}}_1 = 17.653$ €:
 
-$$ S_1 = 5.955 \cdot 0{,}23 = 1.370\ \text{€} $$
+$$ S_1 = 17.653 \cdot 0{,}23 = 4.060\ \text{€} $$
 
 **Schritt 7 – Cashflow.**
 
-$$ \mathrm{CF}^{\mathrm{op}}_1 = 319.817 - 70.160 - 97.947 - 1.370 = 150.340\ \text{€} $$
+$$ \mathrm{CF}^{\mathrm{op}}_1 = 331.516 - 70.160 - 97.947 - 4.060 = 159.348\ \text{€} $$
 
-$$ \mathrm{CF}_1 = 150.340 - 76.704 = 73.636\ \text{€} $$
+$$ \mathrm{CF}_1 = 159.348 - 76.704 = 82.644\ \text{€} $$
 
-$$ \mathrm{CFADS}_1 = 319.817 - 70.160 - 1.370 = 248.287\ \text{€}, \qquad \mathrm{DSCR}_1 = \frac{248.287}{174.651} = 1{,}42 $$
+$$ \mathrm{CFADS}_1 = 331.516 - 70.160 - 4.060 = 257.295\ \text{€}, \qquad \mathrm{DSCR}_1 = \frac{257.295}{174.651} = 1{,}47 $$
 
 **Jahr 0.**
 
@@ -1563,12 +1563,12 @@ $$ \mathrm{CF}_0 = -2.915.100 + 2.332.080 = -583.020\ \text{€} $$
 
 | Jahr | Ertrag (kWh) | Marktwert (ct/kWh) | Vergütung (ct/kWh) | Erlös (€) | OPEX (€) | Zinsen (€) | Tilgung (€) | Steuer (€) | Equity-CF (€) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 5.320.000 | 4,300 | 6,500 | 319.817 | 70.160 | 97.947 | 76.704 | 1.370 | 73.636 |
-| 2 | 5.306.700 | 4,470 | 6,500 | 322.311 | 71.523 | 94.726 | 79.925 | 2.371 | 73.766 |
-| 3 | 5.293.433 | 4,749 | 6,500 | 329.055 | 72.912 | 91.369 | 83.282 | 4.374 | 77.117 |
-| 20 | 5.072.906 | 7,304 | 7,304 | 370.525 | 101.130 | 7.040 | 167.612 | 26.818 | 67.926 |
-| 21 | 5.060.224 | 7,447 | 7,447 | 376.834 | 103.096 | 0 | 0 | 62.960 | 210.778 |
-| 30 | 4.947.501 | 8,142 | 8,142 | 402.842 | 122.609 | 0 | 0 | 64.454 | 215.779 |
+| 1 | 5.320.000 | 4,419 | 6,500 | 331.516 | 70.160 | 97.947 | 76.704 | 4.060 | 82.644 |
+| 2 | 5.306.700 | 4,554 | 6,500 | 334.297 | 71.523 | 94.726 | 79.925 | 5.128 | 82.996 |
+| 3 | 5.293.433 | 4,520 | 6,500 | 330.240 | 72.912 | 91.369 | 83.282 | 4.647 | 78.030 |
+| 20 | 5.072.906 | 7,021 | 7,021 | 356.147 | 101.130 | 7.040 | 167.612 | 23.511 | 56.854 |
+| 21 | 5.060.224 | 7,238 | 7,238 | 366.273 | 103.096 | 0 | 0 | 60.531 | 202.646 |
+| 30 | 4.947.501 | 7,930 | 7,930 | 392.329 | 122.609 | 0 | 0 | 62.036 | 207.685 |
 
 Drei Muster lassen sich daran ablesen:
 
@@ -1578,7 +1578,7 @@ Drei Muster lassen sich daran ablesen:
   Marktwert über den Zuschlagswert gehoben – die Prämie ist von selbst
   auf null gelaufen, noch bevor die Förderdauer endet.
 - **Ab Jahr 21** entfallen Zins und Tilgung (Kreditlaufzeit 20 Jahre).
-  Der Equity-Cashflow springt von rund 68.000 € auf rund 211.000 €,
+  Der Equity-Cashflow springt von rund 57.000 € auf rund 203.000 €,
   gleichzeitig steigt die Steuerlast deutlich, weil die AfA (ebenfalls
   20 Jahre) ausgelaufen ist.
 - **Die Steuerlast der ersten Jahre ist klein**, weil AfA (145.755 €/a)
@@ -1590,11 +1590,11 @@ Drei Muster lassen sich daran ablesen:
 | --- | --- |
 | Investitionsvolumen $I$ | 2.915.100 € |
 | Eigenkapitaleinsatz $EK$ (Jahr 0) | 583.020 € |
-| EK-Rendite (XIRR) | 13,80 % |
-| NPV bei 8 % | 442.171 € |
-| Minimaler DSCR | 1,37 |
+| EK-Rendite (XIRR) | 13,57 % |
+| NPV bei 8 % | 406.267 € |
+| Minimaler DSCR | 1,26 |
 | Payback (kumulierter Equity-CF $\geq 0$) | Jahr 8 |
-| Summe Erlöse über 30 Jahre | 10.725.258 € |
+| Summe Erlöse über 30 Jahre | 10.532.079 € |
 
 # 14 Sensitivität, Risiko und Gebotsuntergrenze
 
