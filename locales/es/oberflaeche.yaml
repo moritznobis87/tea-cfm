@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = desde la puesta en marcha. Valores mayores reflej
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Escenarios comparados**"
 annahmen_szenarien_plot_hinweis: "Valor de mercado solar, precio mayorista (baseload) y generación en horas de precio negativo, una línea por escenario. La diferencia entre las dos primeras curvas es la canibalización de la FV; la tercera sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
+annahmen_familie_bauform_label: "Tipo de estructura"
+annahmen_familie_preis_label: "Escenario de precios"
+annahmen_familie_preis_hilfe: "Central es la senda esperada, Low y High el rango. Las ediciones antiguas solo incluyen Central."
 annahmen_szenarien_alle_zeigen: "Mostrar todos los escenarios ({anzahl} más)"
 annahmen_szenarien_alle_zeigen_hilfe: "Dibuja también Low, High y las variantes con tracker. Con muchas ediciones la vista se vuelve ilegible enseguida, pero para el rango de precios de una sola edición es justo lo adecuado."
 annahmen_szenarien_auswahl_hinweis: "Se muestra una curva por familia: {bauform} y {preisszenario}. Low, High y los demás tipos de estructura siguen disponibles en las pestañas de abajo y en la selección del proyecto."
@@ -694,7 +697,7 @@ aurora_mappe_hilfe: "El libro completo con las hojas «Central»/«Low»/«High�
 aurora_mappe_gefunden: "Encontrado: {titel} · {geografie} · base de precios real {basisjahr}."
 aurora_bauform_hilfe: "«Pult» es la instalación fija orientada al sur (Aurora: Fixed solar PV), «Tracker» la de seguimiento a un eje. El tracker genera de forma más repartida a lo largo del día y sufre menos las horas centrales de precio bajo: su valor de mercado es claramente mayor."
 aurora_basisname_label: "Raíz del nombre de los escenarios"
-aurora_basisname_hilfe: "Los escenarios se llaman «raíz · tecnología · escenario de precio», p. ej. «Aurora Q3/26 GER · Pult · Central». Así conviven en el proyecto y pueden compararse como sensibilidad."
+aurora_basisname_hilfe: "Los escenarios se llaman «raíz · tecnología · escenario de precio», p. ej. «Aurora Q3/26 · Pult · Central». Así conviven en el proyecto y pueden compararse como sensibilidad."
 aurora_szenarien_label: "Escenarios de precio"
 aurora_szenarien_hilfe: "Cada escenario seleccionado se convierte en un escenario de precio propio. Importar los tres merece la pena: la comparación de escenarios de la pestaña «Riesgo» calcula el proyecto con todos y muestra el rango de precios."
 aurora_uebernimm_basisjahr: "Adoptar la base de precios"

@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = dès la mise en service. Des valeurs plus élevé
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Comparaison des scénarios**"
 annahmen_szenarien_plot_hinweis: "Valeur de marché solaire, prix de gros (baseload) et production pendant les heures à prix négatifs, une ligne par scénario. L'écart entre les deux premières courbes est la cannibalisation du PV ; la troisième suit la règle choisie ci-dessus (6h/1h). Les chiffres correspondants figurent dans les onglets ci-dessous."
+annahmen_familie_bauform_label: "Type de structure"
+annahmen_familie_preis_label: "Scénario de prix"
+annahmen_familie_preis_hilfe: "Central est la trajectoire attendue, Low et High la fourchette. Les millésimes plus anciens ne comportent que Central."
 annahmen_szenarien_alle_zeigen: "Afficher tous les scénarios ({anzahl} de plus)"
 annahmen_szenarien_alle_zeigen_hilfe: "Trace également Low, High et les variantes tracker. Avec de nombreux millésimes la vue devient vite illisible — mais pour la fourchette de prix d'un seul millésime elle est exactement ce qu'il faut."
 annahmen_szenarien_auswahl_hinweis: "Une courbe par famille est affichée : {bauform} et {preisszenario}. Low, High et les autres types de structure restent disponibles dans les onglets ci-dessous et dans la sélection du projet."
@@ -694,7 +697,7 @@ aurora_mappe_hilfe: "Le classeur complet avec les feuilles « Central »/« Low 
 aurora_mappe_gefunden: "Trouvé : {titel} · {geografie} · base de prix réelle {basisjahr}."
 aurora_bauform_hilfe: "« Pult » est l'installation fixe orientée sud (Aurora : Fixed solar PV), « Tracker » celle à suivi mono-axe. Le tracker produit plus régulièrement sur la journée et subit moins les heures de midi peu rémunérées — sa valeur de marché est nettement plus élevée."
 aurora_basisname_label: "Racine du nom des scénarios"
-aurora_basisname_hilfe: "Les scénarios s'appellent « racine · technologie · scénario de prix », par ex. « Aurora Q3/26 GER · Pult · Central ». Ils figurent ainsi côte à côte dans le projet et peuvent servir de sensibilité."
+aurora_basisname_hilfe: "Les scénarios s'appellent « racine · technologie · scénario de prix », par ex. « Aurora Q3/26 · Pult · Central ». Ils figurent ainsi côte à côte dans le projet et peuvent servir de sensibilité."
 aurora_szenarien_label: "Scénarios de prix"
 aurora_szenarien_hilfe: "Chaque scénario sélectionné devient un scénario de prix de marché distinct. Importer les trois est utile : la comparaison de scénarios de l'onglet « Risque » calcule alors le projet sur tous et montre la fourchette de prix."
 aurora_uebernimm_basisjahr: "Reprendre la base de prix"

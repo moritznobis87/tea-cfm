@@ -259,7 +259,11 @@ class TestGrosshandelspreis:
         at = _app()
         _navigiere(at, "nav_annahmen")
         # Erst mit aufgeklappten Zahlen wird das Szenario neu gebaut.
-        at.session_state[f"kurven_zahlen_{name}"] = True
+        from engine.io_aurora import zerlege_szenarioname
+
+        # Der Schalter haengt am Jahrgang, nicht an der einzelnen Kurve.
+        stamm = zerlege_szenarioname(name)[0]
+        at.session_state[f"kurven_zahlen_{stamm}"] = True
         at.run()
         [b for b in at.button if "peichern" in (b.label or "")][0].click()
         at.run()
@@ -270,6 +274,45 @@ class TestGrosshandelspreis:
         assert neu.baseload_ct_kwh_je_kalenderjahr[jahre[0]] == pytest.approx(8.0)
         assert neu.baseload_ct_kwh_je_kalenderjahr[jahre[2]] == pytest.approx(10.0)
         assert neu.baseload_ct_kwh_je_monat[jahre[0]] == pytest.approx([8.0] * 12)
+
+
+class TestSzenarienreiter:
+    """Ein Reiter je Jahrgang, nicht je Kurve: Aus einer Arbeitsmappe
+    entstehen sechs Szenarien, und sechs Jahrgaenge ergaeben sonst eine
+    Reiterleiste, die man scrollen muss."""
+
+    def test_reiter_fuehren_jahrgaenge(self, _ga_datei_gesichert):
+        from engine.io_aurora import zerlege_szenarioname
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml(_GA_PFAD)
+        erwartet = list(dict.fromkeys(
+            zerlege_szenarioname(s.name)[0] for s in ga.marktpreisszenarien
+        ))
+
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        assert not at.exception, at.exception
+        beschriftungen = {
+            e.label for e in at.get("tab") if e.label
+        }
+        for stamm in erwartet:
+            assert stamm in beschriftungen
+        # Die einzelne Kurve steht nicht mehr in der Reiterleiste.
+        assert "Aurora Q3/26 · Pult · Central" not in beschriftungen
+
+    def test_auswahl_im_reiter_wechselt_die_kurve(self, _ga_datei_gesichert):
+        """Bauform und Preisszenario werden im Reiter gewaehlt - die
+        Tabelle muss der Auswahl folgen."""
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        at.session_state["kurven_zahlen_Aurora Q3/26"] = True
+        at.session_state["familie_preis_Aurora Q3/26"] = "High"
+        at.run()
+        assert not at.exception, at.exception
+        schluessel = {k for k in at.session_state.filtered_state
+                      if k.startswith("kurven_editor_")}
+        assert "kurven_editor_Aurora Q3/26 · Pult · High" in schluessel
 
 
 class TestMarktsystemSetztPraemienmodell:

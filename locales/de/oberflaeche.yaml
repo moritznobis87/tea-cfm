@@ -648,6 +648,9 @@ formular_ppa_start_hilfe: "1 = ab Inbetriebnahme. Höhere Werte bilden ab, dass 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Szenarien im Vergleich**"
 annahmen_szenarien_plot_hinweis: "Marktwert Solar, Großhandelspreis (Baseload) und Erzeugungsmenge in Stunden negativer Preise, je Szenario eine Linie. Der Abstand der ersten beiden Kurven ist die Kannibalisierung der PV; die dritte folgt der oben gewählten Regel (6h/1h). Die Zahlen dahinter stehen in den Reitern darunter."
+annahmen_familie_bauform_label: "Bauform"
+annahmen_familie_preis_label: "Preisszenario"
+annahmen_familie_preis_hilfe: "Central ist der Erwartungspfad, Low und High die Spanne. Ältere Jahrgänge führen nur Central."
 annahmen_szenarien_alle_zeigen: "Alle Szenarien zeigen ({anzahl} weitere)"
 annahmen_szenarien_alle_zeigen_hilfe: "Zeichnet auch Low, High und die Tracker-Varianten. Bei vielen Jahrgängen wird die Übersicht damit schnell unleserlich — für die Preisspanne eines einzelnen Jahrgangs ist sie aber genau richtig."
 annahmen_szenarien_auswahl_hinweis: "Gezeigt wird je Familie eine Kurve: {bauform} und {preisszenario}. Low, High und die übrigen Bauformen stehen in den Reitern darunter und in der Projektauswahl unverändert bereit."
@@ -695,7 +698,7 @@ aurora_mappe_hilfe: "Die vollständige Mappe mit den Blättern „Central\"/„L
 aurora_mappe_gefunden: "Gefunden: {titel} · {geografie} · Preisbasis real {basisjahr}."
 aurora_bauform_hilfe: "„Pult\" ist die südausgerichtete Festanlage (Aurora: Fixed solar PV), „Tracker\" die einachsig nachgeführte (Tracking solar PV). Der Tracker erzeugt breiter über den Tag verteilt und trifft die preisschwachen Mittagsstunden weniger — sein Marktwert liegt spürbar höher."
 aurora_basisname_label: "Namensstamm der Szenarien"
-aurora_basisname_hilfe: "Die Szenarien heißen „Stamm · Bauform · Preisszenario\", also z.B. „Aurora Q3/26 GER · Pult · Central\". So stehen sie im Projekt nebeneinander und lassen sich als Sensitivität gegeneinander rechnen."
+aurora_basisname_hilfe: "Die Szenarien heißen „Stamm · Bauform · Preisszenario\", also z.B. „Aurora Q3/26 · Pult · Central\". So stehen sie im Projekt nebeneinander und lassen sich als Sensitivität gegeneinander rechnen."
 aurora_szenarien_label: "Preisszenarien"
 aurora_szenarien_hilfe: "Je gewähltem Preisszenario entsteht ein eigenes Marktpreisszenario. Alle drei zu importieren lohnt sich: Der Szenarienvergleich im Reiter „Risiko\" rechnet das Projekt dann automatisch über alle und zeigt die Preisspanne als Bild."
 aurora_uebernimm_basisjahr: "Preisbasis übernehmen"

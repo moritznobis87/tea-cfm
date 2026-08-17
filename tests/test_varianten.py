@@ -845,6 +845,42 @@ class TestBeschriftungsplaetze:
         assert plaetze["b"]
 
 
+class TestSzenarionamen:
+    """Zerlegung "Stamm · Bauform · Preisszenario" - Grundlage von
+    Legende, Reitern und Uebersichtsauswahl."""
+
+    def test_dreiteiliger_name(self):
+        from engine.io_aurora import zerlege_szenarioname
+
+        assert zerlege_szenarioname("Aurora Q3/26 · Pult · Central") == (
+            "Aurora Q3/26", "Pult", "Central",
+        )
+
+    def test_name_ohne_zusaetze(self):
+        from engine.io_aurora import zerlege_szenarioname
+
+        assert zerlege_szenarioname("Enervis 2025") == ("Enervis 2025", "", "")
+
+    def test_reihenfolge_ist_egal(self):
+        from engine.io_aurora import zerlege_szenarioname
+
+        assert zerlege_szenarioname("Aurora Q1/25 · High · Tracker") == (
+            "Aurora Q1/25", "Tracker", "High",
+        )
+
+    def test_monatsausgaben_werden_zu_quartalen(self):
+        """Aurora benannte Ausgaben frueher nach Monat - im Tool zaehlt
+        eine Schreibweise, sonst stuenden "Oct 25" und "Q4/25" als zwei
+        Jahrgaenge nebeneinander."""
+        from engine.io_aurora import _quartal_aus_name
+
+        assert _quartal_aus_name("Aurora_Jan25_DEU.xlsm") == "Q1/25"
+        assert _quartal_aus_name("Aurora_Apr25_DEU.xlsx") == "Q2/25"
+        assert _quartal_aus_name("Aurora_Oct25_DEU_1.xlsx") == "Q4/25"
+        assert _quartal_aus_name("Aurora_Q3_26_DEU.xlsx") == "Q3/26"
+        assert _quartal_aus_name("irgendwas.xlsx") == ""
+
+
 class TestLegendennamen:
     """Aus einer Arbeitsmappe entstehen Szenarien mit gemeinsamem Stamm
     („Aurora Q3/26 GER · Pult · Central"). In der Legende steht sonst
@@ -854,13 +890,40 @@ class TestLegendennamen:
         from app.components.charts import _legendennamen
 
         namen = [
-            "Aurora Q3/26 GER · Pult · Central",
-            "Aurora Q3/26 GER · Pult · Low",
-            "Aurora Q3/26 GER · Tracker · Central",
+            "Aurora Q3/26 · Pult · Central",
+            "Aurora Q3/26 · Pult · Low",
+            "Aurora Q3/26 · Tracker · Central",
         ]
         assert list(_legendennamen(namen).values()) == [
             "Pult · Central", "Pult · Low", "Tracker · Central",
         ]
+
+    def test_gleiche_bauform_und_preisszenario_fallen_weg(self):
+        """Zeigt die Uebersicht nur Pult und Central, ist beides in
+        jeder Zeile derselbe Text - er gehoert nicht in die Legende."""
+        from app.components.charts import _legendennamen
+
+        namen = [
+            "Aurora Q3/26 · Pult · Central",
+            "Aurora Q2/26 · Pult · Central",
+            "Aurora Q1/25 · Pult · Central",
+        ]
+        assert list(_legendennamen(namen).values()) == [
+            "Q3/26", "Q2/26", "Q1/25",
+        ]
+
+    def test_bestand_ohne_schema_bleibt_lesbar(self):
+        """Ein Name ohne Bauform und Preisszenario darf die Kuerzung
+        nicht verhindern - aber auch nicht selbst verstuemmelt werden."""
+        from app.components.charts import _legendennamen
+
+        kurz = _legendennamen([
+            "Aurora Q3/26 · Pult · Central",
+            "Aurora Q2/26 · Pult · Central",
+            "Enervis 2025",
+        ])
+        assert kurz["Enervis 2025"] == "Enervis 2025"
+        assert kurz["Aurora Q3/26 · Pult · Central"] == "Aurora Q3/26"
 
     def test_ohne_gemeinsamen_stamm_bleibt_alles_stehen(self):
         from app.components.charts import _legendennamen

@@ -421,8 +421,8 @@ class PVProject(BaseModel):
     zusatz_opex: list[OpexItem] = Field(default_factory=list)
 
     # Wahl des Marktpreisszenarios (siehe GlobalAssumptions.marktpreisszenarien).
-    # "Aurora 10/25" ist das Standardszenario.
-    marktpreisszenario: str = "Aurora 10/25"
+    # Standardszenario ist der aktuelle Aurora-Jahrgang.
+    marktpreisszenario: str = "Aurora Q3/26 · Pult · Central"
 
     # Bei Pachtmodus FIX nur relevant, wenn die Pacht zuletzt in
     # €/ha/Jahr eingegeben wurde (Rueckumrechnung beim erneuten Oeffnen
@@ -536,7 +536,8 @@ def _monatskurve(
 
 
 class MarktpreisSzenario(BaseModel):
-    """Eine benannte Marktpreis-Prognose (z.B. 'Aurora 10/25'). Kurven sind
+    """Eine benannte Marktpreis-Prognose (z.B. 'Aurora Q3/26 · Pult ·
+    Central'). Kurven sind
     nach echtem KALENDERJAHR indiziert (nicht nach Betriebsjahr) - beim
     Zuweisen zu einem Projekt wird ueber dessen Inbetriebnahmejahr auf die
     passende Stelle der Kurve gemappt (siehe pipeline.resolve_assumptions

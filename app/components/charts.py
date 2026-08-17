@@ -16,6 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from app.formatting import fmt_number, fmt_pct
+from engine.io_aurora import zerlege_szenarioname
 from app.theme import Colors, mit_alpha
 from texte import txt
 
@@ -307,26 +308,51 @@ def equity_waterfall_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def _legendennamen(namen: list[str]) -> dict[str, str]:
-    """Kuerzt die gemeinsame Herkunft aus den Legendennamen heraus.
+    """Laesst in der Legende stehen, was die Kurven unterscheidet.
 
     Aus einer Aurora-Arbeitsmappe entstehen Szenarien wie „Aurora Q3/26
-    GER · Pult · Central": In der Legende steht dreimal derselbe Stamm
-    und einmal der Unterschied, auf den es ankommt. Gekuerzt wird nur an
-    einer Trennstelle („·" oder Leerzeichen) und nur, wenn alle Namen
-    danach noch verschieden und nicht leer sind - sonst waere die
-    Zuordnung dahin.
+    · Pult · Central". Zwei Sorten Text sind darin ueberfluessig:
+
+    1. Angaben, die alle gezeigten Kurven teilen - traegt jede „Pult ·
+       Central", sagt es nichts ueber den Unterschied. Sie fallen weg.
+    2. Die gemeinsame Herkunft am Anfang („Aurora ").
+
+    Beides wird nur gekuerzt, solange die Namen danach verschieden und
+    nicht leer bleiben; sonst waere die Zuordnung dahin.
     """
     if len(namen) < 2:
         return {n: n for n in namen}
-    gemeinsam = _os.path.commonprefix(namen)
+
+    # Schritt 1: Bauform und Preisszenario nur nennen, wenn sie sich
+    # zwischen den Kurven unterscheiden. Zeigt die Uebersicht ohnehin
+    # nur Pult und Central, ist beides in jeder Zeile derselbe Text.
+    zerlegt = {n: zerlege_szenarioname(n) for n in namen}
+    bauformen = {b for _, b, _ in zerlegt.values() if b}
+    preisszenarien = {p for _, _, p in zerlegt.values() if p}
+    gekuerzt = {
+        n: " · ".join(
+            teil for teil in (
+                stamm,
+                bauform if len(bauformen) > 1 else "",
+                preis if len(preisszenarien) > 1 else "",
+            ) if teil
+        ) or n
+        for n, (stamm, bauform, preis) in zerlegt.items()
+    }
+    if len(set(gekuerzt.values())) != len(namen):
+        gekuerzt = {n: n for n in namen}
+
+    # Schritt 2: gemeinsamer Anfang ("Aurora ").
+    werte = list(gekuerzt.values())
+    gemeinsam = _os.path.commonprefix(werte)
     schnitt = max(gemeinsam.rfind("·"), gemeinsam.rfind(" "))
     if schnitt < 0:
-        return {n: n for n in namen}
+        return gekuerzt
     stamm = gemeinsam[: schnitt + 1]
-    gekuerzt = {n: n[len(stamm):].strip() for n in namen}
-    if any(not k for k in gekuerzt.values()) or len(set(gekuerzt.values())) != len(namen):
-        return {n: n for n in namen}
-    return gekuerzt
+    kurz = {n: k[len(stamm):].strip() for n, k in gekuerzt.items()}
+    if any(not k for k in kurz.values()) or len(set(kurz.values())) != len(namen):
+        return gekuerzt
+    return kurz
 
 
 def szenarien_linien_chart(
