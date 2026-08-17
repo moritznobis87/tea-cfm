@@ -1132,12 +1132,14 @@ damit gerundete Prozentangaben die Jahresmenge nicht verändern:
 
 \[ E_{t,j} = E^{\mathrm{basis}} \cdot \phi_t \cdot (1-\sigma) \cdot \hat{\theta}_j \cdot \mathbf{1}_{[\,t>1 \;\vee\; j \geq j_0\,]} \]
 
-Dabei ist \(j_0\) der Inbetriebnahmemonat. Der Anteilsfaktor \(\pi_t\)
-des Anlaufjahres entfällt in dieser Auflösung: Statt eines taggenauen
-Bruchteils zählen genau die Monate ab Inbetriebnahme mit ihrem
-tatsächlichen Ertragsanteil. Für eine im Juli in Betrieb gehende Anlage
-sind das nicht die halben, sondern rund 60 \% der Jahresmenge -- die
-ertragreichen Monate liegen im Sommer. Für alle weiteren Jahre gilt
+Dabei ist \(j_0\) der Inbetriebnahmemonat. Ein taggenauer Bruchteil
+kommt hier nicht vor: Es zählen genau die Monate ab Inbetriebnahme mit
+ihrem tatsächlichen Ertragsanteil. Für eine im Dezember angeschlossene
+Anlage sind das 5,2 \% der Jahresmenge statt der 8,5 \%, die der
+Kalender nahelegt; bei Inbetriebnahme im April sind es 76,5 \% statt
+75,3 \%. Welche Richtung die Abweichung hat, hängt an der Kurve -- dass
+der Tagesanteil die falsche Frage beantwortet, hängt nicht davon ab. Für
+alle weiteren Jahre gilt
 
 \[ \sum_{j=1}^{12} E_{t,j} = E_t, \]
 
@@ -1661,12 +1663,14 @@ Für die Pacht kann der Vertrag abweichen (Flächenübergabe vor
 Baubeginn); diese Differenz ist als Zusatzposition abzubilden.
 \end{quote}
 
-Marktüblich sind \(\beta \approx 5{,}5\,\%\). Die Maximumbildung ist
-wirtschaftlich relevant: In frühen Jahren dominiert typischerweise die
-Umsatzbeteiligung, in späten Jahren die stetig steigende Mindestpacht --
-insbesondere nach Auslaufen der Förderung und mit fortschreitender
-Degradation. Ist keine Projektfläche gesetzt, wirkt die Mindestpacht wie
-null, und es bleibt die reine Umsatzbeteiligung.
+Hausüblich sind \(\beta = 5{,}1\,\%\) bei einer Mindestpacht von 3.000
+€/ha/Jahr; beide Werte sind die Vorbelegung eines neuen Projekts und
+stehen als Vorschlagswerte in den globalen Annahmen. Die Maximumbildung
+ist wirtschaftlich relevant: In frühen Jahren dominiert typischerweise
+die Umsatzbeteiligung, in späten Jahren die stetig steigende
+Mindestpacht -- insbesondere nach Auslaufen der Förderung und mit
+fortschreitender Degradation. Ist keine Projektfläche gesetzt, wirkt die
+Mindestpacht wie null, und es bleibt die reine Umsatzbeteiligung.
 
 \begin{quote}
 Die Umsatzbeteiligung verwendet \(R_t\) aus Schritt 3. Diese

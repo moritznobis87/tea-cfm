@@ -775,8 +775,12 @@ class GlobalAssumptions(BaseModel):
     # Gemeindeabgabe/Direktvermarktung): dient nur als Vorbelegung im
     # "Neues Projekt"-Formular bei Pachtmodus UMSATZBETEILIGUNG,
     # tatsaechlich angewendet wird PVProject.pacht_umsatzbeteiligung_pct.
-    # Marktueblich sind ca. 5,5 %.
-    pacht_umsatzbeteiligung_pct_vorschlag: float = Field(ge=0, le=1, default=0.055)
+    # Hausueblich sind 5,1 %.
+    pacht_umsatzbeteiligung_pct_vorschlag: float = Field(ge=0, le=1, default=0.051)
+    # Vorschlagswert fuer die Mindestpacht in EUR je Hektar und Jahr. Sie
+    # ist der Boden unter der Umsatzbeteiligung: Faellt der Erloes aus,
+    # bleibt dem Verpaechter dieser Betrag. Hausueblich sind 3.000 EUR/ha.
+    pacht_mindestpacht_eur_ha_jahr_vorschlag: float = Field(ge=0, default=3000.0)
     # Direktvermarktungskosten-Vorschlagswert (analog Gemeindeabgabe): dient
     # nur als Vorbelegung im "Neues Projekt"-Formular, tatsaechlich
     # angewendet wird PVProject.direktvermarktungskosten_eur_mwh.

@@ -81,12 +81,17 @@ def at() -> AppTest:
 
 class TestSeitenRendern:
     def test_portfolio_zeigt_kennzahlen_und_projekte(self, at: AppTest):
-        # Portfolio-KPI-Leiste (Projekte, MWp, Invest, EK, Ø IRR) - als
-        # HTML-Kacheln mit Auto-Fit-Schrift, gruppiert als "portfolio".
+        # Portfolio-KPI-Leiste (Projekte, MWp, Deckungsbeitrag, EK,
+        # Ø IRR) - als HTML-Kacheln mit Auto-Fit-Schrift, gruppiert als
+        # "portfolio".
         markup = _kpi_markup(at, "portfolio")
         # Eine Leitkachel (Ø Equity IRR) und vier begleitende.
         assert markup.count('class="kpi-hero"') == 1
         assert markup.count('class="kpi-card"') == 4
+        # Die Investitionssumme ist einer Aussage ueber den Erfolg
+        # gewichen: Was schaffen diese Projekte zusammen an Wert?
+        assert "Deckungsbeitrag kumuliert" in markup
+        assert "Capex" not in markup
         oeffnen_buttons = [
             b for b in at.button if b.key and b.key.startswith("open_")
         ]

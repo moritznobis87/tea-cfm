@@ -1,5 +1,33 @@
 # Changelog
 
+## v5.14 – Kosten bei den Kosten, Erlöse bei den Erlösen (2026-08)
+
+- **Portfolio-KPIs**: Die Kachel „Capex Gesamt" ist dem **kumulierten
+  Deckungsbeitrag** gewichen — der Summe der Barwerte aller
+  berücksichtigten Projekte. Die Investitionssumme ist eine
+  Eingangsgröße; die Frage an ein Portfolio ist, wie viel Wert es
+  schafft. Je Projekt steht das Invest weiterhin in Ranking und
+  Vergleichstabelle.
+- **Gemeindeabgabe und Direktvermarktungskosten stehen jetzt unter
+  „Betriebskosten"**, nicht mehr unter „Erlöse". Beide sind
+  Betriebskosten je MWh (siehe `engine/opex.py`); wer die Kostenseite
+  eines Projekts prüfte, suchte sie an der falschen Stelle.
+- **Der Anlagentyp (Agri-PV / konventionell) sitzt in der Rubrik
+  „Erlöse"** statt bei den technischen Parametern. Er ist eine
+  EAG-Kategorie und entscheidet über den anzuwendenden Zuschlagswert,
+  nicht über die Technik der Anlage.
+- **Der Pachtblock steckt vollständig hinter einem Popover.** Die
+  Live-Spalte zeigt nur noch eine Zeile „Pacht 5,1 % · 10,0 ha · DV
+  1,00 €/MWh · Gemeinde 2,00 €/MWh"; Vertragsform, Wert, Fläche,
+  Mindestpacht und die beiden Abgaben liegen darunter im Popover
+  „Pacht und Abgaben …".
+- **Neue Vorschlagswerte für die Pacht**: Ein neues Projekt startet mit
+  dem hausüblichen Fall — Umsatzbeteiligung 5,1 % mit einer
+  Mindestpacht von 3.000 €/ha/Jahr (bisher Fixpacht ohne
+  Mindestpacht). Bestehende Projekte sind unberührt.
+- **„Investition gesamt:" gestrichen**: Spezifisches und absolutes
+  Invest stehen jetzt in einer Zeile direkt unter „Investkosten".
+
 ## v5.13 – Unterjährige Inbetriebnahme richtig gerechnet (2026-08)
 
 Gemeldet am Projekt Völkermarkt (Inbetriebnahme Dezember 2027): Die

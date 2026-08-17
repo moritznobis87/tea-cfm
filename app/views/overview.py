@@ -280,7 +280,12 @@ def render_overview() -> None:
     kpi_basis = basis if mit_inaktiven else aktive
 
     gesamt_kwp = sum(z["projekt"].nennleistung_kwp for z in kpi_basis)
-    gesamt_capex = sum(z["kpis"].capex_total_eur for z in kpi_basis)
+    # Der kumulierte Deckungsbeitrag (Summe der Barwerte) beantwortet die
+    # Portfolio-Frage: Wie viel Wert schaffen diese Projekte zusammen?
+    # Die Investitionssumme stand frueher an dieser Stelle - sie ist eine
+    # Eingangsgroesse, keine Aussage ueber den Erfolg, und je Projekt
+    # ohnehin in Ranking und Vergleichstabelle abzulesen.
+    gesamt_npv = sum(z["kpis"].npv_eur for z in kpi_basis)
     gesamt_ek = sum(z["kpis"].eigenkapital_eur for z in kpi_basis)
     irr_werte = [z["kpis"].equity_irr for z in kpi_basis
                  if z["kpis"].equity_irr is not None]
@@ -310,8 +315,11 @@ def render_overview() -> None:
                      f"{len(kpi_basis)}"),
             Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_kwp"),
                      f"{fmt_number(gesamt_kwp / 1000, 1)} MWp"),
-            Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_capex"),
-                     fmt_eur_kompakt(gesamt_capex), None, fmt_eur(gesamt_capex)),
+            Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_npv"),
+                     fmt_eur_kompakt(gesamt_npv), None,
+                     txt("oberflaeche.portfolio_kpi_gesamt_npv_hilfe",
+                         betrag=fmt_eur(gesamt_npv),
+                         satz=fmt_pct(ziel_pct, 1))),
             Kennzahl(txt("oberflaeche.portfolio_kpi_gesamt_ek"),
                      fmt_eur_kompakt(gesamt_ek), None, fmt_eur(gesamt_ek)),
         ],
