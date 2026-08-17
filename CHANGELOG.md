@@ -1,5 +1,31 @@
 # Changelog
 
+## v5.11 – Parameterspalte aufgeräumt, Runde 2 (2026-08)
+
+- **Investkosten**: EPC, Netzanschluss und Trasse bleiben sichtbar — je
+  mit ihrem eigenen Einheitenschalter. Die sechs übrigen Positionen
+  (Widmung, Genehmigung, Sonstige Extern, AGM, M&A, Pönale) stehen
+  hinter „Weitere Investkosten …", ebenfalls mit ihren Schaltern. Über
+  den Feldern steht jetzt die Summe: „Investition gesamt: 661 €/kWp ·
+  1,88 Mio. €".
+- **Wirtschaftliche Parameter fachlich getrennt**: „Finanzierung"
+  (EK-Anteil, FK-Zins nebeneinander) und „Erlöse" (EAG-Zuschlagswert,
+  Marktpreisszenario). Gemeindeabgabe und Direktvermarktungskosten sind
+  **Betriebskosten je MWh** und standen bisher zwischen Zuschlagswert und
+  Szenario; sie stehen jetzt mit den PPA-Vertragsdaten hinter „PPA und
+  Abgaben …", davor eine Zusammenfassung („PPA — · DV 1,00 €/MWh ·
+  Gemeinde 2,00 €/MWh"). Die PPA-Felder bleiben dort instanziiert und
+  bei 0 % gesperrt — wie bisher.
+- **Inbetriebnahme**: Monat und Jahr stehen nebeneinander, der lange
+  Erklärtext ist ein Tooltip statt einer dreizeiligen Bildunterschrift.
+- **Fehler behoben — Szenarienvergleich der Risikosicht**: Er zeigte
+  Pult und Tracker als getrennte Sensitivitäten. Eine Anlage ist aber
+  entweder aufgeständert oder nachgeführt; die Kurve der anderen Bauform
+  ist keine Preisspanne, sondern eine andere Anlage — die Bandbreite war
+  dadurch um einen Effekt zu breit, der mit dem Marktpreis nichts zu tun
+  hat. Verglichen wird jetzt nur noch innerhalb der Bauform des
+  Projektszenarios; Szenarien ohne Bauform im Namen bleiben immer dabei.
+
 ## v5.10 – Parameterspalte aufgeräumt, Runde 1 (2026-08)
 
 Die Live-Parameterspalte führte 45 Bedienelemente. Sie ist der Ort, an
