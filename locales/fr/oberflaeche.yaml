@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = dès la mise en service. Des valeurs plus élevé
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Comparaison des scénarios**"
 annahmen_szenarien_plot_hinweis: "Valeur de marché solaire, prix de gros (baseload) et production pendant les heures à prix négatifs, une ligne par scénario. L'écart entre les deux premières courbes est la cannibalisation du PV ; la troisième suit la règle choisie ci-dessus (6h/1h). Les chiffres correspondants figurent dans les onglets ci-dessous."
+annahmen_szenarien_alle_zeigen: "Afficher tous les scénarios ({anzahl} de plus)"
+annahmen_szenarien_alle_zeigen_hilfe: "Trace également Low, High et les variantes tracker. Avec de nombreux millésimes la vue devient vite illisible — mais pour la fourchette de prix d'un seul millésime elle est exactement ce qu'il faut."
+annahmen_szenarien_auswahl_hinweis: "Une courbe par famille est affichée : {bauform} et {preisszenario}. Low, High et les autres types de structure restent disponibles dans les onglets ci-dessous et dans la sélection du projet."
 annahmen_szenario_umfang: "{jahre} années civiles enregistrées, dont {monatsjahre} avec des valeurs mensuelles."
 annahmen_zahlen_zeigen: "Modifier les chiffres"
 annahmen_zahlen_zeigen_hilfe: "Affiche les valeurs annuelles de ce scénario sous forme de tableau. Les séries mensuelles se gèrent via l'aller-retour Excel : 432 valeurs par scénario ne se saisissent pas dans un formulaire."

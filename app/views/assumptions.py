@@ -503,13 +503,38 @@ def render_assumptions() -> None:
             # Kurven bleiben editierbar, aber einen Schalter entfernt.
             st.markdown(txt("oberflaeche.annahmen_szenarien_plot_titel"))
             st.caption(txt("oberflaeche.annahmen_szenarien_plot_hinweis"))
+            # Aus einer Arbeitsmappe entstehen sechs Szenarien je
+            # Jahrgang. Nebeneinander gezeichnet sind das zwanzig
+            # Linien, von denen die meisten dasselbe sagen: Low und High
+            # sind die Spanne um Central, der Tracker laeuft dicht neben
+            # dem Pult. Die Uebersicht zeigt deshalb je Familie eine
+            # Kurve; alle uebrigen bleiben in den Reitern darunter und
+            # in der Projektauswahl unveraendert verfuegbar.
+            gezeigt = [
+                s for s in ga.marktpreisszenarien
+                if io_aurora.ist_leitszenario(s.name)
+            ]
+            verdeckt = len(ga.marktpreisszenarien) - len(gezeigt)
+            if verdeckt and st.checkbox(
+                txt("oberflaeche.annahmen_szenarien_alle_zeigen", anzahl=verdeckt),
+                key="szenarien_alle_zeigen",
+                help=txt("oberflaeche.annahmen_szenarien_alle_zeigen_hilfe"),
+            ):
+                gezeigt = list(ga.marktpreisszenarien)
+            elif verdeckt:
+                st.caption(
+                    txt("oberflaeche.annahmen_szenarien_auswahl_hinweis",
+                        bauform=io_aurora.TECHNOLOGIE_STANDARD,
+                        preisszenario=io_aurora.PREISSZENARIO_STANDARD)
+                )
+
             col_preis, col_baseload, col_negativ = st.columns(3)
             with col_preis:
                 st.plotly_chart(
                     charts.szenarien_linien_chart(
                         [
                             (s.name, s.marktwert_solar_ct_kwh_je_kalenderjahr)
-                            for s in ga.marktpreisszenarien
+                            for s in gezeigt
                         ],
                         txt("diagramme.achse_marktwert_solar"), "ct/kWh",
                     ),
@@ -521,13 +546,12 @@ def render_assumptions() -> None:
                 # der Marktwert Solar messen laesst (Kannibalisierung).
                 # Er kommt aus dem Aurora-Import; aeltere Szenarien
                 # fuehren ihn nicht.
-                if any(s.baseload_ct_kwh_je_kalenderjahr
-                       for s in ga.marktpreisszenarien):
+                if any(s.baseload_ct_kwh_je_kalenderjahr for s in gezeigt):
                     st.plotly_chart(
                         charts.szenarien_linien_chart(
                             [
                                 (s.name, s.baseload_ct_kwh_je_kalenderjahr)
-                                for s in ga.marktpreisszenarien
+                                for s in gezeigt
                             ],
                             txt("diagramme.serie_baseload"), "ct/kWh",
                         ),
@@ -545,7 +569,7 @@ def render_assumptions() -> None:
                                     NegativeStundenRegel(negative_stunden_regel)
                                 ),
                             )
-                            for s in ga.marktpreisszenarien
+                            for s in gezeigt
                         ],
                         txt("diagramme.achse_negativ_anteil"), "%",
                         faktor=100.0, nachkommastellen=1,

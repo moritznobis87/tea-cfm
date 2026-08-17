@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = desde la puesta en marcha. Valores mayores reflej
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Escenarios comparados**"
 annahmen_szenarien_plot_hinweis: "Valor de mercado solar, precio mayorista (baseload) y generación en horas de precio negativo, una línea por escenario. La diferencia entre las dos primeras curvas es la canibalización de la FV; la tercera sigue la regla elegida arriba (6h/1h). Las cifras están en las pestañas de abajo."
+annahmen_szenarien_alle_zeigen: "Mostrar todos los escenarios ({anzahl} más)"
+annahmen_szenarien_alle_zeigen_hilfe: "Dibuja también Low, High y las variantes con tracker. Con muchas ediciones la vista se vuelve ilegible enseguida, pero para el rango de precios de una sola edición es justo lo adecuado."
+annahmen_szenarien_auswahl_hinweis: "Se muestra una curva por familia: {bauform} y {preisszenario}. Low, High y los demás tipos de estructura siguen disponibles en las pestañas de abajo y en la selección del proyecto."
 annahmen_szenario_umfang: "{jahre} años naturales registrados, {monatsjahre} de ellos con valores mensuales."
 annahmen_zahlen_zeigen: "Editar cifras"
 annahmen_zahlen_zeigen_hilfe: "Muestra los valores anuales de este escenario como tabla. Las series mensuales se mantienen mediante el intercambio con Excel: 432 valores por escenario no son tarea de un formulario."

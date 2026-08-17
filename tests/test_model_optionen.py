@@ -431,6 +431,58 @@ class TestAuroraJahrgaenge:
         assert baseloads[0] == pytest.approx(8.60, abs=0.02)
 
 
+class TestUebersichtsauswahl:
+    """Die Uebersichtsdiagramme zeigen je Familie eine Kurve - sonst
+    stehen dort zwanzig Linien, von denen die meisten dasselbe sagen."""
+
+    def test_leitszenario_ist_pult_und_central(self):
+        from engine.io_aurora import ist_leitszenario
+
+        assert ist_leitszenario("Aurora Q3/26 GER · Pult · Central")
+        assert not ist_leitszenario("Aurora Q3/26 GER · Tracker · Central")
+        assert not ist_leitszenario("Aurora Q3/26 GER · Pult · Low")
+        assert not ist_leitszenario("Aurora Q3/26 GER · Pult · High")
+
+    def test_namen_ohne_schema_bleiben_sichtbar(self):
+        """Ein von Hand gepflegter Bestand darf nicht aus der Uebersicht
+        fallen, nur weil er dem Namensschema nicht folgt."""
+        from engine.io_aurora import ist_leitszenario
+
+        assert ist_leitszenario("Aurora 6/26")
+        assert ist_leitszenario("Enervis 2025")
+
+    def test_gross_und_kleinschreibung_egal(self):
+        from engine.io_aurora import ist_leitszenario
+
+        assert ist_leitszenario("Aurora · pult · central")
+
+    def test_andere_leitkombination_waehlbar(self):
+        from engine.io_aurora import ist_leitszenario
+
+        assert ist_leitszenario(
+            "Aurora Q3/26 GER · Tracker · High",
+            bauform="Tracker", preisszenario="High",
+        )
+
+    def test_ausgelieferte_sammlung_schrumpft_auf_ein_drittel(self):
+        """Zwanzig Szenarien, aber nur sechs Jahrgangskurven plus die
+        vier alten Bestaende."""
+        from pathlib import Path as _P
+
+        from engine.io_aurora import ist_leitszenario
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml(
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
+        )
+        gezeigt = [s for s in ga.marktpreisszenarien if ist_leitszenario(s.name)]
+        assert len(gezeigt) == 10
+        assert len(ga.marktpreisszenarien) == 20
+        assert all("Tracker" not in s.name for s in gezeigt)
+        assert all(" · Low" not in s.name and " · High" not in s.name
+                   for s in gezeigt)
+
+
 class TestKostenInflation:
     """Die globale Kosteninflation wirkt auf ALLE Kostenpositionen ohne
     eigene Preislogik: Pacht, Gemeindeabgabe und Direktvermarktung

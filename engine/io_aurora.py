@@ -562,6 +562,44 @@ SOLAR_TECHNOLOGIEN: dict[str, str] = {
 #: Voreinstellung - die weit ueberwiegende Bauform im Bestand.
 TECHNOLOGIE_STANDARD = "Pult"
 
+#: Preisszenario, das seine Familie vertritt, wo nicht alle Kurven
+#: nebeneinander passen (Uebersichtsdiagramme).
+PREISSZENARIO_STANDARD = "Central"
+
+
+def ist_leitszenario(
+    name: str,
+    bauform: str = TECHNOLOGIE_STANDARD,
+    preisszenario: str = PREISSZENARIO_STANDARD,
+) -> bool:
+    """Vertritt dieses Szenario seine Familie in der Uebersicht?
+
+    Aus einer Arbeitsmappe entstehen bis zu sechs Szenarien je Jahrgang
+    ("Stamm · Bauform · Preisszenario"). Nebeneinander gezeichnet sind
+    das zwanzig Linien, von denen die meisten dasselbe sagen: Low und
+    High sind die Spanne um Central, und der Tracker laeuft dicht neben
+    dem Pult. Fuer den Ueberblick zaehlt je Familie eine Kurve - die
+    uebrigen bleiben in den Reitern und in der Projektauswahl
+    vollstaendig verfuegbar.
+
+    Traegt ein Name keine der beiden Angaben (aeltere, von Hand
+    gepflegte Szenarien), gilt er immer als Leitszenario: Sonst
+    verschwaende ein Bestand aus der Uebersicht, nur weil er dem
+    Namensschema nicht folgt.
+    """
+    teile = [t.strip() for t in name.split("·")]
+    bauformen = {b.casefold() for b in SOLAR_TECHNOLOGIEN.values()}
+    gefundene_bauform = next(
+        (t for t in teile if t.casefold() in bauformen), ""
+    )
+    gefundenes_szenario = next(
+        (t for t in teile if t.casefold() in _SZENARIO_NAMEN), ""
+    )
+    return (
+        gefundene_bauform.casefold() in ("", bauform.casefold())
+        and gefundenes_szenario.casefold() in ("", preisszenario.casefold())
+    )
+
 #: Szenarionamen, an denen die Szenariospalte erkannt wird.
 _SZENARIO_NAMEN = ("central", "low", "high", "net zero")
 

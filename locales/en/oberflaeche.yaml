@@ -647,6 +647,9 @@ formular_ppa_start_hilfe: "1 = from commissioning. Higher values model the first
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Scenarios compared**"
 annahmen_szenarien_plot_hinweis: "Solar market value, wholesale price (baseload) and generation during negative-price hours, one line per scenario. The gap between the first two curves is PV cannibalisation; the third follows the rule selected above (6h/1h). The numbers behind them are in the tabs below."
+annahmen_szenarien_alle_zeigen: "Show all scenarios ({anzahl} more)"
+annahmen_szenarien_alle_zeigen_hilfe: "Also draws Low, High and the tracker variants. With many vintages the overview quickly becomes unreadable — but for the price range of a single vintage it is exactly right."
+annahmen_szenarien_auswahl_hinweis: "One curve per family is shown: {bauform} and {preisszenario}. Low, High and the other mounting types remain available in the tabs below and in the project selection."
 annahmen_szenario_umfang: "{jahre} calendar years stored, {monatsjahre} of them with monthly values."
 annahmen_zahlen_zeigen: "Edit numbers"
 annahmen_zahlen_zeigen_hilfe: "Shows this scenario's annual values as a table. Monthly series are maintained via the Excel round trip — 432 values per scenario are not a job for a form."
