@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from .io_aurora import zerlege_szenarioname
 from .kpis import _xnpv
 from .models import EffectiveAssumptions, GlobalAssumptions, PVProject
 from .pipeline import (
@@ -433,15 +434,31 @@ def run_scenario_comparison(
     global_assumptions: GlobalAssumptions,
     diskontsatz_pct: float = 0.08,
 ) -> SzenarioVergleich:
-    """Rechnet das identische Projekt ueber alle hinterlegten
+    """Rechnet das identische Projekt ueber die vergleichbaren
     Marktpreisszenarien und stellt IRR/NPV sowie die kumulierten
-    Equity-Cashflows gegenueber."""
+    Equity-Cashflows gegenueber.
+
+    Vergleichbar heisst: dieselbe BAUFORM wie das Szenario des Projekts.
+    Ein Projekt ist entweder aufgestaendert oder nachgefuehrt - die
+    Kurve der jeweils anderen Bauform ist keine Sensitivitaet, sondern
+    eine andere Anlage. Stuende sie im Vergleich, saehe es aus, als
+    haette man die Wahl zwischen beiden, und die Bandbreite waere um
+    einen Effekt zu breit, der mit dem Marktpreis nichts zu tun hat.
+
+    Szenarien ohne Bauform im Namen (von Hand gepflegte Bestaende)
+    bleiben immer im Vergleich: Sie gehoeren zu keiner Bauform und
+    koennen deshalb auch keiner widersprechen.
+    """
     ea = resolve_assumptions(project, global_assumptions)
+    eigene_bauform = zerlege_szenarioname(project.marktpreisszenario)[1]
 
     rows = []
     kum: dict[str, np.ndarray] = {}
     jahre: np.ndarray | None = None
     for szenario in global_assumptions.marktpreisszenarien:
+        bauform = zerlege_szenarioname(szenario.name)[1]
+        if eigene_bauform and bauform and bauform != eigene_bauform:
+            continue
         # Alle Kurven des Szenarios tauschen, nicht nur die Jahreswerte:
         # In der Monatsaufloesung rechnet die Engine mit den Monatsreihen,
         # und ein Vergleich, der die des Ausgangsszenarios stehen liesse,

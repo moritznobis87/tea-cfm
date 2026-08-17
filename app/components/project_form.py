@@ -158,6 +158,21 @@ def _positionstabelle(
     return _bereinige_positionen(tabelle)
 
 
+def _abschnitt(im_popover: bool, knopf: str, hilfe: str):
+    """Ein Block, der in der Live-Spalte hinter einem Popover steht und
+    im Anlageformular offen.
+
+    Gibt einen Kontextmanager zurueck - der Aufrufer schreibt seinen
+    Inhalt in beiden Faellen gleich. Ein Popover ist hier das richtige
+    Mittel und kein Schalter: Sein Inhalt wird bei JEDEM Durchlauf
+    ausgefuehrt, die Widgets existieren also auch zugeklappt weiter und
+    behalten ihren Zustand.
+    """
+    if not im_popover:
+        return contextlib.nullcontext()
+    return st.popover(knopf, width="stretch", help=hilfe)
+
+
 #: EPC-Vorbelegung je Anlagentyp in €/kWp (Erfahrungswerte 2025/26).
 EPC_DEFAULT_EUR_KWP = {"Agri-PV": 520.0, "Konventionell": 430.0}
 
@@ -309,19 +324,37 @@ def _felder(
         horizontal=True, key=f"{form_key}_typ_live",
     )
 
-    col_ibn1, col_ibn2 = spalten(2)
-    inbetriebnahme_jahr = col_ibn1.number_input(
-        txt("oberflaeche.formular_ibn_jahr_label"), min_value=2000, max_value=2100,
-        value=existing.inbetriebnahme_jahr if existing else datetime.now().year + 1,
-        step=1, key=f"{form_key}_ibn_jahr_live",
-    )
-    inbetriebnahme_monat_label = col_ibn2.selectbox(
-        txt("oberflaeche.formular_ibn_monat_label"), monate(),
+    # Monat und Jahr nebeneinander, auch in der schmalen Spalte: Zwei
+    # kurze Felder, die eine Angabe bilden - untereinander kosteten sie
+    # doppelt so viel Hoehe, ohne etwas klarer zu machen. Der lange
+    # Erklaertext steht als Tooltip am Feld statt als Bildunterschrift;
+    # er nahm drei Zeilen ein, ohne beim Ausprobieren gebraucht zu
+    # werden.
+    if spaltig:
+        # Kurze Beschriftungen: "Inbetriebnahme - Monat" bricht in einer
+        # halben Spaltenbreite mitten im Wort um. Die Angabe steht als
+        # Ueberschrift darueber, die Felder tragen nur noch Monat und
+        # Jahr.
+        st.caption(txt("oberflaeche.formular_ibn_titel"))
+        monat_label = txt("oberflaeche.formular_ibn_kurz_monat")
+        jahr_label = txt("oberflaeche.formular_ibn_kurz_jahr")
+    else:
+        monat_label = txt("oberflaeche.formular_ibn_monat_label")
+        jahr_label = txt("oberflaeche.formular_ibn_jahr_label")
+    col_ibn1, col_ibn2 = st.columns(2)
+    inbetriebnahme_monat_label = col_ibn1.selectbox(
+        monat_label, monate(),
         index=(existing.inbetriebnahme_monat - 1) if existing else 0,
         key=f"{form_key}_ibn_monat_live",
+        help=txt("oberflaeche.formular_ibn_monat_hilfe"),
+    )
+    inbetriebnahme_jahr = col_ibn2.number_input(
+        jahr_label, min_value=2000, max_value=2100,
+        value=existing.inbetriebnahme_jahr if existing else datetime.now().year + 1,
+        step=1, key=f"{form_key}_ibn_jahr_live",
+        help=txt("oberflaeche.formular_ibn_monat_hilfe"),
     )
     inbetriebnahme_monat = monate().index(inbetriebnahme_monat_label) + 1
-    st.caption(txt("oberflaeche.formular_ibn_monat_hilfe"))
 
     st.markdown(txt("oberflaeche.formular_investkosten_titel"))
     capex_defaults = existing.capex if existing else CapexBreakdown()
@@ -402,54 +435,114 @@ def _felder(
         return eingabe if absolut else eingabe * nennleistung_kwp
 
     epc_default_eur_kwp = EPC_DEFAULT_EUR_KWP[anlagentyp_label]
-    c1, c2, c3, c4 = spalten(4)
-    epc = capex_feld(
-        c1, "EPC",
-        capex_defaults.epc_eur
-        if existing
-        else nennleistung_kwp * epc_default_eur_kwp,
-        "epc",
-    )
-    netzanschluss = capex_feld(
-        c2, "Netzanschluss",
-        capex_defaults.netzanschluss_eur if existing else nennleistung_kwp * 50.0,
-        "netz",
-    )
-    trasse = capex_feld(
-        c3, "Trasse",
-        capex_defaults.trasse_eur if existing else nennleistung_kwp * 40.0,
-        "trasse",
-    )
-    widmung = capex_feld(
-        c4, "Widmung",
-        capex_defaults.widmung_eur if existing else 10000.0,
-        "widmung",
-        default_eur_kwp=1.0,
-    )
-    c5, c6, c7, c8 = spalten(4)
-    genehmigung = capex_feld(
-        c5, "Genehmigung",
-        capex_defaults.genehmigung_eur if existing else 80000.0,
-        "genehmigung",
-        default_eur_kwp=8.0,
-    )
-    sonstige_extern = capex_feld(
-        c6, "Sonstige Extern",
-        capex_defaults.sonstige_extern_eur if existing else 40000.0,
-        "sonst",
-    )
-    agm = capex_feld(
-        c7, "AGM", capex_defaults.agm_eur if existing else 30000.0, "agm",
-    )
-    m_and_a = capex_feld(
-        c8, "M&A", capex_defaults.m_and_a_eur if existing else 20000.0, "ma",
-    )
-    c9, _, _, _ = spalten(4)
-    poenale = capex_feld(
-        c9, txt("oberflaeche.formular_capex_poenale"),
-        capex_defaults.poenale_puffer_eur if existing else 35000.0,
-        "poenale",
-    )
+
+    def epc_feld(col):
+        return capex_feld(
+            col, "EPC",
+            capex_defaults.epc_eur
+            if existing
+            else nennleistung_kwp * epc_default_eur_kwp,
+            "epc",
+        )
+
+    def netz_feld(col):
+        return capex_feld(
+            col, "Netzanschluss",
+            capex_defaults.netzanschluss_eur if existing
+            else nennleistung_kwp * 50.0,
+            "netz",
+        )
+
+    def trasse_feld(col):
+        return capex_feld(
+            col, "Trasse",
+            capex_defaults.trasse_eur if existing else nennleistung_kwp * 40.0,
+            "trasse",
+        )
+
+    def weitere_capex_felder(spaltensatz):
+        """Die sechs Positionen hinter den drei grossen."""
+        s1, s2, s3, s4, s5, s6 = spaltensatz
+        return (
+            capex_feld(
+                s1, "Widmung",
+                capex_defaults.widmung_eur if existing else 10000.0,
+                "widmung", default_eur_kwp=1.0,
+            ),
+            capex_feld(
+                s2, "Genehmigung",
+                capex_defaults.genehmigung_eur if existing else 80000.0,
+                "genehmigung", default_eur_kwp=8.0,
+            ),
+            capex_feld(
+                s3, "Sonstige Extern",
+                capex_defaults.sonstige_extern_eur if existing else 40000.0,
+                "sonst",
+            ),
+            capex_feld(
+                s4, "AGM", capex_defaults.agm_eur if existing else 30000.0,
+                "agm",
+            ),
+            capex_feld(
+                s5, "M&A", capex_defaults.m_and_a_eur if existing else 20000.0,
+                "ma",
+            ),
+            capex_feld(
+                s6, txt("oberflaeche.formular_capex_poenale"),
+                capex_defaults.poenale_puffer_eur if existing else 35000.0,
+                "poenale",
+            ),
+        )
+
+    if spaltig:
+        # Drei Positionen tragen den Grossteil des Invests und sind die,
+        # an denen man beim Durchspielen dreht - EPC rund 80 %, dazu
+        # Netzanschluss und Trasse, die zusammen am Anschlusspunkt
+        # haengen. Die uebrigen sechs sind Projektfakten, die einmal
+        # erfasst und selten wieder angefasst werden; sie stehen im
+        # Popover, jede weiterhin mit ihrem eigenen Einheitenschalter.
+        summenzeile = st.container()
+        epc = epc_feld(st)
+        netzanschluss = netz_feld(st)
+        trasse = trasse_feld(st)
+        weitere = st.container()
+        with st.popover(txt("oberflaeche.formular_capex_weitere_knopf"),
+                        width="stretch",
+                        help=txt("oberflaeche.formular_capex_weitere_hilfe")):
+            st.markdown(f"**{txt('oberflaeche.formular_capex_weitere_titel')}**")
+            (widmung, genehmigung, sonstige_extern, agm, m_and_a,
+             poenale) = weitere_capex_felder([st] * 6)
+    else:
+        summenzeile = None
+        weitere = None
+        c1, c2, c3, c4 = spalten(4)
+        epc = epc_feld(c1)
+        netzanschluss = netz_feld(c2)
+        trasse = trasse_feld(c3)
+        (widmung, genehmigung, sonstige_extern, agm, m_and_a,
+         poenale) = weitere_capex_felder(list(spalten(3)) + list(spalten(3)))
+
+    if summenzeile is not None:
+        gesamt = (epc + netzanschluss + trasse + widmung + genehmigung
+                  + sonstige_extern + agm + m_and_a + poenale)
+        with summenzeile:
+            # Die Summe steht ueber den Feldern: Sie ist die Zahl, auf
+            # die es beim Drehen ankommt - das spezifische Invest ist
+            # zwischen Projekten vergleichbar, der Gesamtbetrag nicht.
+            st.caption(
+                txt("oberflaeche.formular_capex_summe",
+                    spezifisch=fmt_number(gesamt / nennleistung_kwp, 0)
+                    if nennleistung_kwp else "–",
+                    gesamt=fmt_number(gesamt / 1e6, 2))
+            )
+        with weitere:
+            st.caption(
+                txt("oberflaeche.formular_capex_weitere_summe",
+                    spezifisch=fmt_number(
+                        (widmung + genehmigung + sonstige_extern + agm
+                         + m_and_a + poenale) / nennleistung_kwp, 0)
+                    if nennleistung_kwp else "–")
+            )
 
     zusatz_capex = _positionstabelle(
         form_key=form_key,
@@ -508,62 +601,88 @@ def _felder(
     st.session_state[pacht_mode_key] = (pachtmodus_label, pacht_einheit)
 
     with _formularrahmen(form_key, mit_formular):
-        st.markdown("**Wirtschaftliche Parameter**")
-        col5, col6, col7, col8 = spalten(4)
-        fk_zins = col5.number_input(
-            "Fremdkapitalzins (%)", min_value=0.0,
-            value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
-            step=0.1, key=f"{form_key}_fkzins",
-        )
-        ek_anteil = col6.number_input(
-            "Eigenkapitalanteil (%)", min_value=0.0, max_value=100.0,
+        # Finanzierung und Erloese sind zwei Fragen, keine gemeinsame:
+        # Die eine betrifft die Kapitalstruktur, die andere den Preis je
+        # Kilowattstunde. Frueher standen sie unter einer Ueberschrift
+        # "Wirtschaftliche Parameter" - das half beim Suchen nicht.
+        st.markdown(f"**{txt('oberflaeche.formular_finanzierung_titel')}**")
+        # Zwei kurze Prozentfelder passen auch in der schmalen Spalte
+        # nebeneinander.
+        col_ek, col_fk = st.columns(2)
+        # Kurzbeschriftungen in der schmalen Spalte: "Eigenkapitalanteil"
+        # bricht auf halber Spaltenbreite mitten im Wort um.
+        ek_anteil = col_ek.number_input(
+            "EK-Anteil (%)" if spaltig else "Eigenkapitalanteil (%)",
+            min_value=0.0, max_value=100.0,
             value=existing.eigenkapitalquote_pct * 100 if existing else 20.0,
             step=1.0, key=f"{form_key}_ekanteil",
+            help=txt("oberflaeche.formular_ekanteil_hilfe") if spaltig else None,
         )
+        fk_zins = col_fk.number_input(
+            "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
+            min_value=0.0,
+            value=existing.fremdkapitalzins_pct * 100 if existing else 4.2,
+            step=0.1, key=f"{form_key}_fkzins",
+            help=txt("oberflaeche.formular_fkzins_hilfe") if spaltig else None,
+        )
+
+        st.markdown(f"**{txt('oberflaeche.formular_erloese_titel')}**")
+        col7, col8 = spalten(2)
         eag_zuschlag = col7.number_input(
             "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
             value=existing.eag_zuschlagswert_ct_kwh
             if existing
             else float(st.session_state.get("empfohlenes_gebot_ct", 6.5)),
             step=0.1, key=f"{form_key}_eag",
+            help=txt("oberflaeche.formular_eag_zuschlag_hilfe"),
         )
         gemeindeabgabe_default = (
             existing.gemeindeabgabe_eur_mwh
             if existing
             else global_assumptions.gemeindeabgabe_eur_kwh * 1000
         )
-        gemeindeabgabe_mwh = col8.number_input(
-            "Gemeindeabgabe (€/MWh)", min_value=0.0,
-            value=gemeindeabgabe_default, step=0.5,
-            key=f"{form_key}_gemeindeabgabe",
-        )
-        col9, _, _, _ = spalten(4)
         direktvermarktung_default = (
             existing.direktvermarktungskosten_eur_mwh
             if existing
             else global_assumptions.direktvermarktungskosten_eur_kwh * 1000
         )
-        if (
+        nur_relativ = (
             global_assumptions.direktvermarktung_modus
             == DirektvermarktungsModus.RELATIV_MARKTWERT
-        ):
-            # Der projektspezifische EUR/MWh-Wert ist im Relativ-Modus ohne
-            # Wirkung - er bleibt gespeichert (fuer einen spaeteren
-            # Moduswechsel), wird aber nicht zur Eingabe angeboten.
-            direktvermarktungskosten_mwh = direktvermarktung_default
-            col9.caption(
-                "DV-Kosten: "
-                f"{global_assumptions.direktvermarktung_pct_marktwert * 100:.1f} % "
-                "vom nominalen Jahresmarktwert (Modus 'Relativ zum Marktwert', "
-                "siehe Globale Annahmen)."
+        )
+
+        def abgaben_felder(col_gemeinde, col_dv):
+            """Gemeindeabgabe und Direktvermarktung - Kosten je MWh.
+
+            Beide sind BETRIEBSKOSTEN (siehe engine/opex.py) und keine
+            Vermarktungsparameter im Sinne der Erloesrechnung; sie
+            standen frueher zwischen Zuschlagswert und Szenario und
+            vermischten damit Erloes- und Kostenseite.
+            """
+            gemeinde = col_gemeinde.number_input(
+                "Gemeindeabgabe (€/MWh)", min_value=0.0,
+                value=gemeindeabgabe_default, step=0.5,
+                key=f"{form_key}_gemeindeabgabe",
             )
-        else:
-            direktvermarktungskosten_mwh = col9.number_input(
+            if nur_relativ:
+                # Der projektspezifische EUR/MWh-Wert ist im
+                # Relativ-Modus ohne Wirkung - er bleibt gespeichert
+                # (fuer einen spaeteren Moduswechsel), wird aber nicht
+                # zur Eingabe angeboten.
+                col_dv.caption(
+                    "DV-Kosten: "
+                    f"{global_assumptions.direktvermarktung_pct_marktwert * 100:.1f} % "
+                    "vom nominalen Jahresmarktwert (Modus 'Relativ zum "
+                    "Marktwert', siehe Globale Annahmen)."
+                )
+                return gemeinde, direktvermarktung_default
+            return gemeinde, col_dv.number_input(
                 "DV-Kosten (€/MWh)", min_value=0.0,
                 value=direktvermarktung_default, step=0.1,
                 key=f"{form_key}_direktvermarktung",
                 help=txt("oberflaeche.formular_direktvermarktung_hilfe"),
             )
+
         if anlagentyp_label == "Konventionell":
             st.caption(txt(
                 "oberflaeche.formular_konventionell_abschlag_hinweis",
@@ -583,48 +702,88 @@ def _felder(
             help=txt("oberflaeche.formular_marktpreisszenario_hilfe"),
         )
 
-        # --- Hybride Vermarktung: PPA-Anteil -------------------------------
-        # Der Anteil steht oben und allein: Er entscheidet, ob die drei
-        # Vertragsfelder ueberhaupt eine Rolle spielen. Bei 0 % bleiben
-        # sie sichtbar, aber gesperrt - so ist zu sehen, welche Angaben
-        # ein Vertrag braucht, ohne dass sie stumm mitrechnen.
-        st.markdown(txt("oberflaeche.formular_ppa_titel"))
-        ppa_anteil = st.slider(
+        # --- Hybride Vermarktung und Abgaben -------------------------------
+        # In der Live-Spalte hinter einem Popover: PPA-Vertragsdaten und
+        # Abgaben je MWh sind Vertrags- bzw. Standortfakten, keine
+        # Groessen, an denen man beim Durchspielen dreht. Die Widgets
+        # existieren darin unveraendert weiter - der Inhalt eines
+        # Popovers wird bei JEDEM Durchlauf ausgefuehrt.
+        if spaltig:
+            # Was im Popover steckt, muss von aussen ablesbar sein -
+            # sonst weiss niemand, ob dort ein PPA wartet.
+            ppa_anteil_gespeichert = int(round(
+                (existing.ppa_anteil_pct if existing else 0.0) * 100
+            ))
+            st.caption(
+                txt("oberflaeche.formular_vermarktung_zusammenfassung",
+                    ppa=(txt("oberflaeche.formular_vermarktung_ppa_anteil",
+                             anteil=ppa_anteil_gespeichert)
+                         if ppa_anteil_gespeichert
+                         else txt("oberflaeche.formular_vermarktung_ohne_ppa")),
+                    dv=fmt_number(direktvermarktung_default, 2),
+                    gemeinde=fmt_number(gemeindeabgabe_default, 2))
+            )
+        vermarktung = _abschnitt(
+            spaltig,
+            knopf=txt("oberflaeche.formular_vermarktung_knopf"),
+            hilfe=txt("oberflaeche.formular_vermarktung_hilfe"),
+        )
+        with vermarktung:
+            if spaltig:
+                st.markdown(f"**{txt('oberflaeche.formular_ppa_titel_kurz')}**")
+            else:
+                st.markdown(txt("oberflaeche.formular_ppa_titel"))
+            ppa_anteil = st.slider(
             txt("oberflaeche.formular_ppa_anteil_label"),
-            min_value=0, max_value=100,
-            value=int(round((existing.ppa_anteil_pct if existing else 0.0) * 100)),
-            step=5, key=f"{form_key}_ppa_anteil",
-            help=txt("oberflaeche.formular_ppa_anteil_hilfe"),
-        )
-        ohne_ppa = ppa_anteil == 0
-        col_ppa1, col_ppa2, col_ppa3 = spalten(3)
-        ppa_preis = col_ppa1.number_input(
-            txt("oberflaeche.formular_ppa_preis_label"), min_value=0.0,
-            value=(existing.ppa_preis_eur_mwh if existing
-                   else global_assumptions.ppa_preis_eur_mwh_vorschlag),
-            step=1.0, key=f"{form_key}_ppa_preis", disabled=ohne_ppa,
-            help=txt("oberflaeche.formular_ppa_preis_hilfe"),
-        )
-        ppa_laufzeit = col_ppa2.number_input(
-            txt("oberflaeche.formular_ppa_laufzeit_label"), min_value=0,
-            value=(existing.ppa_laufzeit_jahre if existing
-                   else global_assumptions.ppa_laufzeit_jahre_vorschlag),
-            step=1, key=f"{form_key}_ppa_laufzeit", disabled=ohne_ppa,
-            help=txt("oberflaeche.formular_ppa_laufzeit_hilfe"),
-        )
-        ppa_index = col_ppa3.number_input(
-            txt("oberflaeche.formular_ppa_index_label"), min_value=0.0,
-            value=((existing.ppa_indexierung_pct_pa if existing
-                    else global_assumptions.ppa_indexierung_pct_pa_vorschlag) * 100),
-            step=0.25, key=f"{form_key}_ppa_index", disabled=ohne_ppa,
-            help=txt("oberflaeche.formular_ppa_index_hilfe"),
-        )
-        ppa_start = st.number_input(
-            txt("oberflaeche.formular_ppa_start_label"), min_value=1,
-            value=(existing.ppa_start_jahr if existing else 1),
-            step=1, key=f"{form_key}_ppa_start", disabled=ohne_ppa,
-            help=txt("oberflaeche.formular_ppa_start_hilfe"),
-        )
+                min_value=0, max_value=100,
+                value=int(round(
+                    (existing.ppa_anteil_pct if existing else 0.0) * 100
+                )),
+                step=5, key=f"{form_key}_ppa_anteil",
+                help=txt("oberflaeche.formular_ppa_anteil_hilfe"),
+            )
+            # Bei 0 % bleiben die Vertragsfelder sichtbar, aber gesperrt -
+            # so ist zu sehen, welche Angaben ein Vertrag braucht, ohne
+            # dass sie stumm mitrechnen. Sie verschwinden bewusst NICHT:
+            # Widgets, die zwischen Durchlaeufen kommen und gehen, sind
+            # in Streamlit ein Risikomuster (siehe Modulkopf).
+            ohne_ppa = ppa_anteil == 0
+            col_ppa1, col_ppa2 = st.columns(2) if spaltig else spalten(2)
+            ppa_preis = col_ppa1.number_input(
+                txt("oberflaeche.formular_ppa_preis_label"), min_value=0.0,
+                value=(existing.ppa_preis_eur_mwh if existing
+                       else global_assumptions.ppa_preis_eur_mwh_vorschlag),
+                step=1.0, key=f"{form_key}_ppa_preis", disabled=ohne_ppa,
+                help=txt("oberflaeche.formular_ppa_preis_hilfe"),
+            )
+            ppa_laufzeit = col_ppa2.number_input(
+                txt("oberflaeche.formular_ppa_laufzeit_label"), min_value=0,
+                value=(existing.ppa_laufzeit_jahre if existing
+                       else global_assumptions.ppa_laufzeit_jahre_vorschlag),
+                step=1, key=f"{form_key}_ppa_laufzeit", disabled=ohne_ppa,
+                help=txt("oberflaeche.formular_ppa_laufzeit_hilfe"),
+            )
+            col_ppa3, col_ppa4 = st.columns(2) if spaltig else spalten(2)
+            ppa_index = col_ppa3.number_input(
+                txt("oberflaeche.formular_ppa_index_label"), min_value=0.0,
+                value=((existing.ppa_indexierung_pct_pa if existing
+                        else global_assumptions.ppa_indexierung_pct_pa_vorschlag)
+                       * 100),
+                step=0.25, key=f"{form_key}_ppa_index", disabled=ohne_ppa,
+                help=txt("oberflaeche.formular_ppa_index_hilfe"),
+            )
+            ppa_start = col_ppa4.number_input(
+                txt("oberflaeche.formular_ppa_start_label"), min_value=1,
+                value=(existing.ppa_start_jahr if existing else 1),
+                step=1, key=f"{form_key}_ppa_start", disabled=ohne_ppa,
+                help=txt("oberflaeche.formular_ppa_start_hilfe"),
+            )
+
+            st.markdown(f"**{txt('oberflaeche.formular_abgaben_titel')}**")
+            col_abg1, col_abg2 = st.columns(2) if spaltig else spalten(2)
+            gemeindeabgabe_mwh, direktvermarktungskosten_mwh = abgaben_felder(
+                col_abg1, col_abg2
+            )
 
         pacht_umsatzbeteiligung_pct = (
             existing.pacht_umsatzbeteiligung_pct if existing
