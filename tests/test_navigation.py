@@ -153,6 +153,51 @@ class TestParameterspalte:
         _klick(at, f"{form_key}__verwerfen")
 
 
+class TestPachtblock:
+    """Gemeldet: Ueberschrift und Umschalter der Pacht standen in der
+    Mitte der Spalte, die zugehoerigen Wertfelder erst ganz unten.
+
+    Ursache war die Regel "Umschalter ausserhalb von st.form" - sie
+    betrifft aber nur die Umschalter, nicht die Werte. Der Block steht
+    jetzt vollstaendig an einer Stelle.
+    """
+
+    def _spalte(self, at: AppTest) -> tuple[AppTest, str]:
+        keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
+        at = _klick(at, keys[0])
+        return at, f"param_{keys[0].removeprefix('open_')}"
+
+    def test_wert_und_konfiguration_gehoeren_zusammen(self, at: AppTest):
+        at, form_key = self._spalte(at)
+        # Der Wert steht in der Hauptansicht, die Vertragsform im
+        # Popover - beide existieren, und zwar im selben Durchlauf.
+        werte = {n.key for n in at.get("number_input") if n.key}
+        assert f"{form_key}_pacht_ha" in werte or f"{form_key}_pacht_kwp" in werte
+        radios = {r.key for r in at.get("radio") if r.key}
+        assert f"{form_key}_pachtmodus" in radios
+        assert f"{form_key}_pacht_einheit" in radios
+
+    def test_einheit_folgt_dem_projekt(self, at: AppTest):
+        """Ein Bestand ohne Flaeche ist in €/kWp gepflegt - ihn im
+        €/ha-Modus zu oeffnen, rechnete den Wert ueber eine erfundene
+        Flaeche um."""
+        from app import services
+
+        at, form_key = self._spalte(at)
+        projekt = services.get_project(form_key.removeprefix("param_"))
+        einheit = [r for r in at.get("radio")
+                   if r.key == f"{form_key}_pacht_einheit"][0].value
+        erwartet = "€/ha/Jahr" if projekt.projektflaeche_ha else "€/kWp/Jahr"
+        assert einheit == erwartet
+
+    def test_pachtwert_meldet_keine_scheinaenderung(self, at: AppTest):
+        """Die €/ha-Anzeige wird auf zwei Nachkommastellen gerundet und
+        zurueckgerechnet; auf ganze Euro gerundet wich der €/kWp-Wert so
+        weit ab, dass die Seite eine Aenderung meldete."""
+        at, _ = self._spalte(at)
+        assert any("keine offenen Änderungen" in c.value for c in at.caption)
+
+
 class TestVierAnsichten:
     def test_segmentwahl_bietet_die_gleichrangigen_sichten(self, at: AppTest):
         """Vier Sichten auf das Projekt, dazu der Variantenvergleich.

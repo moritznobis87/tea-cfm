@@ -1,5 +1,33 @@
 # Changelog
 
+## v5.12 – Parameterspalte aufgeräumt, Runde 3 (2026-08)
+
+- **Der Pachtblock steht wieder an einer Stelle.** Überschrift und
+  Umschalter standen in der Mitte der Spalte, die zugehörigen
+  Wertfelder erst ganz unten — Ursache war die Regel „Umschalter
+  außerhalb von `st.form`", die aber nur die Umschalter betrifft, nicht
+  die Werte. In der Live-Spalte steht jetzt der Pachtwert oben,
+  darunter eine Zeile „Fixpacht · 4,0 ha" und ein Popover „Pacht
+  konfigurieren …" mit Vertragsform, Einheit, Fläche und Mindestpacht.
+- **Einheit folgt dem Projekt**: Die Spalte startete immer in €/ha und
+  rechnete den gespeicherten €/kWp-Wert über eine erfundene Fläche von
+  10 ha um. Jetzt entscheidet die hinterlegte Projektfläche, welche
+  Einheit voreingestellt ist.
+- **Rundung der €/ha-Anzeige** von ganzen Euro auf zwei Nachkommastellen
+  — auf ganze Euro gerundet wich der zurückgerechnete €/kWp-Wert weit
+  genug ab, dass die Seite eine Änderung meldete, die niemand
+  vorgenommen hatte.
+- **Freie Investkosten** stehen jetzt im selben Popover wie die festen
+  („Weitere Investkosten …"); es sind Investkosten, und ein zweiter
+  Knopf daneben war eine Hülle zu viel. Die freien **Betriebskosten**
+  stehen direkt unter der Pacht — beides sind jährliche Kosten je kWp.
+- **Inbetriebnahmemonat** als Dreibuchstaben-Kürzel („Dez"), damit
+  Monat und Jahr in der halben Spaltenbreite nebeneinander passen.
+
+Damit ist die Spalte von 45 auf 20 dauerhaft sichtbare Bedienelemente
+geschrumpft; alles Übrige ist einen Klick entfernt und vollständig
+editierbar.
+
 ## v5.11 – Parameterspalte aufgeräumt, Runde 2 (2026-08)
 
 - **Investkosten**: EPC, Netzanschluss und Trasse bleiben sichtbar — je
