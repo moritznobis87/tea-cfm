@@ -1,5 +1,19 @@
 # Changelog
 
+## v5.8 – Übersicht auf die Leitszenarien beschränkt (2026-08)
+
+- Aus jeder Aurora-Arbeitsmappe entstehen bis zu sechs Szenarien je
+  Jahrgang; nebeneinander gezeichnet waren das zwanzig Linien. Die
+  **Übersichtsdiagramme zeigen jetzt je Familie eine Kurve** – Pult und
+  Central. Low und High sind ohnehin die Spanne um Central, und die
+  Tracker-Kurve läuft dicht neben der Pult-Kurve.
+- Ein Schalter **„Alle Szenarien zeigen"** holt die übrigen zurück – für
+  die Preisspanne eines einzelnen Jahrgangs ist die volle Ansicht genau
+  richtig.
+- Szenarien ohne Bauform oder Preisszenario im Namen (von Hand
+  gepflegte Bestände) bleiben immer sichtbar; in den Reitern darunter
+  und in der Projektauswahl ändert sich nichts.
+
 ## v5.7 – Einspeisekurven je Bauform, Prämienmodell je Markt (2026-08)
 
 - **Zwei hinterlegte Einspeisekurven**: „Pult" und „Tracker", abgeleitet

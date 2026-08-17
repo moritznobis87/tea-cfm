@@ -648,6 +648,9 @@ formular_ppa_start_hilfe: "1 = ab Inbetriebnahme. Höhere Werte bilden ab, dass 
 # --- Szenarien als Bild (v5.4.1) ---------------------------------------------
 annahmen_szenarien_plot_titel: "**Szenarien im Vergleich**"
 annahmen_szenarien_plot_hinweis: "Marktwert Solar, Großhandelspreis (Baseload) und Erzeugungsmenge in Stunden negativer Preise, je Szenario eine Linie. Der Abstand der ersten beiden Kurven ist die Kannibalisierung der PV; die dritte folgt der oben gewählten Regel (6h/1h). Die Zahlen dahinter stehen in den Reitern darunter."
+annahmen_szenarien_alle_zeigen: "Alle Szenarien zeigen ({anzahl} weitere)"
+annahmen_szenarien_alle_zeigen_hilfe: "Zeichnet auch Low, High und die Tracker-Varianten. Bei vielen Jahrgängen wird die Übersicht damit schnell unleserlich — für die Preisspanne eines einzelnen Jahrgangs ist sie aber genau richtig."
+annahmen_szenarien_auswahl_hinweis: "Gezeigt wird je Familie eine Kurve: {bauform} und {preisszenario}. Low, High und die übrigen Bauformen stehen in den Reitern darunter und in der Projektauswahl unverändert bereit."
 annahmen_szenario_umfang: "{jahre} Kalenderjahre hinterlegt, davon {monatsjahre} mit Monatswerten."
 annahmen_zahlen_zeigen: "Zahlen bearbeiten"
 annahmen_zahlen_zeigen_hilfe: "Blendet die Jahreswerte dieses Szenarios als Tabelle ein. Monatsreihen werden über den Excel-Rundlauf gepflegt — 432 Werte je Szenario sind nichts für eine Eingabemaske."

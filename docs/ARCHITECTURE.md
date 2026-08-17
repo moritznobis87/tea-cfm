@@ -175,6 +175,15 @@ damit eine wiederholte PVGIS-Abfrage Zahl für Zahl vergleichbar ist.
 Umschalter. In den globalen Annahmen wird nur zwischen den Bauformen
 umgeschaltet oder von Hand nachgebessert.
 
+**Übersicht und Auswahl:** Aus einer Arbeitsmappe entstehen bis zu sechs
+Szenarien je Jahrgang. Die Szenariendiagramme der globalen Annahmen
+zeigen deshalb je Familie eine Kurve – `io_aurora.ist_leitszenario()`
+erkennt an den Namensteilen die Bauform und das Preisszenario und lässt
+nur `Pult · Central` durch; Namen ohne diese Teile (von Hand gepflegte
+Bestände) bleiben immer sichtbar. Ein Schalter holt die übrigen zurück.
+Gerechnet wird davon nichts: Reiter, Zahlentabellen und Projektauswahl
+führen unverändert alle Szenarien.
+
 **Standort und Variante:** Ein `PVProject` trägt zwei Namen – `name`
 (Standort) und `variante` (Sensitivität, leer = Grundfall). Mehrere
 Varianten desselben Standorts sind weiterhin eigenständige Projekte mit
