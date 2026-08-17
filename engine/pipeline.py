@@ -21,6 +21,7 @@ from .cashflow import CashflowTimeseries, calculate_cashflow
 from .covenants import KovenantAnalyse, analysiere_kovenanten
 from .energy import calculate_energy_production
 from .financing import calculate_financing
+from .io_aurora import szenario_fuer
 from .kpis import KPIs, calculate_kpis, calculate_npv_curve
 from .models import (
     EffectiveAssumptions,
@@ -34,6 +35,30 @@ from .tax import calculate_tax
 from .timeline import build_timeline, erstjahr_zins_pro_rata
 
 
+def _einspeisekurve(
+    project: PVProject, global_assumptions: GlobalAssumptions
+) -> list[float]:
+    """Die Monatskurve der Bauform dieses Projekts.
+
+    Die Bauform verteilt die Jahresmenge anders ueber das Jahr - der
+    Tracker sommerlastiger als das Pult. Sie ist eine Eigenschaft der
+    Anlage, also entscheidet das Projekt.
+
+    Ausnahme ist die von Hand bearbeitete Kurve: Steht in den globalen
+    Annahmen keine Bauform mehr (einspeisekurve_bauform == ""), wurde
+    die aktive Kurve dort ausdruecklich abgewandelt. Sie zugunsten
+    einer hinterlegten Kurve zu uebergehen, verwuerfe eine Eingabe
+    stillschweigend.
+    """
+    if not global_assumptions.einspeisekurve_bauform:
+        return list(global_assumptions.einspeisekurve_pct_je_monat)
+    return list(
+        global_assumptions.einspeisekurven_je_bauform.get(
+            project.bauform, global_assumptions.einspeisekurve_pct_je_monat
+        )
+    )
+
+
 def resolve_assumptions(
     project: PVProject, global_assumptions: GlobalAssumptions
 ) -> EffectiveAssumptions:
@@ -42,7 +67,14 @@ def resolve_assumptions(
     # im Kostendiagramm.
     opex_items = list(global_assumptions.opex_standard) + list(project.zusatz_opex)
 
-    szenario = global_assumptions.get_szenario(project.marktpreisszenario)
+    # Das Szenario ergibt sich aus zwei Angaben: dem im Projekt
+    # hinterlegten Namen (ohne Bauform) und der Bauform der Anlage. Der
+    # Tracker erzeugt breiter ueber den Tag verteilt und trifft die
+    # preisschwachen Mittagsstunden weniger stark - seine Marktwertkurve
+    # ist deshalb eine andere als die der Pultaufstaenderung.
+    szenario = szenario_fuer(
+        global_assumptions, project.marktpreisszenario, project.bauform
+    )
     if szenario is None:
         if global_assumptions.marktpreisszenarien:
             # Fallback auf das erste verfuegbare Szenario, falls der im
@@ -71,9 +103,7 @@ def resolve_assumptions(
         ),
         negative_stunden_regel=global_assumptions.negative_stunden_regel,
         zeitaufloesung=global_assumptions.zeitaufloesung,
-        einspeisekurve_pct_je_monat=list(
-            global_assumptions.einspeisekurve_pct_je_monat
-        ),
+        einspeisekurve_pct_je_monat=_einspeisekurve(project, global_assumptions),
         marktwert_solar_ct_kwh_je_monat=szenario.marktwert_monatskurve(),
         baseload_ct_kwh_je_kalenderjahr=szenario.baseload_ct_kwh_je_kalenderjahr,
         baseload_ct_kwh_je_monat=szenario.baseload_monatskurve(),

@@ -9,6 +9,7 @@ inbetriebnahme_monat: 1
 anlagentyp: agri_pv
 nennleistung_kwp: 1875.0
 vollbenutzungsstunden_kwh_kwp: 1071.0
+bauform: Pult
 pacht_eur_kwp_jahr: 4.0
 pacht_modus: umsatzbeteiligung
 pacht_umsatzbeteiligung_pct: 0.1
@@ -35,5 +36,5 @@ capex:
   poenale_puffer_eur: 9375.0
   zusatzpositionen: []
 zusatz_opex: []
-marktpreisszenario: Aurora Q3/26 · Pult · Central
+marktpreisszenario: Aurora Q3/26 · Central
 projektflaeche_ha: 1.4

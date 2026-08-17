@@ -299,12 +299,21 @@ class TestAusgelieferteSzenarien:
             assert f"Aurora {jahrgang} · Pult · Central" in namen
 
     def test_alle_projekte_rechnen_mit_dem_standardszenario(self):
+        """Der im Projekt hinterlegte Name traegt keine Bauform mehr -
+        er muss sich zusammen mit dem Bauformfeld auf ein vorhandenes
+        Szenario aufloesen lassen."""
         from app import services
+        from engine.io_aurora import szenario_fuer
 
-        vorhanden = {s.name for s in services.get_global_assumptions()
-                     .marktpreisszenarien}
+        ga = services.get_global_assumptions()
         for projekt in services.list_projects():
-            assert projekt.marktpreisszenario in vorhanden, (
+            assert not any(
+                f" {b} " in f" {projekt.marktpreisszenario} "
+                for b in ("Pult", "Tracker")
+            ), f"{projekt.id} traegt die Bauform noch im Szenarionamen"
+            assert szenario_fuer(
+                ga, projekt.marktpreisszenario, projekt.bauform
+            ) is not None, (
                 f"{projekt.id} verweist auf ein Szenario, das es nicht gibt"
             )
 

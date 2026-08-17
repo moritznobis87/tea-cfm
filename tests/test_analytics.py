@@ -199,27 +199,36 @@ class TestLcoeUndSzenarien:
 
 
 class TestSzenarienvergleichBauform:
-    """Der Vergleich zeigt nur Szenarien der Bauform, die das Projekt
-    fuehrt.
+    """Der Vergleich rechnet jedes Szenario in der Bauform des Projekts.
 
     Ein Projekt ist entweder aufgestaendert oder nachgefuehrt - die
     Kurve der anderen Bauform ist keine Sensitivitaet, sondern eine
-    andere Anlage. Stuende sie im Vergleich, waere die Bandbreite um
-    einen Effekt zu breit, der mit dem Marktpreis nichts zu tun hat.
+    andere Anlage. Stuende sie daneben, waere die Bandbreite um einen
+    Effekt zu breit, der mit dem Marktpreis nichts zu tun hat.
     """
 
     def _ga_mit_bauformen(self, global_assumptions, szenario_flach):
+        """Vier Szenarien (zwei Bauformen x zwei Preisszenarien) und ein
+        von Hand gepflegter Bestand ohne Bauform. Die Tracker-Kurven
+        liegen hoeher - daran ist zu erkennen, welche gerechnet wurde.
+        """
         from engine.models import MarktpreisSzenario
 
         ga = global_assumptions
         vorlage = szenario_flach.model_dump()
         ga.marktpreisszenarien = []
-        for bauform in ("Pult", "Tracker"):
+        for bauform, aufschlag in (("Pult", 0.0), ("Tracker", 0.5)):
             for preis in ("Central", "Low"):
+                kurve = {
+                    jahr: wert + aufschlag
+                    for jahr, wert
+                    in vorlage["marktwert_solar_ct_kwh_je_kalenderjahr"].items()
+                }
                 ga.marktpreisszenarien.append(
                     MarktpreisSzenario(
                         **{**vorlage,
-                           "name": f"Aurora Q3/26 · {bauform} · {preis}"}
+                           "name": f"Aurora Q3/26 · {bauform} · {preis}",
+                           "marktwert_solar_ct_kwh_je_kalenderjahr": kurve}
                     )
                 )
         ga.marktpreisszenarien.append(
@@ -227,31 +236,42 @@ class TestSzenarienvergleichBauform:
         )
         return ga
 
-    def test_nur_die_eigene_bauform(
+    def test_beschriftung_ohne_bauform(
         self, project, global_assumptions, szenario_flach
     ):
+        """Die Bauform steht im Projekt, nicht im Szenarionamen - im
+        Vergleich unterscheiden sich die Kurven nur noch durch die
+        Preisprognose."""
         from engine import run_scenario_comparison
 
         ga = self._ga_mit_bauformen(global_assumptions, szenario_flach)
-        project.marktpreisszenario = "Aurora Q3/26 · Pult · Central"
+        project.bauform = "Pult"
+        project.marktpreisszenario = "Aurora Q3/26 · Central"
         gezeigt = list(
             run_scenario_comparison(project, ga).kennzahlen["szenario"]
         )
-        assert all("Tracker" not in n for n in gezeigt)
-        assert "Aurora Q3/26 · Pult · Low" in gezeigt
+        assert gezeigt == [
+            "Aurora Q3/26 · Central", "Aurora Q3/26 · Low", "Enervis 2025",
+        ]
 
-    def test_tracker_projekt_sieht_tracker(
+    def test_jede_bauform_rechnet_ihre_eigene_kurve(
         self, project, global_assumptions, szenario_flach
     ):
+        """Dieselbe Zeile, zwei Bauformen: Der Tracker traegt hier die
+        hoehere Marktwertkurve und muss deshalb besser abschneiden."""
         from engine import run_scenario_comparison
 
         ga = self._ga_mit_bauformen(global_assumptions, szenario_flach)
-        project.marktpreisszenario = "Aurora Q3/26 · Tracker · Central"
-        gezeigt = list(
-            run_scenario_comparison(project, ga).kennzahlen["szenario"]
-        )
-        assert all("Pult" not in n for n in gezeigt)
-        assert "Aurora Q3/26 · Tracker · Low" in gezeigt
+        project.marktpreisszenario = "Aurora Q3/26 · Central"
+
+        def npv(bauform: str) -> float:
+            project.bauform = bauform
+            df = run_scenario_comparison(project, ga).kennzahlen
+            return float(
+                df[df["szenario"] == "Aurora Q3/26 · Central"]["npv_eur"].iloc[0]
+            )
+
+        assert npv("Tracker") > npv("Pult")
 
     def test_bestand_ohne_bauform_bleibt_im_vergleich(
         self, project, global_assumptions, szenario_flach
@@ -261,23 +281,26 @@ class TestSzenarienvergleichBauform:
         from engine import run_scenario_comparison
 
         ga = self._ga_mit_bauformen(global_assumptions, szenario_flach)
-        project.marktpreisszenario = "Aurora Q3/26 · Pult · Central"
+        project.bauform = "Tracker"
+        project.marktpreisszenario = "Aurora Q3/26 · Central"
         gezeigt = list(
             run_scenario_comparison(project, ga).kennzahlen["szenario"]
         )
         assert "Enervis 2025" in gezeigt
 
-    def test_projekt_ohne_bauform_sieht_alles(
+    def test_fehlende_bauform_faellt_auf_die_familie_zurueck(
         self, project, global_assumptions, szenario_flach
     ):
-        """Fuehrt das Projekt selbst ein Szenario ohne Bauform, gibt es
-        nichts zu filtern - sonst bliebe der Vergleich leer."""
-        from engine import run_scenario_comparison
+        """Liegt fuer einen Jahrgang nur eine Bauform vor, rechnet das
+        Projekt mit dieser - besser als mit dem erstbesten Szenario
+        eines fremden Jahrgangs."""
+        from engine.io_aurora import szenario_fuer
 
         ga = self._ga_mit_bauformen(global_assumptions, szenario_flach)
-        project.marktpreisszenario = "Enervis 2025"
-        gezeigt = list(
-            run_scenario_comparison(project, ga).kennzahlen["szenario"]
-        )
-        assert len(gezeigt) == len(ga.marktpreisszenarien)
+        ga.marktpreisszenarien = [
+            s for s in ga.marktpreisszenarien if "Tracker" not in s.name
+        ]
+        treffer = szenario_fuer(ga, "Aurora Q3/26 · Low", "Tracker")
+        assert treffer.name == "Aurora Q3/26 · Pult · Low"
+
 

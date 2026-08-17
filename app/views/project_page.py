@@ -123,6 +123,7 @@ _FELD_LABEL: dict[str, str] = {
     "anlagentyp": "Anlagentyp",
     "nennleistung_kwp": "Leistung",
     "vollbenutzungsstunden_kwh_kwp": "Vollbenutzungsstunden",
+    "bauform": "Bauform",
     "capex": "Investkosten",
     "zusatz_opex": "Zusatz-OPEX",
     "pacht_eur_kwp_jahr": "Pacht",

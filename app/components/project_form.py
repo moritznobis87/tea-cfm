@@ -38,7 +38,8 @@ from engine import (
     PachtModus,
     PVProject,
 )
-from engine.models import pruefe_positionsname
+from engine.io_aurora import szenario_auswahl
+from engine.models import EINSPEISEKURVEN_JE_BAUFORM, pruefe_positionsname
 from texte import txt
 
 
@@ -380,6 +381,23 @@ def _felder(
         "Vollbenutzungsstunden (kWh/kWp)", min_value=0.0,
         value=existing.vollbenutzungsstunden_kwh_kwp if existing else 1050.0,
         step=10.0, key=f"{form_key}_vbh_live",
+    )
+    # Die Bauform ist der zweite technische Grundzug neben der Leistung:
+    # Sie entscheidet ueber die Einspeisekurve UND ueber die
+    # Marktwertkurve des gewaehlten Preisszenarios. Frueher steckte sie
+    # im Szenarionamen ("Aurora Q3/26 · Pult · Central") - dort las sie
+    # sich wie eine Marktmeinung, obwohl sie eine Eigenschaft der Anlage
+    # ist.
+    bauform_options = list(EINSPEISEKURVEN_JE_BAUFORM)
+    bauform_index = (
+        bauform_options.index(existing.bauform)
+        if existing and existing.bauform in bauform_options
+        else 0
+    )
+    bauform = st.radio(
+        txt("oberflaeche.formular_bauform_label"), bauform_options,
+        index=bauform_index, horizontal=True, key=f"{form_key}_bauform_live",
+        help=txt("oberflaeche.formular_bauform_hilfe"),
     )
     # Der Anlagentyp steht NICHT hier, sondern weiter unten unter
     # "Erloese": Agri-PV gegen konventionell ist eine EAG-Kategorie - sie
@@ -889,8 +907,12 @@ def _felder(
             wert=f"{eag_zuschlag * 0.75:.2f}",
         ))
 
-    szenario_namen = (global_assumptions.szenario_namen
-                      or ["Aurora Q3/26 · Pult · Central"])
+    # Die Auswahl fuehrt die Szenarien OHNE Bauform: "Aurora Q3/26 ·
+    # Central" statt zweier Eintraege fuer Pult und Tracker. Welche der
+    # beiden Kurven gerechnet wird, entscheidet das Bauform-Radio oben
+    # bei den technischen Parametern.
+    szenario_namen = (szenario_auswahl(global_assumptions)
+                      or ["Aurora Q3/26 · Central"])
     default_szenario = existing.marktpreisszenario if existing else szenario_namen[0]
     szenario_index = (
         szenario_namen.index(default_szenario)
@@ -1048,6 +1070,7 @@ def _felder(
         else AnlagenTyp.KONVENTIONELL,
         nennleistung_kwp=nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=vollbenutzungsstunden,
+        bauform=bauform,
         pacht_eur_kwp_jahr=pacht_eur_kwp_jahr,
         pacht_modus=pacht_modus,
         pacht_umsatzbeteiligung_pct=pacht_umsatzbeteiligung_pct,
