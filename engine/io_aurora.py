@@ -622,6 +622,76 @@ def ist_leitszenario(
         and gefundenes_szenario.casefold() in ("", preisszenario.casefold())
     )
 
+
+def szenarioname(stamm: str, bauform: str, preisszenario: str) -> str:
+    """Setzt einen Szenarionamen aus seinen Teilen zusammen.
+
+    Leere Teile entfallen - die Umkehrung von zerlege_szenarioname().
+    """
+    return " · ".join(t for t in (stamm, bauform, preisszenario) if t)
+
+
+def ohne_bauform(name: str) -> str:
+    """Der Szenarioname ohne die Bauform.
+
+    Die Bauform ist eine Eigenschaft der ANLAGE, nicht der
+    Preisprognose: Ein Projekt ist entweder aufgestaendert oder
+    nachgefuehrt, und die Marktwertkurve der jeweils anderen Bauform
+    gehoert zu einer anderen Anlage. Im Projekt wird sie deshalb
+    getrennt gefuehrt, und der dort hinterlegte Szenarioname traegt sie
+    nicht mehr.
+    """
+    stamm, _, preisszenario = zerlege_szenarioname(name)
+    return szenarioname(stamm, "", preisszenario) or name
+
+
+def szenario_auswahl(global_assumptions) -> list[str]:
+    """Die im Projekt waehlbaren Szenarionamen - ohne Bauform.
+
+    Aus "Aurora Q3/26 · Pult · Central" und "Aurora Q3/26 · Tracker ·
+    Central" wird ein Eintrag "Aurora Q3/26 · Central"; welche der
+    beiden Kurven gerechnet wird, entscheidet die Bauform des Projekts.
+    Die Reihenfolge der Szenarienliste bleibt erhalten.
+    """
+    gesehen: list[str] = []
+    for szenario in global_assumptions.marktpreisszenarien:
+        name = ohne_bauform(szenario.name)
+        if name not in gesehen:
+            gesehen.append(name)
+    return gesehen
+
+
+def szenario_fuer(global_assumptions, name: str, bauform: str):
+    """Das Szenario zu einem Namen ohne Bauform und einer Bauform.
+
+    Gesucht wird zuerst der Name mit eingesetzter Bauform, dann der
+    Name selbst (von Hand gepflegte Szenarien fuehren keine Bauform),
+    dann - falls die Bauform des Projekts fuer diesen Jahrgang nicht
+    vorliegt - irgendeine Kurve derselben Familie. Erst wenn auch das
+    fehlschlaegt, kommt None zurueck; der Aufrufer entscheidet dann
+    ueber den Ersatz.
+    """
+    stamm, gespeicherte_bauform, preisszenario = zerlege_szenarioname(name)
+    # Ein Altbestand kann die Bauform noch im Namen tragen; die des
+    # Projekts hat Vorrang.
+    gesucht = bauform or gespeicherte_bauform
+    kandidaten = [
+        szenarioname(stamm, gesucht, preisszenario),
+        name,
+        szenarioname(stamm, "", preisszenario),
+    ]
+    for kandidat in kandidaten:
+        treffer = global_assumptions.get_szenario(kandidat)
+        if treffer is not None:
+            return treffer
+    # Dieselbe Familie, andere Bauform: besser als das erstbeste
+    # Szenario eines fremden Jahrgangs.
+    for szenario in global_assumptions.marktpreisszenarien:
+        s_stamm, _, s_preis = zerlege_szenarioname(szenario.name)
+        if (s_stamm, s_preis) == (stamm, preisszenario):
+            return szenario
+    return None
+
 #: Szenarionamen, an denen die Szenariospalte erkannt wird.
 _SZENARIO_NAMEN = ("central", "low", "high", "net zero")
 

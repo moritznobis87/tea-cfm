@@ -484,7 +484,8 @@ PROJEKT_SPALTEN = [
     "id", "name", "standort", "variante", "leitvariante",
     "aktiv", "inbetriebnahme_jahr", "inbetriebnahme_monat",
     "anlagentyp",
-    "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "pacht_eur_kwp_jahr",
+    "nennleistung_kwp", "vollbenutzungsstunden_kwh_kwp", "bauform",
+    "pacht_eur_kwp_jahr",
     "pacht_modus", "pacht_umsatzbeteiligung_pct", "pacht_mindestpacht_eur_ha_jahr",
     "fremdkapitalzins_pct", "eigenkapitalquote_pct", "eag_zuschlagswert_ct_kwh",
     "gemeindeabgabe_eur_mwh", "direktvermarktungskosten_eur_mwh",
@@ -617,6 +618,7 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             "anlagentyp": p.anlagentyp.value,
             "nennleistung_kwp": p.nennleistung_kwp,
             "vollbenutzungsstunden_kwh_kwp": p.vollbenutzungsstunden_kwh_kwp,
+            "bauform": p.bauform,
             "pacht_eur_kwp_jahr": p.pacht_eur_kwp_jahr,
             "pacht_modus": p.pacht_modus.value,
             "pacht_umsatzbeteiligung_pct": p.pacht_umsatzbeteiligung_pct * 100,
@@ -718,7 +720,16 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                 marktpreisszenario=(
                     str(r["marktpreisszenario"])
                     if pd.notna(r["marktpreisszenario"])
-                    else "Aurora Q3/26 · Pult · Central"
+                    else "Aurora Q3/26 · Central"
+                ),
+                # Fehlt die Spalte (Export vor v5.15), holt der
+                # Migrationsschritt in PVProject die Bauform aus dem
+                # Szenarionamen - deshalb hier nur setzen, wenn sie
+                # tatsaechlich dasteht.
+                **(
+                    {"bauform": str(r["bauform"])}
+                    if "bauform" in r and pd.notna(r["bauform"])
+                    else {}
                 ),
                 projektflaeche_ha=(
                     float(r["projektflaeche_ha"])

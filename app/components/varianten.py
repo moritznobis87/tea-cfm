@@ -74,6 +74,7 @@ _FELDER: dict[str, tuple[str, callable]] = {
     "inbetriebnahme_monat": ("Inbetriebnahme – Monat", _jahr),
     "nennleistung_kwp": ("Leistung (kWp)", _zahl0),
     "vollbenutzungsstunden_kwh_kwp": ("Vollbenutzungsstunden (kWh/kWp)", _zahl0),
+    "bauform": ("Bauform", _text),
     "pacht_eur_kwp_jahr": ("Pacht (€/kWp/Jahr)", _zahl2),
     "pacht_modus": ("Pachtmodus", _text),
     "pacht_umsatzbeteiligung_pct": ("Umsatzbeteiligung", _pct),

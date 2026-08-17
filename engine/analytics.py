@@ -28,7 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from .io_aurora import zerlege_szenarioname
+from .io_aurora import szenario_auswahl, szenario_fuer
 from .kpis import _xnpv
 from .models import EffectiveAssumptions, GlobalAssumptions, PVProject
 from .pipeline import (
@@ -438,26 +438,25 @@ def run_scenario_comparison(
     Marktpreisszenarien und stellt IRR/NPV sowie die kumulierten
     Equity-Cashflows gegenueber.
 
-    Vergleichbar heisst: dieselbe BAUFORM wie das Szenario des Projekts.
-    Ein Projekt ist entweder aufgestaendert oder nachgefuehrt - die
-    Kurve der jeweils anderen Bauform ist keine Sensitivitaet, sondern
-    eine andere Anlage. Stuende sie im Vergleich, saehe es aus, als
-    haette man die Wahl zwischen beiden, und die Bandbreite waere um
-    einen Effekt zu breit, der mit dem Marktpreis nichts zu tun hat.
+    Verglichen werden die Preisprognosen, nicht die Bauformen: Jedes
+    Szenario wird in der Bauform des Projekts gerechnet. Ein Projekt ist
+    entweder aufgestaendert oder nachgefuehrt - die Kurve der jeweils
+    anderen Bauform ist keine Sensitivitaet, sondern eine andere Anlage.
+    Stuende sie daneben, saehe es aus, als haette man die Wahl zwischen
+    beiden, und die Bandbreite waere um einen Effekt zu breit, der mit
+    dem Marktpreis nichts zu tun hat.
 
-    Szenarien ohne Bauform im Namen (von Hand gepflegte Bestaende)
-    bleiben immer im Vergleich: Sie gehoeren zu keiner Bauform und
-    koennen deshalb auch keiner widersprechen.
+    Die Beschriftung ist deshalb der Szenarioname OHNE Bauform - genau
+    der Name, der auch im Projekt steht.
     """
     ea = resolve_assumptions(project, global_assumptions)
-    eigene_bauform = zerlege_szenarioname(project.marktpreisszenario)[1]
 
     rows = []
     kum: dict[str, np.ndarray] = {}
     jahre: np.ndarray | None = None
-    for szenario in global_assumptions.marktpreisszenarien:
-        bauform = zerlege_szenarioname(szenario.name)[1]
-        if eigene_bauform and bauform and bauform != eigene_bauform:
+    for name in szenario_auswahl(global_assumptions):
+        szenario = szenario_fuer(global_assumptions, name, project.bauform)
+        if szenario is None:
             continue
         # Alle Kurven des Szenarios tauschen, nicht nur die Jahreswerte:
         # In der Monatsaufloesung rechnet die Engine mit den Monatsreihen,
@@ -484,7 +483,7 @@ def run_scenario_comparison(
         df = result.cashflow.data
         rows.append(
             {
-                "szenario": szenario.name,
+                "szenario": name,
                 "equity_irr": result.kpis.equity_irr,
                 "npv_eur": _xnpv(
                     diskontsatz_pct,
@@ -494,7 +493,7 @@ def run_scenario_comparison(
                 "erloes_gesamt_eur": float(df["erloes_eur"].sum()),
             }
         )
-        kum[szenario.name] = df["cf_kumuliert_eur"].to_numpy()
+        kum[name] = df["cf_kumuliert_eur"].to_numpy()
         if jahre is None:
             jahre = df["jahr"].to_numpy()
 

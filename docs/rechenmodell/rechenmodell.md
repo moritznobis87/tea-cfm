@@ -707,9 +707,22 @@ weil gerade die Sommermonate die niedrigeren Marktwerte tragen.
 Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` in
 `engine/models.py`, die Normierung geschieht dort beim Laden;
 `tests/test_einspeisekurve.py` prüft Rohwerte, Normierung und
-Umschalter. In den globalen Annahmen wird zwischen beiden Bauformen
-umgeschaltet oder eine eigene Kurve eingetragen – letzteres ist der
-Regelfall, sobald für den Standort ein Ertragsgutachten vorliegt.
+Umschalter.
+
+**Welche Kurve gilt.** Die Bauform ist eine Eigenschaft der *Anlage* und
+steht deshalb im Projekt (`PVProject.bauform`, Werte `Pult` und
+`Tracker`). Sie entscheidet über zwei Größen: die Einspeisekurve
+$\phi_t$ hier und die Marktwertkurve des gewählten Preisszenarios in
+Schritt 3 – ein Tracker erzeugt breiter über den Tag verteilt und trifft
+die preisschwachen Mittagsstunden weniger stark. Bis Version 5.14 steckte
+die Bauform im Szenarionamen („Aurora Q3/26 · Pult · Central"); dort las
+sie sich wie eine Marktmeinung, obwohl zwischen beiden Bauformen keine
+Wahl besteht, sobald die Anlage geplant ist.
+
+Wird in den globalen Annahmen eine eigene Kurve eingetragen – der
+Regelfall, sobald für den Standort ein Ertragsgutachten vorliegt –, gilt
+diese für alle Projekte und die Bauform steuert nur noch den Marktwert
+(`engine/pipeline.py`, `_einspeisekurve()`).
 
 **Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr, in der
 Monatsauflösung zusätzlich $E_{t,j}$.
@@ -1523,7 +1536,8 @@ weiterhin dem Rechenergebnis entsprechen.
 | EAG-Zuschlagswert $z$ (Agri-PV, ohne Abschlag) | 6,50 ct/kWh |
 | Förderdauer $F$ / Betriebsdauer $N$ | 20 / 30 Jahre |
 | Degradation $d$ / Sicherheitsabschlag $\sigma$ | 0,25 %/a / 0 % |
-| Marktpreisszenario | Aurora Q3/26 · Pult · Central |
+| Bauform | Pult |
+| Marktpreisszenario | Aurora Q3/26 · Central |
 | Marktpreisinflation $\iota$ / Basisjahr $y_B$ | 2,0 % / 2025 |
 | Kosteninflation $\kappa$ | 2,0 % |
 | Steuermodus | Körperschaftsteuer, $\tau = 23\,\%$, $n_{\mathrm{AfA}} = 20$ |

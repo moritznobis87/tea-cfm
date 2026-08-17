@@ -1,5 +1,28 @@
 # Changelog
 
+## v5.15 – Die Bauform gehört zum Projekt (2026-08)
+
+Pult oder Tracker stand bisher im Szenarionamen („Aurora Q3/26 · Pult ·
+Central") und las sich dort wie eine Marktmeinung. Es ist aber keine:
+Sobald die Anlage geplant ist, gibt es zwischen beiden nichts zu wählen.
+
+- **Neues Projektfeld „Bauform"** (Radio Pult/Tracker) bei den
+  technischen Parametern. Es entscheidet über **zwei** Kurven: die
+  Einspeisekurve und die Marktwertkurve des gewählten Preisszenarios —
+  ein Tracker erzeugt breiter über den Tag verteilt und trifft die
+  preisschwachen Mittagsstunden weniger stark.
+- **Die Szenarioauswahl im Projekt zeigt jeden Jahrgang einmal**:
+  „Aurora Q3/26 · Central" statt zweier Einträge für Pult und Tracker.
+  Aus 17 Einträgen werden 9. In den globalen Annahmen bleiben beide
+  Kurven unverändert getrennt gepflegt.
+- **„Marktpreisszenarien im Vergleich"** rechnet jedes Szenario in der
+  Bauform des Projekts; der Bauform-Filter von v5.9 entfällt damit. Die
+  Legende nennt nur noch die Preisprognose.
+- **Migration ohne Zutun**: Gespeicherte Projekte, ältere
+  Projekt-Excels und direkt konstruierte Objekte holen die Bauform beim
+  Laden aus dem Szenarionamen. Die 17 ausgelieferten Projekte sind
+  bereits umgestellt; die Projekt-Excel führt eine Spalte `bauform`.
+
 ## v5.14 – Kosten bei den Kosten, Erlöse bei den Erlösen (2026-08)
 
 - **Portfolio-KPIs**: Die Kachel „Capex Gesamt" ist dem **kumulierten

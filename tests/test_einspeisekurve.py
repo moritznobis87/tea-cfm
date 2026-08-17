@@ -351,3 +351,111 @@ class TestMarktsystemSetztPraemienmodell:
         felder = GlobalAssumptions.model_fields
         assert felder["markt_system"].default == MarktSystem.OESTERREICH
         assert felder["praemien_modell"].default == PraemienModell.EAG_TOLERANZBAND
+
+
+class TestBauformAlsProjektfeld:
+    """Die Bauform gehoert zum Projekt, nicht zum Szenarionamen.
+
+    Bis v5.14 stand sie im Namen ("Aurora Q3/26 · Pult · Central") und
+    las sich damit wie eine Marktmeinung - dabei ist sie eine
+    Eigenschaft der Anlage. Sie entscheidet ueber zwei Kurven: die
+    Einspeisekurve und die Marktwertkurve des gewaehlten Jahrgangs.
+    """
+
+    def _projekt(self, **kw):
+        from engine.models import AnlagenTyp, PVProject
+
+        felder = dict(
+            id="p", name="P", anlagentyp=AnlagenTyp.AGRI_PV,
+            nennleistung_kwp=5000.0, vollbenutzungsstunden_kwh_kwp=1050.0,
+            pacht_eur_kwp_jahr=4.0, fremdkapitalzins_pct=0.042,
+            eigenkapitalquote_pct=0.2, eag_zuschlagswert_ct_kwh=6.5,
+        )
+        felder.update(kw)
+        return PVProject(**felder)
+
+    def test_altbestand_wandert_aus_dem_namen_ins_feld(self):
+        """Gespeicherte Projekte tragen die Bauform noch im
+        Szenarionamen - beim Laden wandert sie ins Feld, und der Name
+        verliert sie."""
+        projekt = self._projekt(
+            marktpreisszenario="Aurora Q3/26 · Tracker · Central"
+        )
+        assert projekt.bauform == "Tracker"
+        assert projekt.marktpreisszenario == "Aurora Q3/26 · Central"
+
+    def test_handgepflegter_name_bleibt_unberuehrt(self):
+        projekt = self._projekt(marktpreisszenario="Enervis 2025")
+        assert projekt.marktpreisszenario == "Enervis 2025"
+        assert projekt.bauform == "Pult"
+
+    def test_unbekannte_bauform_faellt_auf(self):
+        """Sie faende weder Einspeise- noch Marktwertkurve und rechnete
+        stillschweigend mit der Vorgabe weiter."""
+        import pytest as _pytest
+
+        with _pytest.raises(ValueError, match="Bauform"):
+            self._projekt(bauform="Schräg")
+
+    def test_bauform_bestimmt_die_einspeisekurve(self):
+        from engine.models import EINSPEISEKURVEN_JE_BAUFORM
+        from engine.pipeline import resolve_assumptions
+
+        ga = GlobalAssumptions(afa_nutzungsdauer_jahre=20)
+        for bauform in EINSPEISEKURVEN_JE_BAUFORM:
+            ea = resolve_assumptions(self._projekt(bauform=bauform), ga)
+            assert ea.einspeisekurve_pct_je_monat == pytest.approx(
+                EINSPEISEKURVEN_JE_BAUFORM[bauform]
+            )
+
+    def test_handkurve_hat_vorrang(self):
+        """Eine von Hand bearbeitete Kurve (keine Bauform hinterlegt)
+        darf nicht stillschweigend durch eine Vorlage ersetzt werden."""
+        from engine.pipeline import resolve_assumptions
+
+        ga = GlobalAssumptions(afa_nutzungsdauer_jahre=20)
+        ga.einspeisekurve_bauform = ""
+        ga.einspeisekurve_pct_je_monat = [1 / 12] * 12
+        ea = resolve_assumptions(self._projekt(bauform="Tracker"), ga)
+        assert ea.einspeisekurve_pct_je_monat == pytest.approx([1 / 12] * 12)
+
+    def test_bauform_waehlt_die_marktwertkurve(self):
+        """Beide Kurven eines Jahrgangs liegen nebeneinander - welche
+        gerechnet wird, entscheidet das Projekt."""
+        from pathlib import Path as _P
+
+        from engine.io_yaml import load_global_assumptions_yaml
+        from engine.pipeline import resolve_assumptions
+
+        ga = load_global_assumptions_yaml(
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
+        )
+        namen = {
+            bauform: resolve_assumptions(
+                self._projekt(bauform=bauform,
+                              marktpreisszenario="Aurora Q3/26 · Central"),
+                ga,
+            ).marktpreisszenario_name
+            for bauform in ("Pult", "Tracker")
+        }
+        assert namen == {
+            "Pult": "Aurora Q3/26 · Pult · Central",
+            "Tracker": "Aurora Q3/26 · Tracker · Central",
+        }
+
+    def test_auswahl_zeigt_jeden_jahrgang_einmal(self):
+        """Aus Pult- und Tracker-Variante wird ein Eintrag - die Bauform
+        steht im Projekt."""
+        from pathlib import Path as _P
+
+        from engine.io_aurora import szenario_auswahl
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml(
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
+        )
+        auswahl = szenario_auswahl(ga)
+        assert auswahl[0] == "Aurora Q3/26 · Central"
+        assert all("Pult" not in n and "Tracker" not in n for n in auswahl)
+        assert len(auswahl) == len(set(auswahl))
+        assert "Enervis 2025" in auswahl

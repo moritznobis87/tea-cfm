@@ -324,6 +324,58 @@ class CapexBreakdown(BaseModel):
         )
 
 
+#: Monatsertrag einer 1-kWp-Anlage in kWh, Januar bis Dezember - die
+#: Quelle der Einspeisekurven. Ausgelesen aus PVGIS je Bauform,
+#: derselbe Standort und dieselbe Konfiguration; die Jahressummen sind
+#: 1.148 kWh/kWp (Pult) und 1.429 kWh/kWp (Tracker), also 24,5 %
+#: Nachfuehrgewinn.
+#:
+#: Die Werte stehen hier in ihrer Rohform und nicht schon normiert, weil
+#: sie damit nachpruefbar bleiben: Wer die PVGIS-Abfrage wiederholt,
+#: vergleicht Zahl fuer Zahl. Fuer die Rechnung zaehlt nur ihr
+#: Verhaeltnis - die Jahresmenge kommt aus Leistung und
+#: Vollbenutzungsstunden des Projekts, nicht von hier.
+PVGIS_MONATSERTRAG_KWH_KWP: dict[str, list[float]] = {
+    "Pult": [
+        69.69, 87.20, 112.98, 113.01, 111.01, 113.67,
+        122.11, 110.76, 96.59, 88.06, 63.89, 59.50,
+    ],
+    "Tracker": [
+        85.42, 108.20, 139.14, 141.25, 137.08, 144.45,
+        157.08, 139.65, 118.34, 108.10, 78.07, 72.57,
+    ],
+}
+
+
+def _normiert(werte: list[float]) -> list[float]:
+    """Anteile mit Summe 1 - die Hoehe der Reihe ist gleichgueltig."""
+    gesamt = sum(werte)
+    return [w / gesamt for w in werte]
+
+
+#: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
+#: (Januar bis Dezember), Summe 1. Normiert aus den PVGIS-Monatsertraegen
+#: darueber.
+#:
+#: Der Tracker verschiebt Erzeugung in die langen Tage: Sein
+#: Nachfuehrgewinn liegt im Juli bei 28,6 %, im Dezember nur bei 22,0 %.
+#: Seine Kurve ist deshalb etwas sommerlastiger als die der
+#: Pultaufstaenderung - fuer die Monatsrechnung wesentlich, weil die
+#: Sommermonate die niedrigeren Marktwerte tragen.
+EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
+    bauform: _normiert(werte)
+    for bauform, werte in PVGIS_MONATSERTRAG_KWH_KWP.items()
+}
+
+#: Bauform der Standardkurve - Pult, wie auch beim Aurora-Import
+#: (io_aurora.TECHNOLOGIE_STANDARD).
+EINSPEISEKURVE_STANDARD_BAUFORM = "Pult"
+
+#: Standard-Einspeisekurve: die Pult-Kurve.
+EINSPEISEKURVE_STANDARD_PCT = list(
+    EINSPEISEKURVEN_JE_BAUFORM[EINSPEISEKURVE_STANDARD_BAUFORM]
+)
+
 class PVProject(BaseModel):
     """Die Projektmaske. Bewusst schlank gehalten - Ziel ist eine Anlage
     in unter zwei Minuten. Alles Uebrige kommt aus GlobalAssumptions."""
@@ -368,6 +420,20 @@ class PVProject(BaseModel):
     anlagentyp: AnlagenTyp
     nennleistung_kwp: float = Field(gt=0)
     vollbenutzungsstunden_kwh_kwp: float = Field(gt=0)
+    #: Aufstaenderung: "Pult" (fest, nach Sueden geneigt) oder "Tracker"
+    #: (einachsig nachgefuehrt). Sie entscheidet ueber ZWEI Groessen -
+    #: die Einspeisekurve (siehe EINSPEISEKURVEN_JE_BAUFORM) und die
+    #: Marktwertkurve des gewaehlten Preisszenarios: Der Tracker
+    #: erzeugt breiter ueber den Tag verteilt und trifft die
+    #: preisschwachen Mittagsstunden weniger stark.
+    #:
+    #: Die Bauform ist eine Eigenschaft der ANLAGE, nicht der
+    #: Preisprognose. Frueher steckte sie im Szenarionamen ("Aurora
+    #: Q3/26 · Pult · Central"), was sie zu einer Wahl zwischen
+    #: Marktmeinungen machte - dabei ist sie eine Wahl zwischen
+    #: Anlagen. Der Migrationsschritt unten holt sie aus Altbestaenden
+    #: heraus.
+    bauform: str = EINSPEISEKURVE_STANDARD_BAUFORM
 
     # Wirtschaftliche Parameter
     pacht_eur_kwp_jahr: float = Field(ge=0)
@@ -421,8 +487,11 @@ class PVProject(BaseModel):
     zusatz_opex: list[OpexItem] = Field(default_factory=list)
 
     # Wahl des Marktpreisszenarios (siehe GlobalAssumptions.marktpreisszenarien).
-    # Standardszenario ist der aktuelle Aurora-Jahrgang.
-    marktpreisszenario: str = "Aurora Q3/26 · Pult · Central"
+    # Standardszenario ist der aktuelle Aurora-Jahrgang. Der Name traegt
+    # KEINE Bauform mehr - die steht im Feld `bauform`, und welche der
+    # beiden Kurven eines Jahrgangs gerechnet wird, entscheidet sich
+    # erst beim Aufloesen (io_aurora.szenario_fuer).
+    marktpreisszenario: str = "Aurora Q3/26 · Central"
 
     # Bei Pachtmodus FIX nur relevant, wenn die Pacht zuletzt in
     # €/ha/Jahr eingegeben wurde (Rueckumrechnung beim erneuten Oeffnen
@@ -438,6 +507,43 @@ class PVProject(BaseModel):
         desselben Standorts in getrennte Gruppen aufteilen, ohne dass man
         den Unterschied sieht."""
         return wert.strip() if isinstance(wert, str) else wert
+
+    @field_validator("bauform")
+    @classmethod
+    def _bekannte_bauform(cls, wert):
+        """Eine unbekannte Bauform faende weder eine Einspeise- noch eine
+        Marktwertkurve und rechnete stillschweigend mit der Vorgabe."""
+        if wert not in EINSPEISEKURVEN_JE_BAUFORM:
+            bekannt = ", ".join(EINSPEISEKURVEN_JE_BAUFORM)
+            raise ValueError(f"Unbekannte Bauform {wert!r} - bekannt: {bekannt}")
+        return wert
+
+    @model_validator(mode="before")
+    @classmethod
+    def _bauform_aus_szenarioname(cls, data):
+        """Holt die Bauform aus einem Altbestand heraus.
+
+        Bis v5.14 stand sie im Szenarionamen ("Aurora Q3/26 · Pult ·
+        Central"). Gespeicherte Projekte, aeltere Excel-Importe und
+        direkt konstruierte Objekte tragen sie dort weiterhin; hier
+        wandert sie in das Feld `bauform`, und der Name verliert sie.
+        Ein ausdruecklich gesetztes Feld hat Vorrang - nur der Name
+        wird dann noch bereinigt.
+        """
+        if not isinstance(data, dict):
+            return data
+        name = data.get("marktpreisszenario")
+        if not isinstance(name, str) or "·" not in name:
+            return data
+        # Lokal importiert: io_aurora liest models, ein Import auf
+        # Modulebene waere ein Zirkel.
+        from .io_aurora import ohne_bauform, zerlege_szenarioname
+
+        bauform = zerlege_szenarioname(name)[1]
+        if bauform:
+            data.setdefault("bauform", bauform)
+            data["marktpreisszenario"] = ohne_bauform(name)
+        return data
 
     @property
     def anzeigename(self) -> str:
@@ -469,58 +575,6 @@ class PVProject(BaseModel):
 # Globale Annahmen (Layer 1) - selten geaendert, fuer alle Projekte gueltig
 # ---------------------------------------------------------------------------
 
-
-#: Monatsertrag einer 1-kWp-Anlage in kWh, Januar bis Dezember - die
-#: Quelle der Einspeisekurven. Ausgelesen aus PVGIS je Bauform,
-#: derselbe Standort und dieselbe Konfiguration; die Jahressummen sind
-#: 1.148 kWh/kWp (Pult) und 1.429 kWh/kWp (Tracker), also 24,5 %
-#: Nachfuehrgewinn.
-#:
-#: Die Werte stehen hier in ihrer Rohform und nicht schon normiert, weil
-#: sie damit nachpruefbar bleiben: Wer die PVGIS-Abfrage wiederholt,
-#: vergleicht Zahl fuer Zahl. Fuer die Rechnung zaehlt nur ihr
-#: Verhaeltnis - die Jahresmenge kommt aus Leistung und
-#: Vollbenutzungsstunden des Projekts, nicht von hier.
-PVGIS_MONATSERTRAG_KWH_KWP: dict[str, list[float]] = {
-    "Pult": [
-        69.69, 87.20, 112.98, 113.01, 111.01, 113.67,
-        122.11, 110.76, 96.59, 88.06, 63.89, 59.50,
-    ],
-    "Tracker": [
-        85.42, 108.20, 139.14, 141.25, 137.08, 144.45,
-        157.08, 139.65, 118.34, 108.10, 78.07, 72.57,
-    ],
-}
-
-
-def _normiert(werte: list[float]) -> list[float]:
-    """Anteile mit Summe 1 - die Hoehe der Reihe ist gleichgueltig."""
-    gesamt = sum(werte)
-    return [w / gesamt for w in werte]
-
-
-#: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
-#: (Januar bis Dezember), Summe 1. Normiert aus den PVGIS-Monatsertraegen
-#: darueber.
-#:
-#: Der Tracker verschiebt Erzeugung in die langen Tage: Sein
-#: Nachfuehrgewinn liegt im Juli bei 28,6 %, im Dezember nur bei 22,0 %.
-#: Seine Kurve ist deshalb etwas sommerlastiger als die der
-#: Pultaufstaenderung - fuer die Monatsrechnung wesentlich, weil die
-#: Sommermonate die niedrigeren Marktwerte tragen.
-EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
-    bauform: _normiert(werte)
-    for bauform, werte in PVGIS_MONATSERTRAG_KWH_KWP.items()
-}
-
-#: Bauform der Standardkurve - Pult, wie auch beim Aurora-Import
-#: (io_aurora.TECHNOLOGIE_STANDARD).
-EINSPEISEKURVE_STANDARD_BAUFORM = "Pult"
-
-#: Standard-Einspeisekurve: die Pult-Kurve.
-EINSPEISEKURVE_STANDARD_PCT = list(
-    EINSPEISEKURVEN_JE_BAUFORM[EINSPEISEKURVE_STANDARD_BAUFORM]
-)
 
 MONATE = 12
 
