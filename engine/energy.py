@@ -9,12 +9,13 @@ Monatsaufloesung als Summe eben dieser Monatswerte. Dadurch koennen
 Erloesrechnung (monatlich) und Kostenrechnung (jaehrlich) nicht
 auseinanderlaufen.
 
-Das Anlaufjahr ist der Grund, warum die Monatsrechnung nicht nur eine
-feinere Darstellung derselben Zahl ist: Eine Anlage, die im Juli in
-Betrieb geht, erzeugt im Anlaufjahr nicht die Haelfte des Jahres
-(Tagesanteil), sondern rund 60 % - die ertragreichen Monate liegen im
-Sommer. Die Jahresrechnung mit ihrem taggenauen pro-rata-Faktor kann das
-nicht wissen.
+Das Anlaufjahr folgt deshalb in BEIDEN Aufloesungen der
+Einspeisekurve: Eine im Dezember angeschlossene Anlage hat 8,5 % des
+Jahres hinter sich, erzeugt aber nur rund 5 % der Jahresmenge - der
+Dezember ist der schwaechste Monat. Fuer eine Inbetriebnahme im April
+liegt es umgekehrt (76 % statt 75 %). Welche Richtung der Fehler hat,
+haengt an der Kurve; dass der Tagesanteil die falsche Frage beantwortet,
+haengt nicht davon ab.
 """
 
 from __future__ import annotations
@@ -40,6 +41,19 @@ def einspeisekurve(assumptions: EffectiveAssumptions) -> np.ndarray:
     kurve = np.array(assumptions.einspeisekurve_pct_je_monat, dtype=float)
     summe = kurve.sum()
     return kurve / summe if summe else kurve
+
+
+def anlaufjahr_anteil(assumptions: EffectiveAssumptions) -> float:
+    """Anteil der Jahreserzeugung, der im Anlaufjahr noch anfaellt.
+
+    Summe der Einspeisekurve ab dem Inbetriebnahmemonat - fuer eine
+    Inbetriebnahme im Januar also 1,0. Diese Zahl ist der Unterschied
+    zwischen "wie viel Zeit ist vergangen" und "wie viel Strom ist
+    entstanden": Im Dezember sind 8,5 % des Jahres vergangen, aber nur
+    rund 5 % der Erzeugung angefallen.
+    """
+    kurve = einspeisekurve(assumptions)
+    return float(kurve[assumptions.inbetriebnahme_monat - 1:].sum())
 
 
 def _jahresmenge_kwh(assumptions: EffectiveAssumptions, jahr: pd.Series) -> pd.Series:
@@ -106,10 +120,14 @@ def calculate_energy_production(
     df["degradationsfaktor"] = (1 - assumptions.degradation_pct_pa) ** (
         df["jahr"] - 1
     )
-    # _jahresmenge_kwh traegt Degradation und Sicherheitsabschlag bereits;
-    # das Anlaufjahr kommt taggenau ueber den pro-rata-Faktor dazu.
-    df["produktion_kwh"] = (
-        _jahresmenge_kwh(assumptions, df["jahr"]) * df["pro_rata_faktor"]
-    )
+    # Das Anlaufjahr folgt der Einspeisekurve, nicht dem Tagesanteil:
+    # Eine im Dezember in Betrieb gegangene Anlage hat 8,5 % des Jahres
+    # hinter sich, aber nur rund 5 % der Jahreserzeugung - der Dezember
+    # ist der schwaechste Monat. Umgekehrt liefert eine Julianlage mehr
+    # als die Haelfte. Der Tagesanteil kann das nicht wissen; er stand
+    # hier, solange es die Kurve noch nicht gab.
+    anteil = df["pro_rata_faktor"].to_numpy().astype(float).copy()
+    anteil[df["jahr"].to_numpy() == 1] = anlaufjahr_anteil(assumptions)
+    df["produktion_kwh"] = _jahresmenge_kwh(assumptions, df["jahr"]) * anteil
 
     return df[ENERGY_COLUMNS]

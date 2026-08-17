@@ -566,3 +566,124 @@ class TestDirektvermarktungsModus:
         geladen = excel_to_global_assumptions(global_assumptions_to_excel(ga))
         assert geladen.direktvermarktung_modus == DirektvermarktungsModus.RELATIV_MARKTWERT
         assert geladen.direktvermarktung_pct_marktwert == pytest.approx(0.12)
+
+
+class TestUnterjaehrigeInbetriebnahme:
+    """Gemeldet am Projekt Voelkermarkt (Inbetriebnahme Dezember): Die
+    Betriebskosten fielen im Rumpfjahr voll an, obwohl die Anlage nur
+    einen Monat lief - nur Gemeindeabgabe und Direktvermarktung
+    skalierten, weil sie an der Menge haengen.
+    """
+
+    def _rechnung(self, project, global_assumptions, monat: int):
+        from datetime import date
+
+        from engine.energy import calculate_energy_production
+        from engine.opex import calculate_opex
+        from engine.pipeline import resolve_assumptions
+        from engine.revenue import calculate_revenue
+        from engine.timeline import build_timeline
+
+        project.inbetriebnahme_monat = monat
+        ea = resolve_assumptions(project, global_assumptions)
+        timeline = build_timeline(
+            date(project.inbetriebnahme_jahr, monat, 1), 25
+        )
+        energie = calculate_energy_production(timeline, ea)
+        erloes = calculate_revenue(timeline, energie, ea)
+        kosten = calculate_opex(
+            timeline, ea.opex_items, ea.nennleistung_kwp, energie,
+            gemeindeabgabe_eur_kwh=ea.gemeindeabgabe_eur_kwh,
+            direktvermarktungskosten_eur_kwh=ea.direktvermarktungskosten_eur_kwh,
+            kosten_inflation_pct_pa=ea.kosten_inflation_pct_pa,
+            pacht_modus=ea.pacht_modus,
+            pacht_eur_kwp_jahr=ea.pacht_eur_kwp_jahr,
+            erloes_eur=erloes["erloes_eur"].to_numpy(),
+        )
+        return energie, erloes, kosten
+
+    def test_fixe_kosten_sind_im_anlaufjahr_anteilig(
+        self, project, global_assumptions
+    ):
+        _, _, dezember = self._rechnung(project, global_assumptions, 12)
+        _, _, januar = self._rechnung(project, global_assumptions, 1)
+
+        # Ein Monat Betrieb - rund ein Zwoelftel der Pacht, nicht die
+        # volle Jahrespacht.
+        anteil = dezember["Pacht"].iloc[0] / januar["Pacht"].iloc[0]
+        assert 0.07 < anteil < 0.10
+
+    def test_produktion_folgt_der_einspeisekurve(
+        self, project, global_assumptions
+    ):
+        """Im Dezember sind 8,5 % des Jahres vergangen, aber nur rund
+        5 % der Erzeugung angefallen."""
+        from engine.models import EINSPEISEKURVEN_JE_BAUFORM
+
+        energie, _, _ = self._rechnung(project, global_assumptions, 12)
+        januar_energie, _, _ = self._rechnung(project, global_assumptions, 1)
+
+        anteil = (energie["produktion_kwh"].iloc[0]
+                  / januar_energie["produktion_kwh"].iloc[0])
+        kurve = global_assumptions.einspeisekurve_pct_je_monat
+        erwartet = kurve[11] / sum(kurve)
+        assert anteil == pytest.approx(erwartet, rel=1e-6)
+        assert anteil < 31 / 365, "Tagesanteil ueberschaetzt den Dezember"
+        del EINSPEISEKURVEN_JE_BAUFORM
+
+    def test_jahresmitte_folgt_ebenfalls_der_kurve(
+        self, project, global_assumptions
+    ):
+        """Die Gegenprobe zum Dezember - mit umgekehrtem Vorzeichen.
+
+        Mit der PVGIS-Kurve tragen Juli bis Dezember 47 % des Jahres,
+        der Tagesanteil unterstellt 50 %. Die Richtung des Fehlers
+        haengt an der Kurve, nicht am Kalender; entscheidend ist, dass
+        gerechnet wird, was erzeugt wird.
+        """
+        energie, _, _ = self._rechnung(project, global_assumptions, 7)
+        januar_energie, _, _ = self._rechnung(project, global_assumptions, 1)
+
+        kurve = global_assumptions.einspeisekurve_pct_je_monat
+        anteil = (energie["produktion_kwh"].iloc[0]
+                  / januar_energie["produktion_kwh"].iloc[0])
+        assert anteil == pytest.approx(sum(kurve[6:]) / sum(kurve), rel=1e-6)
+        assert anteil != pytest.approx((365 - 181) / 365, rel=1e-3)
+
+    def test_anlaufjahr_nutzt_monatsmarktwerte(
+        self, project, global_assumptions, szenario_flach
+    ):
+        """Auch in der Jahresaufloesung: Das Rumpfjahr erloest den
+        Marktwert SEINER Monate, nicht den Jahresdurchschnitt."""
+        from engine.models import MONATE, Zeitaufloesung
+
+        assert global_assumptions.zeitaufloesung == Zeitaufloesung.JAHR
+        szenario = global_assumptions.marktpreisszenarien[0]
+        jahre = sorted(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+        # Dezember teuer, uebrige Monate billig - im Jahresmittel faellt
+        # der Unterschied nicht auf.
+        szenario.marktwert_solar_ct_kwh_je_monat = {
+            j: [2.0] * (MONATE - 1) + [20.0] for j in jahre
+        }
+        _, erloes, _ = self._rechnung(project, global_assumptions, 12)
+        assert erloes["marktwert_real_ct_kwh"].iloc[0] == pytest.approx(20.0)
+        # Das zweite Jahr bleibt bei der Jahreskurve.
+        assert erloes["marktwert_real_ct_kwh"].iloc[1] == pytest.approx(
+            szenario.marktwert_solar_ct_kwh_je_kalenderjahr[jahre[1]]
+            if jahre[1] in szenario.marktwert_solar_ct_kwh_je_kalenderjahr
+            else erloes["marktwert_real_ct_kwh"].iloc[1]
+        )
+
+    def test_inbetriebnahme_im_januar_bleibt_unveraendert(
+        self, project, global_assumptions
+    ):
+        """Kein Rumpfjahr, keine Kuerzung - die grosse Mehrheit der
+        Projekte ist von der Aenderung nicht betroffen."""
+        energie, _, kosten = self._rechnung(project, global_assumptions, 1)
+        assert energie["produktion_kwh"].iloc[0] == pytest.approx(
+            project.nennleistung_kwp * project.vollbenutzungsstunden_kwh_kwp
+        )
+        assert kosten["Pacht"].iloc[0] == pytest.approx(
+            project.pacht_eur_kwp_jahr * project.nennleistung_kwp
+        )
+

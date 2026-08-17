@@ -560,8 +560,15 @@ $$ \pi_t = \min\left(\frac{\mathrm{Tage}(\mathrm{start}_t,\ \mathrm{ende}_t) + 1
 
 Der Faktor ist für alle vollen Kalenderjahre gleich 1 (auch in
 Schaltjahren, wegen der Kappung bei 1) und nur im Anlaufjahr kleiner. Er
-skaliert die Produktionsmenge des ersten Jahres und damit indirekt alle
-mengenabhängigen Erlöse und Kosten.
+skaliert die **zeitabhängigen Betriebskosten** des ersten Jahres:
+Betriebsführung, Versicherung, Pacht und Mindestpacht laufen ab
+Inbetriebnahme, nicht ab Jahresbeginn.
+
+Für die **Produktionsmenge** ist er dagegen nicht maßgeblich – dort gilt
+der Kurvenanteil $\pi^{E}_1$ nach Abschnitt 6.1. Beide Größen fallen
+auseinander, sobald die Inbetriebnahme nicht auf den 1. Januar fällt: Im
+Dezember sind 8,5 % des Jahres vergangen, aber nur rund 5 % der
+Jahreserzeugung angefallen.
 
 > **Annahme.** Betriebsperioden sind Kalenderjahre. Der Sonderfall
 > „Vertragsende am Jahrestag der Inbetriebnahme statt am Jahresende“ ist
@@ -603,7 +610,13 @@ $$ E^{\mathrm{basis}} = P \cdot h $$
 
 $$ \phi_t = (1 - d)^{\,t-1} $$
 
-$$ E_t = E^{\mathrm{basis}} \cdot \phi_t \cdot \pi_t \cdot (1 - \sigma) $$
+$$ E_t = E^{\mathrm{basis}} \cdot \phi_t \cdot \pi^{E}_t \cdot (1 - \sigma) $$
+
+Dabei ist der Mengenanteil $\pi^{E}_t$ für alle Jahre ab dem zweiten
+gleich 1; im Anlaufjahr ist er die Summe der Einspeisekurve ab dem
+Inbetriebnahmemonat $j_0$:
+
+$$ \pi^{E}_1 = \sum_{j=j_0}^{12} \hat{\theta}_j $$
 
 ## 6.2 Erläuterung
 
@@ -616,7 +629,13 @@ $$ E_t = E^{\mathrm{basis}} \cdot \phi_t \cdot \pi_t \cdot (1 - \sigma) $$
   Bei $d = 0{,}25\,\%$ und $t = 30$ ergibt sich
   $\phi_{30} = 0{,}9975^{29} = 0{,}9298$, entsprechend einem
   Mengenrückgang von rund 7 % bis zum Ende der Betriebsdauer.
-- **Anteilsfaktor** $\pi_t$ kürzt das Anlaufjahr (Abschnitt 5.2).
+- **Mengenanteil des Anlaufjahres** $\pi^{E}_1$ folgt der
+  Einspeisekurve, nicht dem Kalender: Eine im Dezember in Betrieb
+  gegangene Anlage hat 8,5 % des Jahres hinter sich, erzeugt aber nur
+  rund 5 % der Jahresmenge – der Dezember ist der schwächste Monat.
+  Umgekehrt liefert eine im Juli angeschlossene Anlage deutlich mehr als
+  die Hälfte. Der taggenaue Faktor $\pi_t$ aus Abschnitt 5.2 kann das
+  nicht wissen; er bleibt für die zeitabhängigen Kosten maßgeblich.
 - **Sicherheitsabschlag** $\sigma$ ist ein pauschaler Abschlag auf die
   Ertragsprognose (z. B. für P90-Betrachtungen). Er wirkt multiplikativ
   auf alle Jahre gleich.
@@ -639,12 +658,13 @@ $$ \hat{\theta}_j = \frac{\theta_j}{\sum_{i=1}^{12}\theta_i}, \qquad j = 1,\dots
 
 $$ E_{t,j} = E^{\mathrm{basis}} \cdot \phi_t \cdot (1-\sigma) \cdot \hat{\theta}_j \cdot \mathbf{1}_{[\,t>1 \;\vee\; j \geq j_0\,]} $$
 
-Dabei ist $j_0$ der Inbetriebnahmemonat. Der Anteilsfaktor $\pi_t$ des
-Anlaufjahres entfällt in dieser Auflösung: Statt eines taggenauen
-Bruchteils zählen genau die Monate ab Inbetriebnahme mit ihrem
-tatsächlichen Ertragsanteil. Für eine im Juli in Betrieb gehende Anlage
-sind das nicht die halben, sondern rund 60 % der Jahresmenge – die
-ertragreichen Monate liegen im Sommer. Für alle weiteren Jahre gilt
+Dabei ist $j_0$ der Inbetriebnahmemonat. Ein taggenauer Bruchteil
+kommt hier nicht vor: Es zählen genau die Monate ab Inbetriebnahme mit
+ihrem tatsächlichen Ertragsanteil. Für eine im Dezember angeschlossene
+Anlage sind das 5,2 % der Jahresmenge statt der 8,5 %, die der Kalender
+nahelegt; bei Inbetriebnahme im April sind es 76,5 % statt 75,3 %.
+Welche Richtung die Abweichung hat, hängt an der Kurve – dass der
+Tagesanteil die falsche Frage beantwortet, hängt nicht davon ab. Für alle weiteren Jahre gilt
 
 $$ \sum_{j=1}^{12} E_{t,j} = E_t, $$
 
@@ -926,6 +946,20 @@ der Wert, den *ihre* Kilowattstunden erlösen. Ein ungewichteter
 Monatsdurchschnitt wäre für Photovoltaik systematisch zu hoch, weil die
 ertragsstarken Monate die preisschwachen sind.
 
+### Das Anlaufjahr rechnet immer monatlich
+
+Bei unterjähriger Inbetriebnahme wird das erste Betriebsjahr **auch in
+der Jahresauflösung** über Monatsscheiben gerechnet; ab dem ersten
+vollen Kalenderjahr gilt wieder die gewählte Auflösung.
+
+Der Grund ist derselbe, aus dem die Monatsauflösung überhaupt existiert,
+nur zugespitzt: Ein Rumpfjahr besteht aus wenigen, benannten Monaten.
+Eine im Dezember angeschlossene Anlage erlöst den Dezembermarktwert für
+die Dezembermenge – der Jahresmarktwert und ein Tagesanteil beantworten
+die Frage, was im ersten Rumpfjahr herauskommt, nicht einmal
+näherungsweise. Für die Jahre danach bleibt die Monatsebene eine
+Entscheidung des Anwenders; im Anlaufjahr ist sie eine Notwendigkeit.
+
 Der wirtschaftliche Unterschied beider Auflösungen entsteht aus zwei
 Effekten mit gegenläufigem Vorzeichen:
 
@@ -987,7 +1021,11 @@ Jede Position $j$ trägt einen spezifischen Basiswert $w_j$ (€/kWp/Jahr),
 ein Startjahr $t^{\mathrm{start}}_j$, eine eigene Indexrate $g_j$ und ein
 Jahr, ab dem indexiert wird, $t^{\mathrm{idx}}_j$:
 
-$$ C^{(j)}_t = \mathbf{1}_{[\,t\, \geq\, t^{\mathrm{start}}_j\,]} \cdot w_j \cdot P \cdot (1 + g_j)^{\left(t - t^{\mathrm{idx}}_j\right)^{+}} $$
+$$ C^{(j)}_t = \mathbf{1}_{[\,t\, \geq\, t^{\mathrm{start}}_j\,]} \cdot w_j \cdot P \cdot (1 + g_j)^{\left(t - t^{\mathrm{idx}}_j\right)^{+}} \cdot \pi_t $$
+
+Der Anteilsfaktor $\pi_t$ (Abschnitt 5.2) kürzt das Anlaufjahr: Eine im
+Dezember in Betrieb gegangene Anlage trägt einen Monat Betriebsführung
+und Versicherung, nicht zwölf. Für alle übrigen Jahre ist er 1.
 
 Der Exponent ist bei $0$ gekappt: Vor dem Indexierungsstartjahr gilt der
 unveränderte Basiswert, es findet keine „Rückwärtsindexierung“ statt. Der
@@ -1045,12 +1083,20 @@ Vertragsmodell unterschiedlich bemessen wird.
 
 **Modus fix** – fester Betrag je installierter kWp und Jahr:
 
-$$ C^{\mathrm{pacht}}_t = p_{\mathrm{kWp}} \cdot P \cdot \Theta_t $$
+$$ C^{\mathrm{pacht}}_t = p_{\mathrm{kWp}} \cdot P \cdot \Theta_t \cdot \pi_t $$
 
 **Modus Umsatzbeteiligung** – Anteil $\beta$ am Jahresumsatz, mindestens
 aber eine indexierte Mindestpacht je Hektar:
 
-$$ C^{\mathrm{pacht}}_t = \max\left(\beta \cdot R_t,\ \ p_{\mathrm{ha}} \cdot A_{\mathrm{ha}} \cdot \Theta_t\right) $$
+$$ C^{\mathrm{pacht}}_t = \max\left(\beta \cdot R_t,\ \ p_{\mathrm{ha}} \cdot A_{\mathrm{ha}} \cdot \Theta_t \cdot \pi_t\right) $$
+
+Die Umsatzbeteiligung trägt das Anlaufjahr bereits über den Erlös $R_t$;
+die Mindestpacht ist ein Zeitbetrag und wird deshalb wie die übrigen
+festen Positionen anteilig gerechnet.
+
+> **Annahme.** Die Betriebskosten beginnen mit der Inbetriebnahme. Für
+> die Pacht kann der Vertrag abweichen (Flächenübergabe vor Baubeginn);
+> diese Differenz ist als Zusatzposition abzubilden.
 
 Marktüblich sind $\beta \approx 5{,}5\,\%$. Die Maximumbildung ist
 wirtschaftlich relevant: In frühen Jahren dominiert typischerweise die

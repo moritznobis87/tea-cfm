@@ -1,5 +1,32 @@
 # Changelog
 
+## v5.13 – Unterjährige Inbetriebnahme richtig gerechnet (2026-08)
+
+Gemeldet am Projekt Völkermarkt (Inbetriebnahme Dezember 2027): Die
+Betriebskosten fielen im Rumpfjahr voll an, obwohl die Anlage nur einen
+Monat lief. Drei Stellen waren betroffen — **die Änderungen wirken auf
+jedes Projekt mit unterjähriger Inbetriebnahme**:
+
+- **Zeitabhängige Betriebskosten** (Standardpositionen, Zusatzpositionen,
+  Pacht, Mindestpacht) werden im Anlaufjahr anteilig gerechnet. Bisher
+  liefen Betriebsführung, Versicherung und Pacht ein volles Jahr; nur
+  Gemeindeabgabe und Direktvermarktung skalierten, weil sie an der Menge
+  hängen. Für Völkermarkt fielen die Betriebskosten des ersten Jahres
+  damit von 38.563 € auf 3.802 €.
+- **Die Produktion des Anlaufjahres folgt der Einspeisekurve** statt dem
+  Tagesanteil. Im Dezember sind 8,5 % des Jahres vergangen, aber nur
+  5,2 % der Jahreserzeugung angefallen — der Dezember ist der schwächste
+  Monat. Umgekehrt liefert eine im Juli angeschlossene Anlage deutlich
+  mehr als die Hälfte.
+- **Das Anlaufjahr rechnet immer monatlich**, auch in der
+  Jahresauflösung: Es erlöst den Dezembermarktwert für die Dezembermenge
+  statt eines Jahresmittels. Ab dem ersten vollen Kalenderjahr bleibt es
+  bei der gewählten Auflösung.
+
+Für Völkermarkt steigt die EK-Rendite dadurch von 14,58 % auf 15,26 %
+und der minimale DSCR von −0,18 auf 0,08 — das Rumpfjahr bleibt schwach,
+ist aber nicht mehr künstlich belastet.
+
 ## v5.12 – Parameterspalte aufgeräumt, Runde 3 (2026-08)
 
 - **Der Pachtblock steht wieder an einer Stelle.** Überschrift und

@@ -46,6 +46,19 @@ def calculate_opex(
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
 
+    # Anteil des Anlaufjahres: Eine im Dezember in Betrieb gegangene
+    # Anlage traegt einen Monat Betriebsfuehrung, Versicherung und
+    # Pacht - nicht zwoelf. Fuer alle uebrigen Jahre ist der Faktor 1,0.
+    # Er gilt AUSSCHLIESSLICH fuer die zeitabhaengigen Positionen; die
+    # mengenabhaengigen (Gemeindeabgabe, Direktvermarktung) tragen den
+    # Anlauf ohnehin ueber die Produktionsmenge.
+    #
+    # Annahme: Die Betriebskosten beginnen mit der Inbetriebnahme. Fuer
+    # die Pacht kann der Vertrag abweichen (Flaechenuebergabe vor
+    # Baubeginn); wer das abbilden will, traegt die Differenz als
+    # Zusatzposition ein.
+    zeitanteil = timeline["pro_rata_faktor"].to_numpy().astype(float)
+
     posten_spalten: list[str] = []
     for item in opex_items:
         basis_eur = item.basiswert_eur_kwp * nennleistung_kwp
@@ -53,7 +66,7 @@ def calculate_opex(
 
         jahre_seit_indexstart = (df["jahr"] - item.indexierung_ab_jahr).clip(lower=0)
         indexierter_betrag = basis_eur * (1 + item.index_pct_pa) ** jahre_seit_indexstart
-        betrag = aktiv.astype(float) * indexierter_betrag
+        betrag = aktiv.astype(float) * indexierter_betrag * zeitanteil
 
         # Bei zwei Positionen mit identischem Namen wird addiert statt
         # einer neuen Spalte - so bleibt jede Bezeichnung ein eindeutiger
@@ -107,16 +120,20 @@ def calculate_opex(
     # Diagramm), aber je nach PachtModus unterschiedlich berechnet - kann
     # deshalb nicht ueber die generische opex_items-Schleife oben laufen.
     if pacht_modus == PachtModus.UMSATZBETEILIGUNG and erloes_eur is not None:
+        # Die Umsatzbeteiligung traegt den Anlauf bereits ueber den
+        # Erloes; die Mindestpacht ist dagegen ein Zeitbetrag und wird
+        # wie die uebrigen fixen Positionen anteilig gerechnet.
         umsatzbeteiligung = erloes_eur * pacht_umsatzbeteiligung_pct
         mindestpacht = (
             pacht_mindestpacht_eur_ha_jahr
             * (projektflaeche_ha or 0.0)
             * inflation_faktor
+            * zeitanteil
         )
         pacht_betrag = np.maximum(umsatzbeteiligung, mindestpacht)
     else:
         pacht_basis_eur = pacht_eur_kwp_jahr * nennleistung_kwp
-        pacht_betrag = pacht_basis_eur * inflation_faktor
+        pacht_betrag = pacht_basis_eur * inflation_faktor * zeitanteil
     # Additiv wie die generische Schleife oben: falls eine Standard-OPEX-
     # Position zufaellig ebenfalls "Pacht" heisst, wird addiert statt
     # einer doppelten Spalte (die spaetere Spaltenauswahl wuerde sonst
