@@ -32,6 +32,13 @@
   die Preisspanne als Sensitivität bereit, ohne dass jeder Anwender die
   Arbeitsmappe selbst importieren muss. Die bisherigen Szenarien bleiben
   unverändert bestehen, damit vorhandene Projekte weiter rechnen.
+- **Fünf ältere Aurora-Jahrgänge** (Jan 25, Apr 25, Oct 25, Q1/26,
+  Q2/26) stehen als Central-Szenario je Bauform bereit – für die Frage,
+  wie sich die Prognose über die Ausgaben verschoben hat. Ihre realen
+  Preise sind dabei auf die globale Preisbasis 2025 umgerechnet (die
+  Mappen rechnen in Preisen von 2023 bzw. 2024); ohne diese Umrechnung
+  zeigte der Vergleich Inflation statt Prognoseänderung. Der Marktwert
+  Solar 2035 fällt über die Jahrgänge von 6,03 auf 4,31 ct/kWh.
 - **Legende der Szenariendiagramme** kürzt die gemeinsame Herkunft weg:
   Aus „Aurora Q3/26 GER · Pult · Central" wird „Pult · Central", wenn
   alle gezeigten Kurven denselben Stamm tragen. Der Tooltip nennt

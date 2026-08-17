@@ -364,6 +364,73 @@ class TestAuroraQ326Szenarien:
                     < hoch.baseload_ct_kwh_je_kalenderjahr[jahr])
 
 
+class TestAuroraJahrgaenge:
+    """Fuenf aeltere Aurora-Jahrgaenge stehen als Central-Szenario je
+    Bauform bereit - fuer den Vergleich, wie sich die Prognose ueber die
+    Ausgaben verschoben hat."""
+
+    @pytest.fixture
+    def ausgeliefert(self):
+        from pathlib import Path as _P
+
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        return load_global_assumptions_yaml(
+            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
+        )
+
+    JAHRGAENGE = ["Jan 25", "Apr 25", "Oct 25", "Q1/26", "Q2/26", "Q3/26"]
+
+    def test_jeder_jahrgang_mit_beiden_bauformen(self, ausgeliefert):
+        namen = {s.name for s in ausgeliefert.marktpreisszenarien}
+        for jahrgang in self.JAHRGAENGE:
+            for bauform in ("Pult", "Tracker"):
+                assert f"Aurora {jahrgang} GER · {bauform} · Central" in namen
+
+    def test_nur_der_aktuelle_jahrgang_fuehrt_low_und_high(self, ausgeliefert):
+        namen = {s.name for s in ausgeliefert.marktpreisszenarien}
+        for szenario in ("Low", "High"):
+            assert f"Aurora Q3/26 GER · Pult · {szenario}" in namen
+            assert f"Aurora Q2/26 GER · Pult · {szenario}" not in namen
+
+    def test_alle_jahrgaenge_mit_grosshandelspreis(self, ausgeliefert):
+        for jahrgang in self.JAHRGAENGE:
+            s = [x for x in ausgeliefert.marktpreisszenarien
+                 if x.name == f"Aurora {jahrgang} GER · Pult · Central"][0]
+            assert len(s.baseload_ct_kwh_je_kalenderjahr) >= 30
+            assert len(s.baseload_ct_kwh_je_monat) >= 30
+
+    def test_marktwerte_sinken_ueber_die_jahrgaenge(self, ausgeliefert):
+        """Aurora hat den Solarmarktwert von Ausgabe zu Ausgabe nach
+        unten revidiert - stuende hier ein Anstieg, waeren die
+        Jahrgaenge vermutlich vertauscht oder falsch umbasiert."""
+        werte = [
+            [x for x in ausgeliefert.marktpreisszenarien
+             if x.name == f"Aurora {j} GER · Pult · Central"][0]
+            .marktwert_solar_ct_kwh_je_kalenderjahr[2035]
+            for j in self.JAHRGAENGE
+        ]
+        assert werte[0] > werte[-1]
+        assert werte == sorted(werte, reverse=True)
+
+    def test_preisbasis_umgerechnet(self, ausgeliefert):
+        """Die aelteren Mappen rechnen in Preisen von 2023 bzw. 2024,
+        die globale Annahme in Preisen von 2025. Ohne Umrechnung waeren
+        die Jahrgaenge nicht vergleichbar - der Vergleich zeigte dann
+        Inflation statt Prognoseaenderung. Kontrolle: Die
+        Grosshandelspreise der Jahrgaenge liegen dicht beieinander,
+        waehrend zwei Jahre Inflation 4 % ausmachen wuerden."""
+        baseloads = [
+            [x for x in ausgeliefert.marktpreisszenarien
+             if x.name == f"Aurora {j} GER · Pult · Central"][0]
+            .baseload_ct_kwh_je_kalenderjahr[2035]
+            for j in self.JAHRGAENGE
+        ]
+        assert max(baseloads) - min(baseloads) < 0.6
+        # Jan 25 rechnet in Preisen von 2023: 8,27 x 1,02^2 = 8,60
+        assert baseloads[0] == pytest.approx(8.60, abs=0.02)
+
+
 class TestKostenInflation:
     """Die globale Kosteninflation wirkt auf ALLE Kostenpositionen ohne
     eigene Preislogik: Pacht, Gemeindeabgabe und Direktvermarktung
