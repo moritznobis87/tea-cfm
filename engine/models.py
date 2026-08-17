@@ -14,7 +14,13 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class AnlagenTyp(str, Enum):
@@ -376,6 +382,118 @@ EINSPEISEKURVE_STANDARD_PCT = list(
     EINSPEISEKURVEN_JE_BAUFORM[EINSPEISEKURVE_STANDARD_BAUFORM]
 )
 
+class Projektannahmen(BaseModel):
+    """Abweichungen dieses Projekts von den globalen Annahmen.
+
+    Grundregel: **None heisst "folgt der Vorgabe"**. Ein Projekt
+    speichert also NICHT den globalen Wert, sondern nur, dass es ihm
+    folgt - sonst erreichte eine spaetere Aenderung der Vorgabe kein
+    einziges Projekt mehr, und die globalen Annahmen waeren keine
+    Vorgaben, sondern nur noch ein Anlagevorschlag.
+
+    Zusammengefuehrt wird an genau einer Stelle:
+    pipeline.resolve_assumptions(). Alles, was hier steht, hat dort
+    Vorrang vor dem gleichnamigen Feld der GlobalAssumptions.
+
+    Warum ein eigener Block und keine Felder direkt am PVProject: Die
+    Regel "None = Vorgabe" gilt hier ausnahmslos, am PVProject dagegen
+    nicht (dort ist z.B. projektflaeche_ha=None schlicht "keine
+    Flaeche"). Ein eigener Block macht die Regel nachpruefbar und die
+    YAML-Datei lesbar - gespeichert wird nur, was gesetzt ist.
+    """
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    # --- Kreditvertrag ------------------------------------------------------
+    # Die Bank verhandelt je Projekt. Dass Eigenkapitalanteil und Zins
+    # bisher am Projekt hingen, Laufzeit und Tilgungsart aber global
+    # waren, hatte keinen fachlichen Grund - es ist derselbe Vertrag.
+    kreditlaufzeit_jahre: int | None = Field(default=None, gt=0)
+    tilgungsart: TilgungsArt | None = None
+    tilgungsfreies_anlaufjahr: bool | None = None
+    zinsmethode: ZinsMethode | None = None
+    dscr_cash_trap: float | None = Field(default=None, ge=0)
+    dscr_event_of_default: float | None = Field(default=None, ge=0)
+
+    # --- Steuern ------------------------------------------------------------
+    # Haengt an Sitz und Rechtsform der Projektgesellschaft, nicht am
+    # Portfolio: Eine deutsche Gesellschaft rechnet Gewerbesteuer, auch
+    # wenn die uebrigen Projekte oesterreichisch sind.
+    tax_modus: TaxModus | None = None
+    steuersatz_pct: float | None = Field(default=None, ge=0, le=1)
+    afa_nutzungsdauer_jahre: int | None = Field(default=None, gt=0)
+    freibetrag_eur: float | None = Field(default=None, ge=0)
+    gewerbesteuer_hebesatz_pct: float | None = Field(default=None, ge=0)
+    gewerbesteuer_freibetrag_eur: float | None = Field(default=None, ge=0)
+    verlustvortrag_verrechnungsgrenze_pct: float | None = Field(
+        default=None, ge=0, le=1
+    )
+
+    # --- Anlage und Ertrag --------------------------------------------------
+    degradation_pct_pa: float | None = Field(default=None, ge=0)
+    sicherheitsabschlag_pct: float | None = Field(default=None, ge=0, le=1)
+    betriebsdauer_jahre: int | None = Field(default=None, gt=0)
+
+    # --- Foerdermodell und Vermarktung --------------------------------------
+    praemien_modell: PraemienModell | None = None
+    eag_foerderdauer_jahre: int | None = Field(default=None, gt=0)
+    eag_rueckzahlung_ab_mw: float | None = Field(default=None, ge=0)
+    eag_rueckzahlung_toleranzband_pct: float | None = Field(default=None, ge=0)
+    eag_rueckzahlung_anteil_pct: float | None = Field(default=None, ge=0, le=1)
+    negative_stunden_regel: NegativeStundenRegel | None = None
+    negative_stunden_modus: NegativeStundenModus | None = None
+    negative_stunden_gewichtung_pct: float | None = Field(
+        default=None, ge=0, le=1
+    )
+    direktvermarktung_modus: DirektvermarktungsModus | None = None
+    direktvermarktung_pct_marktwert: float | None = Field(
+        default=None, ge=0, le=1
+    )
+
+    # --- Preis- und Kostenpfad ----------------------------------------------
+    marktpreis_inflation_pct_pa: float | None = Field(default=None, ge=0)
+    marktpreis_inflation_basisjahr: int | None = None
+    kosten_inflation_pct_pa: float | None = Field(default=None, ge=0)
+
+    # --- Betriebskosten -----------------------------------------------------
+    #: Abweichende Basiswerte der GLOBALEN Standardpositionen, je
+    #: Positionsname in EUR/kWp/Jahr. Frueh im Projekt sind das
+    #: Erfahrungswerte, mit zunehmender Reife werden daraus Angebote -
+    #: und die unterscheiden sich von Standort zu Standort erheblich.
+    #:
+    #: Bewusst ein dict statt einer Kopie der ganzen Liste: Eine neu
+    #: aufgenommene globale Position erscheint dadurch in allen
+    #: Projekten, eine geloeschte verschwindet ueberall, und im Projekt
+    #: steht nur, was tatsaechlich verhandelt wurde. Der Preis ist die
+    #: Bindung an den Namen - wird eine globale Position umbenannt,
+    #: faellt das Projekt auf ihren Standardwert zurueck.
+    opex_standard_eur_kwp: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("opex_standard_eur_kwp")
+    @classmethod
+    def _keine_negativen_kosten(cls, werte):
+        for name, wert in werte.items():
+            if wert < 0:
+                raise ValueError(f"Betriebskosten {name!r}: {wert} < 0")
+        return werte
+
+    @property
+    def gesetzte_felder(self) -> list[str]:
+        """Die Namen der tatsaechlich abweichenden Felder.
+
+        Grundlage der Zaehlzeile in der Oberflaeche ("2 Abweichungen") -
+        ohne sie faellt in einem halben Jahr niemandem mehr auf, dass
+        dieses Projekt der Vorgabe nicht mehr folgt.
+        """
+        gesetzt = [
+            name for name, wert in self
+            if name != "opex_standard_eur_kwp" and wert is not None
+        ]
+        if self.opex_standard_eur_kwp:
+            gesetzt.append("opex_standard_eur_kwp")
+        return gesetzt
+
+
 class PVProject(BaseModel):
     """Die Projektmaske. Bewusst schlank gehalten - Ziel ist eine Anlage
     in unter zwei Minuten. Alles Uebrige kommt aus GlobalAssumptions."""
@@ -499,6 +617,10 @@ class PVProject(BaseModel):
     # Berechnungsgrundlage der Mindestpacht (siehe
     # pacht_mindestpacht_eur_ha_jahr) - sollte dort gesetzt sein.
     projektflaeche_ha: float | None = None
+
+    #: Abweichungen von den globalen Annahmen - siehe Projektannahmen.
+    #: Leer bedeutet: Dieses Projekt folgt in allem der Vorgabe.
+    annahmen: Projektannahmen = Field(default_factory=Projektannahmen)
 
     @field_validator("name", "variante", "standort", mode="before")
     @classmethod
@@ -835,6 +957,22 @@ class GlobalAssumptions(BaseModel):
     # ist der Boden unter der Umsatzbeteiligung: Faellt der Erloes aus,
     # bleibt dem Verpaechter dieser Betrag. Hausueblich sind 3.000 EUR/ha.
     pacht_mindestpacht_eur_ha_jahr_vorschlag: float = Field(ge=0, default=3000.0)
+    # --- Vorbelegung der Projektmaske ----------------------------------------
+    # Diese Groessen sind je Projekt verschieden und werden dort auch
+    # gespeichert - eine Vererbung waere hier sinnlos. Ihre VORBELEGUNG im
+    # Formular "Neues Projekt" stand aber bis v5.16 hart im Code; damit
+    # war der Hausstandard nicht pflegbar, obwohl er genau das ist: eine
+    # Vorgabe. Jetzt steht er hier.
+    nennleistung_kwp_vorschlag: float = Field(gt=0, default=5000.0)
+    vollbenutzungsstunden_kwh_kwp_vorschlag: float = Field(gt=0, default=1050.0)
+    eigenkapitalquote_pct_vorschlag: float = Field(ge=0, le=1, default=0.20)
+    fremdkapitalzins_pct_vorschlag: float = Field(ge=0, default=0.042)
+    #: EPC-Vorbelegung je Anlagentyp in EUR/kWp. Agri-PV baut teurer als
+    #: eine konventionelle Freiflaechenanlage - hoehere Aufstaenderung
+    #: und groessere Reihenabstaende.
+    epc_eur_kwp_vorschlag_je_anlagentyp: dict[str, float] = Field(
+        default_factory=lambda: {"Agri-PV": 520.0, "Konventionell": 430.0}
+    )
     # Direktvermarktungskosten-Vorschlagswert (analog Gemeindeabgabe): dient
     # nur als Vorbelegung im "Neues Projekt"-Formular, tatsaechlich
     # angewendet wird PVProject.direktvermarktungskosten_eur_mwh.

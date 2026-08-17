@@ -27,12 +27,33 @@ from .models import (
     EffectiveAssumptions,
     GlobalAssumptions,
     MarktpreisSzenario,
+    OpexItem,
     PVProject,
 )
 from .opex import calculate_opex
 from .revenue import calculate_revenue
 from .tax import calculate_tax
 from .timeline import build_timeline, erstjahr_zins_pro_rata
+
+
+def _opex_items(
+    project: PVProject, global_assumptions: GlobalAssumptions
+) -> list[OpexItem]:
+    """Standardpositionen mit den Werten dieses Projekts, dann die
+    projektspezifischen Zusatzpositionen.
+
+    Die Reihenfolge bestimmt auch die Stapelreihenfolge im
+    Kostendiagramm. Ein abweichender Basiswert ersetzt nur die Zahl -
+    Name, Indexierung und Bezugsgroesse bleiben die der globalen
+    Position, sonst waere es eine andere Kostenart.
+    """
+    abweichend = project.annahmen.opex_standard_eur_kwp
+    standard = [
+        item.model_copy(update={"basiswert_eur_kwp": abweichend[item.name]})
+        if item.name in abweichend else item
+        for item in global_assumptions.opex_standard
+    ]
+    return standard + list(project.zusatz_opex)
 
 
 def _einspeisekurve(
@@ -62,10 +83,22 @@ def _einspeisekurve(
 def resolve_assumptions(
     project: PVProject, global_assumptions: GlobalAssumptions
 ) -> EffectiveAssumptions:
-    # Globale Standardpositionen zuerst, danach die projektspezifischen
-    # Zusatzpositionen - die Reihenfolge bestimmt auch die Stapelreihenfolge
-    # im Kostendiagramm.
-    opex_items = list(global_assumptions.opex_standard) + list(project.zusatz_opex)
+    # Die Abweichungen dieses Projekts haben Vorrang vor der globalen
+    # Vorgabe; `erbe` ist die einzige Stelle, an der beides
+    # zusammenkommt (siehe engine/models.py::Projektannahmen).
+    abw = project.annahmen
+
+    def erbe(feld: str):
+        """Der wirksame Wert eines Parameters: Abweichung oder Vorgabe.
+
+        None im Projekt heisst "folgt der Vorgabe" - nicht "auf None
+        gesetzt". Deshalb wird hier auf `is None` geprueft und nicht auf
+        Wahrheitswert: Ein abweichendes 0 % oder False muss wirken.
+        """
+        eigen = getattr(abw, feld)
+        return getattr(global_assumptions, feld) if eigen is None else eigen
+
+    opex_items = _opex_items(project, global_assumptions)
 
     # Das Szenario ergibt sich aus zwei Angaben: dem im Projekt
     # hinterlegten Namen (ohne Bauform) und der Bauform der Anlage. Der
@@ -85,45 +118,48 @@ def resolve_assumptions(
         else:
             szenario = MarktpreisSzenario(name="(kein Szenario hinterlegt)")
 
+    # Einmal aufgeloest, dreifach gebraucht: Sie waehlt die
+    # Negativmengen-Zeitreihe des Szenarios (6h oder 1h) und geht
+    # ausserdem als Regel in die Erloesrechnung ein.
+    negativ_regel = erbe("negative_stunden_regel")
+
     return EffectiveAssumptions(
         source_project_id=project.id,
         inbetriebnahme_jahr=project.inbetriebnahme_jahr,
         inbetriebnahme_monat=project.inbetriebnahme_monat,
         nennleistung_kwp=project.nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=project.vollbenutzungsstunden_kwh_kwp,
-        degradation_pct_pa=global_assumptions.degradation_pct_pa,
-        sicherheitsabschlag_pct=global_assumptions.sicherheitsabschlag_pct,
+        degradation_pct_pa=erbe("degradation_pct_pa"),
+        sicherheitsabschlag_pct=erbe("sicherheitsabschlag_pct"),
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
-        eag_foerderdauer_jahre=global_assumptions.eag_foerderdauer_jahre,
-        betriebsdauer_jahre=global_assumptions.betriebsdauer_jahre,
+        eag_foerderdauer_jahre=erbe("eag_foerderdauer_jahre"),
+        betriebsdauer_jahre=erbe("betriebsdauer_jahre"),
         marktpreisszenario_name=szenario.name,
         marktwert_solar_ct_kwh_je_kalenderjahr=szenario.marktwert_solar_ct_kwh_je_kalenderjahr,
         anteil_negativer_stunden_pct_je_kalenderjahr=szenario.erzeugungsmenge_negativ(
-            global_assumptions.negative_stunden_regel
+            negativ_regel
         ),
-        negative_stunden_regel=global_assumptions.negative_stunden_regel,
+        negative_stunden_regel=negativ_regel,
         zeitaufloesung=global_assumptions.zeitaufloesung,
         einspeisekurve_pct_je_monat=_einspeisekurve(project, global_assumptions),
         marktwert_solar_ct_kwh_je_monat=szenario.marktwert_monatskurve(),
         baseload_ct_kwh_je_kalenderjahr=szenario.baseload_ct_kwh_je_kalenderjahr,
         baseload_ct_kwh_je_monat=szenario.baseload_monatskurve(),
         anteil_negativer_stunden_pct_je_monat=szenario.negativ_monatskurve(
-            global_assumptions.negative_stunden_regel
+            negativ_regel
         ),
-        praemien_modell=global_assumptions.praemien_modell,
-        eag_rueckzahlung_ab_mw=global_assumptions.eag_rueckzahlung_ab_mw,
-        eag_rueckzahlung_toleranzband_pct=(
-            global_assumptions.eag_rueckzahlung_toleranzband_pct
-        ),
-        eag_rueckzahlung_anteil_pct=global_assumptions.eag_rueckzahlung_anteil_pct,
+        praemien_modell=erbe("praemien_modell"),
+        eag_rueckzahlung_ab_mw=erbe("eag_rueckzahlung_ab_mw"),
+        eag_rueckzahlung_toleranzband_pct=erbe("eag_rueckzahlung_toleranzband_pct"),
+        eag_rueckzahlung_anteil_pct=erbe("eag_rueckzahlung_anteil_pct"),
         ppa_anteil_pct=project.ppa_anteil_pct,
         ppa_preis_eur_mwh=project.ppa_preis_eur_mwh,
         ppa_start_jahr=project.ppa_start_jahr,
         ppa_laufzeit_jahre=project.ppa_laufzeit_jahre,
         ppa_indexierung_pct_pa=project.ppa_indexierung_pct_pa,
-        marktpreis_inflation_pct_pa=global_assumptions.marktpreis_inflation_pct_pa,
-        marktpreis_inflation_basisjahr=global_assumptions.marktpreis_inflation_basisjahr,
-        kosten_inflation_pct_pa=global_assumptions.kosten_inflation_pct_pa,
+        marktpreis_inflation_pct_pa=erbe("marktpreis_inflation_pct_pa"),
+        marktpreis_inflation_basisjahr=erbe("marktpreis_inflation_basisjahr"),
+        kosten_inflation_pct_pa=erbe("kosten_inflation_pct_pa"),
         opex_items=opex_items,
         pacht_modus=project.pacht_modus,
         pacht_eur_kwp_jahr=project.pacht_eur_kwp_jahr,
@@ -132,26 +168,26 @@ def resolve_assumptions(
         projektflaeche_ha=project.projektflaeche_ha,
         gemeindeabgabe_eur_kwh=project.gemeindeabgabe_eur_mwh / 1000,
         direktvermarktungskosten_eur_kwh=project.direktvermarktungskosten_eur_mwh / 1000,
-        direktvermarktung_modus=global_assumptions.direktvermarktung_modus,
-        direktvermarktung_pct_marktwert=global_assumptions.direktvermarktung_pct_marktwert,
-        negative_stunden_gewichtung_pct=global_assumptions.negative_stunden_gewichtung_pct,
-        negative_stunden_modus=global_assumptions.negative_stunden_modus,
+        direktvermarktung_modus=erbe("direktvermarktung_modus"),
+        direktvermarktung_pct_marktwert=erbe("direktvermarktung_pct_marktwert"),
+        negative_stunden_gewichtung_pct=erbe("negative_stunden_gewichtung_pct"),
+        negative_stunden_modus=erbe("negative_stunden_modus"),
         capex_total_eur=project.capex.summe_eur,
         eigenkapitalquote_pct=project.eigenkapitalquote_pct,
         fremdkapitalzins_pct=project.fremdkapitalzins_pct,
-        kreditlaufzeit_jahre=global_assumptions.kreditlaufzeit_jahre,
-        tilgungsart=global_assumptions.tilgungsart,
-        tilgungsfreies_anlaufjahr=global_assumptions.tilgungsfreies_anlaufjahr,
-        zinsmethode=global_assumptions.zinsmethode,
-        dscr_cash_trap=global_assumptions.dscr_cash_trap,
-        dscr_event_of_default=global_assumptions.dscr_event_of_default,
-        tax_modus=global_assumptions.tax_modus,
-        steuersatz_pct=global_assumptions.steuersatz_pct,
-        afa_nutzungsdauer_jahre=global_assumptions.afa_nutzungsdauer_jahre,
-        freibetrag_eur=global_assumptions.freibetrag_eur,
-        gewerbesteuer_hebesatz_pct=global_assumptions.gewerbesteuer_hebesatz_pct,
-        gewerbesteuer_freibetrag_eur=global_assumptions.gewerbesteuer_freibetrag_eur,
-        verlustvortrag_verrechnungsgrenze_pct=global_assumptions.verlustvortrag_verrechnungsgrenze_pct,
+        kreditlaufzeit_jahre=erbe("kreditlaufzeit_jahre"),
+        tilgungsart=erbe("tilgungsart"),
+        tilgungsfreies_anlaufjahr=erbe("tilgungsfreies_anlaufjahr"),
+        zinsmethode=erbe("zinsmethode"),
+        dscr_cash_trap=erbe("dscr_cash_trap"),
+        dscr_event_of_default=erbe("dscr_event_of_default"),
+        tax_modus=erbe("tax_modus"),
+        steuersatz_pct=erbe("steuersatz_pct"),
+        afa_nutzungsdauer_jahre=erbe("afa_nutzungsdauer_jahre"),
+        freibetrag_eur=erbe("freibetrag_eur"),
+        gewerbesteuer_hebesatz_pct=erbe("gewerbesteuer_hebesatz_pct"),
+        gewerbesteuer_freibetrag_eur=erbe("gewerbesteuer_freibetrag_eur"),
+        verlustvortrag_verrechnungsgrenze_pct=erbe("verlustvortrag_verrechnungsgrenze_pct"),
     )
 
 

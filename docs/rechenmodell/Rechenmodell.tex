@@ -648,28 +648,67 @@ algebraische Zirkelbezüge werden dadurch ausgeschlossen.
 \hypertarget{parametrisierungsebenen}{%
 \subsection{2.4 Parametrisierungsebenen}\label{parametrisierungsebenen}}
 
-Das Modell unterscheidet zwischen projektbezogenen und globalen
-Parametern:
+Das Modell kennt drei Ebenen:
 
 \begin{itemize}
 \tightlist
 \item
   Die \textbf{Projektparameter} (\texttt{PVProject}) enthalten
   projektspezifische Größen, insbesondere Leistung, spezifischen Ertrag,
-  Investitionskosten, Standortkosten, Finanzierungskonditionen und
-  Zuschlagswert.
+  Bauform, Investitionskosten, Standortkosten, Finanzierungskonditionen
+  und Zuschlagswert. Für sie gibt es keine sinnvolle Vorgabe --- jedes
+  Projekt muss sie nennen.
 \item
   Die \textbf{globalen Annahmen} (\texttt{GlobalAssumptions}) enthalten
   übergreifende Modellparameter, darunter Preiszeitreihen,
   Standardbetriebskosten, Förder- und Betriebsdauer, Steuerregeln,
-  Degradation und Marktsystematik.
+  Degradation und Marktsystematik. Sie sind \textbf{Vorgaben}, keine
+  Festlegungen.
+\item
+  Die \textbf{Projektabweichungen} (\texttt{Projektannahmen}, Feld
+  \texttt{PVProject.annahmen}) überschreiben eine globale Vorgabe für
+  ein einzelnes Projekt.
 \end{itemize}
 
-Die Funktion \texttt{resolve\_assumptions()} führt beide Ebenen zum
+\textbf{Regel der Vererbung.} Ein nicht gesetztes Abweichungsfeld ist
+\texttt{None} und bedeutet \emph{folgt der Vorgabe}. Ein Projekt
+speichert also nie den globalen Wert, sondern nur, dass es ihm folgt:
+
+\[ x^{\mathrm{eff}} = \begin{cases}
+x^{\mathrm{projekt}} & \text{falls } x^{\mathrm{projekt}} \neq \texttt{None} \\
+x^{\mathrm{global}} & \text{sonst}
+\end{cases} \]
+
+Die Unterscheidung ist wesentlich: Würde ein Projekt beim Anlegen den
+globalen Wert kopieren, erreichte eine spätere Änderung der Vorgabe kein
+Projekt mehr. Geprüft wird deshalb auf \texttt{None} und nicht auf den
+Wahrheitswert --- eine abweichende 0 \% oder ein abweichendes
+\emph{nein} sind Eingaben, keine fehlenden Angaben.
+
+Überschreibbar sind alle Regelgrößen: Kreditvertrag (Laufzeit,
+Tilgungsart, tilgungsfreies Anlaufjahr, Zinsmethode, DSCR-Schwellen),
+Steuern (Modell, Satz, AfA-Dauer, Freibeträge, Verlustvortragsgrenze),
+Fördermodell (Prämienmodell, Förderdauer, Rückzahlung, Regel und
+Verhalten bei negativen Preisen, Direktvermarktung), Ertragsannahmen
+(Degradation, Sicherheitsabschlag, Betrachtungsdauer), die beiden
+Inflationspfade sowie die Basiswerte der
+Standard-Betriebskostenpositionen. Nicht überschreibbar sind der
+Datenbestand (Preisszenarien, Einspeisekurven je Bauform) und die
+Zeitauflösung --- Ersteres ist Datenhaltung, Letzteres ein Rechenmodus.
+
+Die Funktion \texttt{resolve\_assumptions()} führt alle Ebenen zum
 vollständig spezifizierten Parametersatz \texttt{EffectiveAssumptions}
 zusammen. Sämtliche nachgelagerten Rechenmodule verwenden ausschließlich
 diesen aufgelösten Satz. Dadurch bleibt jede Ergebnisgröße eindeutig auf
 ihre Parametrisierung zurückführbar.
+
+\begin{quote}
+\textbf{Praktische Folge.} Sobald ein Projekt abweicht, wirkt eine
+spätere Änderung der globalen Vorgabe dort nicht mehr. Das ist der Zweck
+der Abweichung, aber auch ihre Gefahr; die Oberfläche weist deshalb je
+Block aus, wie viele Größen abweichen, und die Variantentabelle führt
+sie als eigene Zeilen.
+\end{quote}
 
 \hypertarget{marktsystemabhuxe4ngige-regelkonfiguration}{%
 \subsection{2.5 Marktsystemabhängige
@@ -710,6 +749,12 @@ Die Einzelparameter bleiben nach Auswahl des Marktsystems veränderbar.
 Der Länderschalter stellt somit eine konsistente Vorbelegung dar, ohne
 die Parametrisierung der Einzelregeln einzuschränken. Die grundlegende
 Cashflow-Systematik bleibt in beiden Marktsystemen unverändert.
+
+Derselbe Schalter steht \textbf{je Projekt} zur Verfügung: Er setzt
+Zinsmethode, Steuermodell, Prämienmodell und Negativstundenregel als
+Paket in die Abweichungen dieses Projekts. Ein deutsches Projekt lässt
+sich damit in einem überwiegend österreichischen Portfolio rechnen, ohne
+die globalen Annahmen umzustellen.
 
 \hypertarget{notation-einheiten-und-konventionen}{%
 \section{3 Notation, Einheiten und

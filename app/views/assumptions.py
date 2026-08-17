@@ -831,6 +831,55 @@ def render_assumptions() -> None:
         )
 
         st.divider()
+        # --- Vorbelegung der Projektmaske -------------------------------
+        # Diese Werte VERERBEN sich nicht: Leistung, Ertrag und
+        # Kapitalstruktur sind je Projekt verschieden und werden dort
+        # gespeichert. Was hier steht, ist die Vorbelegung des Formulars
+        # "Neues Projekt" - bis v5.16 stand sie hart im Code und war
+        # damit als einziger Hausstandard nicht pflegbar.
+        st.markdown(txt("oberflaeche.annahmen_vorbelegung_titel"))
+        st.caption(txt("oberflaeche.annahmen_vorbelegung_hinweis"))
+        col_v1, col_v2, col_v3, col_v4 = st.columns(4)
+        nennleistung_vorschlag = col_v1.number_input(
+            txt("oberflaeche.annahmen_vorbelegung_leistung_label"),
+            min_value=1.0, value=ga.nennleistung_kwp_vorschlag, step=100.0,
+        )
+        vbh_vorschlag = col_v2.number_input(
+            txt("oberflaeche.annahmen_vorbelegung_vbh_label"),
+            min_value=1.0, value=ga.vollbenutzungsstunden_kwh_kwp_vorschlag,
+            step=10.0,
+        )
+        ek_vorschlag = col_v3.number_input(
+            txt("oberflaeche.annahmen_vorbelegung_ek_label"),
+            min_value=0.0, max_value=100.0,
+            value=ga.eigenkapitalquote_pct_vorschlag * 100, step=1.0,
+        )
+        fk_vorschlag = col_v4.number_input(
+            txt("oberflaeche.annahmen_vorbelegung_fk_label"),
+            min_value=0.0, value=ga.fremdkapitalzins_pct_vorschlag * 100,
+            step=0.1,
+        )
+        epc_vorschlag = st.data_editor(
+            pd.DataFrame(
+                [{"Anlagentyp": typ, "EPC (€/kWp)": wert}
+                 for typ, wert in ga.epc_eur_kwp_vorschlag_je_anlagentyp.items()],
+                columns=["Anlagentyp", "EPC (€/kWp)"],
+            ),
+            width="stretch", hide_index=True, num_rows="fixed",
+            key="annahmen_epc_vorschlag",
+            column_config={
+                "Anlagentyp": st.column_config.TextColumn(
+                    txt("oberflaeche.annahmen_vorbelegung_typ_label"),
+                    disabled=True,
+                ),
+                "EPC (€/kWp)": st.column_config.NumberColumn(
+                    txt("oberflaeche.annahmen_vorbelegung_epc_label"),
+                    format="%.0f", min_value=0.0,
+                ),
+            },
+        )
+
+        st.divider()
         st.markdown(txt("oberflaeche.annahmen_ppa_titel"))
         st.caption(txt("oberflaeche.annahmen_ppa_hinweis"))
         col_ppa1, col_ppa2, col_ppa3, col_ppa4 = st.columns(4)
@@ -1189,6 +1238,15 @@ def render_assumptions() -> None:
         ga.ppa_preis_eur_mwh_vorschlag = float(ppa_preis_vorschlag)
         ga.ppa_laufzeit_jahre_vorschlag = int(ppa_laufzeit_vorschlag)
         ga.ppa_indexierung_pct_pa_vorschlag = ppa_index_vorschlag / 100
+        ga.nennleistung_kwp_vorschlag = float(nennleistung_vorschlag)
+        ga.vollbenutzungsstunden_kwh_kwp_vorschlag = float(vbh_vorschlag)
+        ga.eigenkapitalquote_pct_vorschlag = ek_vorschlag / 100
+        ga.fremdkapitalzins_pct_vorschlag = fk_vorschlag / 100
+        ga.epc_eur_kwp_vorschlag_je_anlagentyp = {
+            str(zeile["Anlagentyp"]): float(zeile["EPC (€/kWp)"])
+            for _, zeile in epc_vorschlag.iterrows()
+            if pd.notna(zeile["EPC (€/kWp)"])
+        }
 
         services.save_global_assumptions(ga)
         st.success(txt("oberflaeche.annahmen_gespeichert"))

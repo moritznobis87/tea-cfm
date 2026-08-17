@@ -1,5 +1,64 @@
 # Changelog
 
+## v5.17 – Globale Annahmen sind Vorgaben, keine Festlegungen (2026-08)
+
+Bisher ließ sich nur global entscheiden, ob **alle** Projekte ein
+tilgungsfreies Anlaufjahr haben, nach österreichischem oder deutschem
+Recht besteuert werden, welche Tilgungsart gilt. Die Aufteilung zwischen
+Projekt- und globalen Feldern folgte dabei keiner Regel, sondern der
+Reihenfolge, in der sie entstanden sind: Eigenkapitalanteil und Zins
+standen im Projekt, Laufzeit und Tilgungsart global — obwohl das
+derselbe Kreditvertrag ist.
+
+**Neue Grundregel: Jeder Parameter gehört zum Projekt, die globalen
+Annahmen sind die Quelle seiner Vorbelegung.** Ein leeres Feld heißt
+„folgt der Vorgabe"; ändert sich die Vorgabe, zieht das Projekt mit. Ein
+eingetragener Wert gilt dagegen dauerhaft.
+
+29 bisher nur global einstellbare Größen sind jetzt je Projekt
+überschreibbar, verteilt auf fünf Popover neben dem, was sie verändern:
+
+- **Kreditvertrag** (Finanzierung): Laufzeit, Tilgungsart, tilgungsfreies
+  Anlaufjahr, Zinsmethode, DSCR Cash-Trap und Event of Default.
+- **Steuern** (neuer Block): Modell, Satz, AfA-Nutzungsdauer, Freibetrag,
+  GewSt-Hebesatz und -Freibetrag, Verlustvortragsgrenze.
+- **Fördermodell** (Erlöse): Prämienmodell, Förderdauer, EAG-Rückzahlung,
+  Regel und Verhalten bei negativen Preisen, Direktvermarktung,
+  Marktpreisinflation.
+- **Ertragsannahmen** (Anlage): Degradation, Sicherheitsabschlag,
+  Betrachtungsdauer.
+- **Betriebskosten**: die fünf Standardpositionen als Tabelle *Position ·
+  Vorgabe · Projekt* sowie die Kosteninflation. Früh im Projekt sind das
+  Erfahrungswerte — sobald ein Angebot vorliegt, wird der Wert hier
+  eingetragen, ohne Umweg über eine Zusatzposition.
+
+Dazu ein **Land-Schalter** (AT/DE) oben in der Parameterspalte: Ein Klick
+setzt Zinsmethode, Steuermodell, Prämienmodell und Negativstundenregel als
+Paket. Ein deutsches Projekt lässt sich damit in einem österreichischen
+Portfolio rechnen, ohne die globalen Annahmen umzustellen.
+
+**Die Spalte wächst dadurch kaum.** Ein Block ohne Abweichung ist eine
+Zeile „nach Vorgabe"; erst wenn etwas gesetzt ist, steht dort „2
+abweichend · Steuersatz, AfA-Nutzungsdauer". Jedes Feld hat genau **ein**
+Bedienelement — ein leeres Zahlenfeld mit der Vorgabe als Platzhalter,
+bei Auswahlen eine erste Option „Vorgabe (Annuität)". Ein zweiter
+„Abweichen?"-Schalter je Feld hätte die Zahl der Bedienelemente
+verdoppelt.
+
+Weiteres:
+
+- **Die Variantentabelle** führt jede Abweichung als eigene Zeile — beim
+  Vergleich zweier Rechnungen desselben Standorts wird damit sichtbar,
+  wenn eine nicht nur andere Kosten, sondern andere Annahmen hat.
+- **Die Vorbelegung neuer Projekte ist pflegbar geworden**: Leistung,
+  Vollbenutzungsstunden, Eigenkapitalanteil, Fremdkapitalzins und der
+  EPC-Vorschlag je Anlagentyp standen hart im Code und stehen jetzt in
+  den globalen Annahmen. Diese Werte vererben sich nicht — sie sind der
+  Startpunkt des Formulars „Neues Projekt".
+- **Die Projektdateien bleiben schlank**: Gespeichert wird nur, was
+  abweicht. Ältere Dateien ohne den Abschnitt folgen in allem der
+  Vorgabe.
+
 ## v5.16 – Schuldendienst im Rumpfjahr (2026-08)
 
 Gemeldet am Projekt Völkermarkt (Inbetriebnahme Dezember 2027):

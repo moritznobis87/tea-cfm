@@ -51,6 +51,40 @@ def _jahr(wert) -> str:
     return str(int(wert))
 
 
+def _positionen_kurz(wert) -> str:
+    """Abweichende Standardpositionen als Kurzfassung.
+
+    Ein Feld-fuer-Feld-Vergleich der Positionen waere eine Tabelle ohne
+    gemeinsame Zeilen - je Projekt weicht eine andere Auswahl ab.
+    """
+    if not wert:
+        return "Vorgabe"
+    return ", ".join(f"{name} {fmt_number(betrag, 2)}"
+                     for name, betrag in sorted(wert.items()))
+
+
+def _vorgabe(wert) -> str:
+    """Ein Erbfeld: None heisst "folgt der globalen Vorgabe".
+
+    Bewusst nicht "—" wie bei einem fehlenden Wert: Der Unterschied
+    zwischen "nicht gesetzt" und "auf die Vorgabe gesetzt" ist genau
+    der Punkt dieser Felder.
+    """
+    return "Vorgabe" if wert is None else _text(wert)
+
+
+def _vorgabe0(wert) -> str:
+    return "Vorgabe" if wert is None else _zahl0(wert)
+
+
+def _vorgabe2(wert) -> str:
+    return "Vorgabe" if wert is None else _zahl2(wert)
+
+
+def _vorgabe_pct(wert) -> str:
+    return "Vorgabe" if wert is None else _pct(wert)
+
+
 def _text(wert) -> str:
     if isinstance(wert, AnlagenTyp):
         return "Agri-PV" if wert == AnlagenTyp.AGRI_PV else "Konventionell"
@@ -100,6 +134,48 @@ _FELDER: dict[str, tuple[str, callable]] = {
     "capex.agm_eur": ("AGM (€)", _eur),
     "capex.m_and_a_eur": ("M&A (€)", _eur),
     "capex.poenale_puffer_eur": ("Pönale + Puffer (€)", _eur),
+    # Abweichungen von den globalen Annahmen. Sie sind der leiseste
+    # Unterschied zwischen zwei Varianten - man sieht ihn dem Ergebnis
+    # an, aber keinem Eingabefeld der Hauptansicht. Gerade deshalb
+    # gehoert er in diese Tabelle.
+    "annahmen.kreditlaufzeit_jahre": ("Kreditlaufzeit (Jahre)", _vorgabe0),
+    "annahmen.tilgungsart": ("Tilgungsart", _vorgabe),
+    "annahmen.tilgungsfreies_anlaufjahr": ("Tilgungsfreies Anlaufjahr", _vorgabe),
+    "annahmen.zinsmethode": ("Zinsmethode", _vorgabe),
+    "annahmen.dscr_cash_trap": ("DSCR Cash-Trap", _vorgabe2),
+    "annahmen.dscr_event_of_default": ("DSCR Event of Default", _vorgabe2),
+    "annahmen.tax_modus": ("Steuermodell", _vorgabe),
+    "annahmen.steuersatz_pct": ("Steuersatz", _vorgabe_pct),
+    "annahmen.afa_nutzungsdauer_jahre": ("AfA-Nutzungsdauer (Jahre)", _vorgabe0),
+    "annahmen.freibetrag_eur": ("Freibetrag (€)", _vorgabe0),
+    "annahmen.gewerbesteuer_hebesatz_pct": ("GewSt-Hebesatz", _vorgabe0),
+    "annahmen.gewerbesteuer_freibetrag_eur": ("GewSt-Freibetrag (€)", _vorgabe0),
+    "annahmen.verlustvortrag_verrechnungsgrenze_pct": (
+        "Verlustvortrag-Grenze", _vorgabe_pct
+    ),
+    "annahmen.kosten_inflation_pct_pa": ("Kosteninflation", _vorgabe_pct),
+    "annahmen.praemien_modell": ("Prämienmodell", _vorgabe),
+    "annahmen.eag_foerderdauer_jahre": ("Förderdauer (Jahre)", _vorgabe0),
+    "annahmen.eag_rueckzahlung_ab_mw": ("Rückzahlung ab (MW)", _vorgabe2),
+    "annahmen.eag_rueckzahlung_toleranzband_pct": ("Toleranzband", _vorgabe_pct),
+    "annahmen.eag_rueckzahlung_anteil_pct": ("Rückzahlungsanteil", _vorgabe_pct),
+    "annahmen.negative_stunden_regel": ("Regel negativer Preise", _vorgabe),
+    "annahmen.negative_stunden_modus": ("Verhalten bei negativen Preisen", _vorgabe),
+    "annahmen.negative_stunden_gewichtung_pct": (
+        "Gewichtung negativer Stunden", _vorgabe_pct
+    ),
+    "annahmen.direktvermarktung_modus": ("Bemessung der DV-Kosten", _vorgabe),
+    "annahmen.direktvermarktung_pct_marktwert": (
+        "DV-Kosten (% vom Marktwert)", _vorgabe_pct
+    ),
+    "annahmen.marktpreis_inflation_pct_pa": ("Marktpreisinflation", _vorgabe_pct),
+    "annahmen.marktpreis_inflation_basisjahr": ("Basisjahr der Marktpreise", _vorgabe0),
+    "annahmen.degradation_pct_pa": ("Degradation", _vorgabe_pct),
+    "annahmen.sicherheitsabschlag_pct": ("Sicherheitsabschlag", _vorgabe_pct),
+    "annahmen.betriebsdauer_jahre": ("Betrachtungsdauer (Jahre)", _vorgabe0),
+    "annahmen.opex_standard_eur_kwp": (
+        "Abweichende Standard-Betriebskosten", _positionen_kurz
+    ),
 }
 
 #: Diese Felder benennen die Variante, sie beschreiben sie nicht - ein
