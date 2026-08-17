@@ -1098,7 +1098,10 @@ festen Positionen anteilig gerechnet.
 > die Pacht kann der Vertrag abweichen (Flächenübergabe vor Baubeginn);
 > diese Differenz ist als Zusatzposition abzubilden.
 
-Marktüblich sind $\beta \approx 5{,}5\,\%$. Die Maximumbildung ist
+Hausüblich sind $\beta = 5{,}1\,\%$ bei einer Mindestpacht von
+3.000 €/ha/Jahr; beide Werte sind die Vorbelegung eines neuen Projekts
+und stehen als Vorschlagswerte in den globalen Annahmen. Die
+Maximumbildung ist
 wirtschaftlich relevant: In frühen Jahren dominiert typischerweise die
 Umsatzbeteiligung, in späten Jahren die stetig steigende Mindestpacht –
 insbesondere nach Auslaufen der Förderung und mit fortschreitender

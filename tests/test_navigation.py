@@ -153,13 +153,15 @@ class TestParameterspalte:
         _klick(at, f"{form_key}__verwerfen")
 
 
-class TestPachtblock:
-    """Gemeldet: Ueberschrift und Umschalter der Pacht standen in der
-    Mitte der Spalte, die zugehoerigen Wertfelder erst ganz unten.
+class TestBetriebskostenblock:
+    """Pacht, Gemeindeabgabe und Direktvermarktungskosten stehen unter
+    einer Ueberschrift und in der Live-Spalte vollstaendig hinter einem
+    Popover.
 
-    Ursache war die Regel "Umschalter ausserhalb von st.form" - sie
-    betrifft aber nur die Umschalter, nicht die Werte. Der Block steht
-    jetzt vollstaendig an einer Stelle.
+    Gemeldet war zweierlei: Ueberschrift und Umschalter der Pacht
+    standen in der Mitte der Spalte und die Wertfelder erst ganz unten;
+    die beiden Abgaben je MWh standen unter "Erloese", obwohl sie
+    Betriebskosten sind.
     """
 
     def _spalte(self, at: AppTest) -> tuple[AppTest, str]:
@@ -169,13 +171,45 @@ class TestPachtblock:
 
     def test_wert_und_konfiguration_gehoeren_zusammen(self, at: AppTest):
         at, form_key = self._spalte(at)
-        # Der Wert steht in der Hauptansicht, die Vertragsform im
-        # Popover - beide existieren, und zwar im selben Durchlauf.
+        # Alles steckt im Popover - dessen Inhalt wird bei jedem
+        # Durchlauf ausgefuehrt, die Widgets existieren also auch
+        # zugeklappt.
         werte = {n.key for n in at.get("number_input") if n.key}
         assert f"{form_key}_pacht_ha" in werte or f"{form_key}_pacht_kwp" in werte
         radios = {r.key for r in at.get("radio") if r.key}
         assert f"{form_key}_pachtmodus" in radios
         assert f"{form_key}_pacht_einheit" in radios
+
+    def test_abgaben_stehen_bei_den_betriebskosten(self, at: AppTest):
+        """Gemeindeabgabe und Direktvermarktungskosten sind
+        Betriebskosten je MWh (siehe engine/opex.py). Sie standen unter
+        "Erloese" - dort suchte sie niemand, der die Kostenseite
+        pruefte. Beide liegen jetzt im selben Popover wie die Pacht.
+        """
+        at, form_key = self._spalte(at)
+        knopf = [p for p in at.get("popover")
+                 if "Pacht und Abgaben" in p.proto.popover.label]
+        assert knopf, "Popover 'Pacht und Abgaben' fehlt"
+        werte = {n.key for n in knopf[0].get("number_input") if n.key}
+        assert f"{form_key}_gemeindeabgabe" in werte
+        # Im selben Popover wie der Pachtwert - ein Block, eine Rubrik.
+        assert werte & {f"{form_key}_pacht_ha", f"{form_key}_pacht_kwp",
+                        f"{form_key}_pacht_umsatz_pct"}
+
+    def test_anlagentyp_steht_bei_den_erloesen(self, at: AppTest):
+        """Agri-PV gegen konventionell ist eine EAG-Kategorie: Sie
+        entscheidet ueber den Zuschlagswert, nicht ueber die Technik.
+        Das Radio muss deshalb nach dem EAG-Feld kommen, nicht bei den
+        technischen Parametern.
+        """
+        at, form_key = self._spalte(at)
+        radios = [r.key for r in at.get("radio") if r.key]
+        assert f"{form_key}_typ_live" in radios
+        # Der Anlagentyp steht hinter der Pacht - also hinter dem
+        # Betriebskostenblock, im Erloesteil.
+        assert radios.index(f"{form_key}_typ_live") > radios.index(
+            f"{form_key}_pachtmodus"
+        )
 
     def test_einheit_folgt_dem_projekt(self, at: AppTest):
         """Ein Bestand ohne Flaeche ist in €/kWp gepflegt - ihn im
