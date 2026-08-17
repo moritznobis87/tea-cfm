@@ -112,6 +112,24 @@ trägt.
 - **`formatting.py`**: die einzige Stelle, die Zahlen in Strings
   verwandelt (Dezimalkomma, Tausenderpunkt). Bewusst ohne
   `locale.setlocale` (prozessglobal, auf Streamlit Cloud unzuverlässig).
+- **Zwei Sichten auf dieselbe Maske** (`components/project_form.py`):
+  `render_project_form` erfasst bei der Neuanlage alles, was ein Projekt
+  vollständig beschreibt; `render_parameter_spalte` ist die schmale
+  Live-Spalte neben dem Ergebnis und lässt die Stammdaten weg
+  (`mit_stammdaten=False`) – Name, Standort und Variantenname sind keine
+  What-if-Größen. Sie werden dort unverändert aus dem gespeicherten
+  Projekt übernommen und im ⋯-Menü bzw. in der Variantenleiste
+  bearbeitet, wo sie **sofort** speichern statt über den Entwurf zu
+  laufen. Der `PVProject`-Zusammenbau bleibt bewusst eine einzige
+  Stelle: Zwei Kompositionen driften auseinander, und ein dort
+  vergessenes Feld fällt still unter den Tisch.
+- **Zusatzpositionen** stehen in der Live-Spalte hinter einem
+  `st.popover`, im Anlageformular hinter einem Schalter. Der Unterschied
+  ist kein Geschmack: Ein Popover führt seinen Inhalt bei jedem
+  Durchlauf aus, das `data_editor`-Widget existiert also auch zugeklappt
+  weiter. Ein Schalter entfernt es und verliert dabei unfertige Zeilen –
+  in der Spalte, wo im Sekundentakt gerechnet wird, ist das der
+  Unterschied zwischen sicher und ärgerlich.
 - **Einheiten-Umschalter im Projektformular** (€/kWp ↔ €,
   €/kWp/Jahr ↔ €/ha/Jahr) liegen außerhalb von `st.form` und schreiben
   beim Umschalten den umgerechneten Wert in den Session-State, **bevor**

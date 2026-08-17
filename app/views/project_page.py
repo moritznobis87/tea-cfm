@@ -110,12 +110,49 @@ def _weicht_ab(a, b, absolut: float = 0.0) -> bool:
     return a != b
 
 
-def _zaehle_aenderungen(entwurf: PVProject, gespeichert: PVProject) -> int:
-    """Anzahl der Modellfelder, die im Entwurf abweichen.
+#: Modellfeld -> Beschriftung in der Aenderungsanzeige. Die Namen
+#: folgen den Feldern der Parameterspalte; was hier fehlt, erscheint
+#: mit seinem technischen Feldnamen - das ist selten und immer noch
+#: brauchbarer als gar kein Hinweis.
+_FELD_LABEL: dict[str, str] = {
+    "name": "Name",
+    "standort": "Standort",
+    "variante": "Variante",
+    "inbetriebnahme_jahr": "IBN-Jahr",
+    "inbetriebnahme_monat": "IBN-Monat",
+    "anlagentyp": "Anlagentyp",
+    "nennleistung_kwp": "Leistung",
+    "vollbenutzungsstunden_kwh_kwp": "Vollbenutzungsstunden",
+    "capex": "Investkosten",
+    "zusatz_opex": "Zusatz-OPEX",
+    "pacht_eur_kwp_jahr": "Pacht",
+    "pacht_modus": "Pachtmodus",
+    "pacht_umsatzbeteiligung_pct": "Umsatzbeteiligung",
+    "pacht_mindestpacht_eur_ha_jahr": "Mindestpacht",
+    "projektflaeche_ha": "Projektfläche",
+    "fremdkapitalzins_pct": "FK-Zins",
+    "eigenkapitalquote_pct": "EK-Anteil",
+    "eag_zuschlagswert_ct_kwh": "EAG-Zuschlagswert",
+    "gemeindeabgabe_eur_mwh": "Gemeindeabgabe",
+    "direktvermarktungskosten_eur_mwh": "Direktvermarktung",
+    "marktpreisszenario": "Marktpreisszenario",
+    "ppa_anteil_pct": "PPA-Anteil",
+    "ppa_preis_eur_mwh": "PPA-Preis",
+    "ppa_start_jahr": "PPA-Start",
+    "ppa_laufzeit_jahre": "PPA-Laufzeit",
+    "ppa_indexierung_pct_pa": "PPA-Indexierung",
+    "leitvariante": "Leitfall",
+    "aktiv": "Aktiv",
+}
+
+
+def _geaenderte_felder(entwurf: PVProject, gespeichert: PVProject) -> list[str]:
+    """Beschriftungen der Modellfelder, die im Entwurf abweichen.
 
     Verschachtelte Strukturen (capex, Zusatzpositionen) zaehlen als ein
-    Feld - die Zahl soll die Groessenordnung der offenen Aenderungen
-    zeigen, keine exakte Feldbilanz sein.
+    Feld - die Liste soll zeigen, WORAN gearbeitet wurde, keine exakte
+    Feldbilanz sein. Ohne sie sagt die Spalte nur "3 Aenderungen", und
+    bei ueber vierzig Feldern ist das keine Auskunft.
     """
     a = entwurf.model_dump()
     b = gespeichert.model_dump()
@@ -125,13 +162,19 @@ def _zaehle_aenderungen(entwurf: PVProject, gespeichert: PVProject) -> int:
     # Investkosten: Auf Anteile (Eigenkapitalquote, Zinssatz) angewandt
     # wuerde eine Euro-Schranke jede denkbare Aenderung verschlucken.
     absolut = 0.01 * max(entwurf.nennleistung_kwp, gespeichert.nennleistung_kwp)
-    return sum(
-        1 for schluessel in a
+    return [
+        _FELD_LABEL.get(schluessel, schluessel)
+        for schluessel in a
         if _weicht_ab(
             a[schluessel], b.get(schluessel),
             absolut if schluessel == "capex" else 0.0,
         )
-    )
+    ]
+
+
+def _zaehle_aenderungen(entwurf: PVProject, gespeichert: PVProject) -> int:
+    """Anzahl der abweichenden Modellfelder - siehe _geaenderte_felder."""
+    return len(_geaenderte_felder(entwurf, gespeichert))
 
 
 def render_project_page() -> None:
@@ -220,21 +263,26 @@ def render_project_page() -> None:
                 f'{html.escape(txt("oberflaeche.parameter_titel"))}</div>',
                 unsafe_allow_html=True,
             )
+            # Die Speicherleiste steht OBEN, gleich unter der
+            # Kopfzeile: Sie braucht die Zahl der Aenderungen, die erst
+            # nach dem Aufbau der Felder feststeht - deshalb hier nur
+            # ein Platzhalter, der spaeter gefuellt wird. Unten war sie
+            # bei langer Spalte nur nach einer Bildschirmhoehe Scrollen
+            # erreichbar, obwohl "Verwerfen" gerade dann gebraucht wird,
+            # wenn man sich verrannt hat.
+            speicherbereich = st.container()
             entwurf = render_parameter_spalte(gespeichert, form_key)
-            # Platzhalter fuer die Speicherleiste: Sie braucht die Zahl der
-            # Aenderungen, die erst nach dem Aufbau der Felder feststeht,
-            # soll aber innerhalb des Rahmens stehen.
-            fussbereich = st.container()
 
     # Faellt die Maske aus (z.B. leerer Name), bleibt der gespeicherte
     # Stand die Rechengrundlage - die Seite soll nicht leer werden.
     aktiv = entwurf or gespeichert
     result = services.get_valuation_fuer(aktiv)
-    aenderungen = _zaehle_aenderungen(aktiv, gespeichert) if entwurf else 0
+    geaendert = _geaenderte_felder(aktiv, gespeichert) if entwurf else []
+    aenderungen = len(geaendert)
 
     if not ist_vergleich:
-        with fussbereich:
-            _speicherleiste(aktiv, gespeichert, pfad, form_key, aenderungen)
+        with speicherbereich:
+            _speicherleiste(aktiv, gespeichert, pfad, form_key, geaendert)
 
     with col_kontext:
         _kontextzeile(aktiv, result, global_assumptions, npv_satz_pct)
@@ -300,6 +348,7 @@ def _variantenleiste(varianten: list[PVProject], projekt_id: str) -> None:
                             else variante.variantenlabel)
             if st.button(beschriftung, key=key, type="tertiary", help=hilfe):
                 router.gehe_zu("projekt", projekt_id=variante.id)
+        _variante_umbenennen(projekt_id, varianten)
         if st.button(txt("oberflaeche.btn_neue_variante"), key="variante_neu",
                      type="tertiary",
                      help=txt("oberflaeche.btn_neue_variante_hilfe")):
@@ -429,10 +478,10 @@ def _kennzahlen(result, npv_satz_pct: float, aenderungen: int,
 
 
 def _speicherleiste(entwurf: PVProject, gespeichert: PVProject, pfad,
-                    form_key: str, aenderungen: int) -> None:
-    """Fusszeile der Parameterspalte: Aenderungen zaehlen, sichern oder
+                    form_key: str, geaendert: list[str]) -> None:
+    """Kopfzeile der Parameterspalte: Aenderungen benennen, sichern oder
     verwerfen. Ohne offene Aenderungen bleibt sie unauffaellig."""
-    st.divider()
+    aenderungen = len(geaendert)
     # Statuszeile ueber statt neben den Knoepfen: In der schmalen Spalte
     # blieb sonst so wenig Platz, dass "Speichern" und "Verwerfen" in den
     # Knoepfen umbrachen.
@@ -440,6 +489,9 @@ def _speicherleiste(entwurf: PVProject, gespeichert: PVProject, pfad,
         st.markdown(
             f":orange[{txt('oberflaeche.parameter_aenderungen', anzahl=aenderungen)}]"
         )
+        # WELCHE Felder offen sind, beantwortet die Zahl allein nicht -
+        # bei ueber vierzig Feldern ist das die eigentliche Frage.
+        st.caption(", ".join(geaendert))
     else:
         st.caption(txt("oberflaeche.parameter_keine_aenderungen"))
 
@@ -459,6 +511,7 @@ def _speicherleiste(entwurf: PVProject, gespeichert: PVProject, pfad,
         st.session_state.pop(f"pdf_bericht_{gespeichert.id}", None)
         st.success(txt("oberflaeche.projekt_aktualisiert"))
         st.rerun()
+    st.divider()
 
 
 def _pdf_knopf(projekt_id: str, project: PVProject, npv_satz_pct: float,
@@ -494,6 +547,8 @@ def _weitere_aktionen(project: PVProject, pfad) -> None:
     Exports haben - deshalb hier statt in der Knopfreihe.
     """
     with st.popover("⋯", width="stretch", help=txt("oberflaeche.aktionen_weitere")):
+        _stammdaten_bearbeiten(project, pfad)
+        st.divider()
         if st.button(txt("oberflaeche.btn_duplizieren"),
                      key=f"dup_{project.id}", width="stretch"):
             kopie = services.duplicate_project(project.id)
@@ -509,6 +564,66 @@ def _weitere_aktionen(project: PVProject, pfad) -> None:
                      width="stretch"):
             st.session_state[STATE_DELETE_CANDIDATE] = project.id
             st.rerun()
+
+
+def _variante_umbenennen(projekt_id: str, varianten: list[PVProject]) -> None:
+    """Umbenennen der geoeffneten Variante - in der Reiterreihe.
+
+    Hierher gehoert es und nicht in ein Projektmenue: Nach dem
+    Duplizieren heisst die Kopie "Variante 2", und der naechste Handgriff
+    ist, ihr einen sprechenden Namen zu geben. Der Ort dafuer ist die
+    Reihe, in der sie steht.
+
+    Ein leerer Name ist erlaubt - das ist der Grundfall des Standorts,
+    den die Oberflaeche "Basis" nennt.
+    """
+    offen = next((v for v in varianten if v.id == projekt_id), None)
+    if offen is None:
+        return
+    with st.popover("✎", help=txt("oberflaeche.variante_umbenennen_hilfe")):
+        name = st.text_input(
+            txt("oberflaeche.formular_variante_label"), value=offen.variante,
+            key=f"variante_name_{projekt_id}",
+            placeholder=txt("oberflaeche.formular_variante_platzhalter"),
+        )
+        if st.button(txt("oberflaeche.btn_uebernehmen"),
+                     key=f"variante_name_speichern_{projekt_id}",
+                     width="stretch", disabled=name.strip() == offen.variante):
+            offen.variante = name.strip()
+            services.save_project(offen)
+            st.rerun()
+
+
+def _stammdaten_bearbeiten(project: PVProject, pfad) -> None:
+    """Name und Standort - im Ueberlaufmenue statt in der Parameterspalte.
+
+    Beide sind keine What-if-Groessen: Niemand dreht am Projektnamen, um
+    eine Rendite zu sehen. In der Live-Spalte kosteten sie dauerhaft
+    Platz und standen zwischen Groessen, die man staendig anfasst.
+
+    Gespeichert wird hier SOFORT und nicht ueber den Entwurf: Eine
+    Umbenennung ist eine abgeschlossene Handlung, kein Ausprobieren -
+    und sie soll nicht in der Aenderungszahl der Rechnung mitlaufen.
+    """
+    st.markdown(f"**{txt('oberflaeche.stammdaten_titel')}**")
+    name = st.text_input(
+        txt("oberflaeche.formular_name_label"), value=project.name,
+        key=f"stammdaten_name_{project.id}",
+        help=txt("oberflaeche.formular_name_hilfe"),
+    )
+    standort = st.text_input(
+        txt("oberflaeche.formular_standort_label"), value=project.standort,
+        key=f"stammdaten_standort_{project.id}",
+        help=txt("oberflaeche.formular_standort_hilfe"),
+    )
+    geaendert = name.strip() != project.name or standort.strip() != project.standort
+    if st.button(txt("oberflaeche.btn_uebernehmen"),
+                 key=f"stammdaten_speichern_{project.id}",
+                 width="stretch", disabled=not geaendert or not name.strip()):
+        project.name = name.strip()
+        project.standort = standort.strip()
+        services.save_project(project, pfad)
+        st.rerun()
 
 
 def _loeschbestaetigung(project: PVProject, pfad) -> None:
