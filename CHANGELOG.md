@@ -1,5 +1,33 @@
 # Changelog
 
+## v5.10 – Parameterspalte aufgeräumt, Runde 1 (2026-08)
+
+Die Live-Parameterspalte führte 45 Bedienelemente. Sie ist der Ort, an
+dem man wirtschaftliche Annahmen durchspielt — nicht der Ort, an dem
+ein Projekt vollständig beschrieben wird. Erste Runde:
+
+- **Stammdaten raus aus der Spalte.** Name und Standort stehen im
+  ⋯-Menü des Projektkopfs („Projekt bearbeiten"), der Variantenname in
+  der Variantenleiste hinter ✎. Beide speichern sofort statt über den
+  Entwurf: Eine Umbenennung ist eine abgeschlossene Handlung und soll
+  nicht in der Änderungszahl der Rechnung mitlaufen. Die Neuanlage
+  erfasst sie unverändert im Formular.
+- **Speichern und Verwerfen stehen jetzt oben**, gleich unter der
+  Kopfzeile. Vorher waren sie erst nach einer Bildschirmhöhe Scrollen
+  erreichbar — obwohl „Verwerfen" gerade dann gebraucht wird, wenn man
+  sich verrannt hat.
+- **Der Änderungszähler nennt die Felder**: „3 Änderung(en) · Leistung,
+  EPC, Pacht" statt nur einer Zahl.
+- **Zusatzpositionen hinter einem Popover**, davor eine Zusammenfassung
+  („Weitere Investkosten: 2 Positionen · 84.000 €"). Das behebt zugleich
+  einen Fehler: Der frühere Schalter erzeugte die Tabelle beim
+  Aufklappen und entfernte sie beim Zuklappen — unfertige Zeilen gingen
+  dabei verloren. Ein Popover führt seinen Inhalt bei jedem Durchlauf
+  aus, das Widget bleibt also bestehen.
+
+Rechenlogik, Datenformat, Live-Neuberechnung und die Draft-Mechanik
+bleiben unverändert.
+
 ## v5.9 – Szenarien aufgeräumt: Jahrgänge statt Kurzszenarien (2026-08)
 
 - **Drei Kurzszenarien entfallen** („Aurora 6/26", „Aurora 04/26",

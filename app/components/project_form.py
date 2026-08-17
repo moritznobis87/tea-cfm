@@ -28,6 +28,7 @@ import streamlit as st
 
 from app import services
 from app.config import monate
+from app.formatting import fmt_number
 from engine import (
     AnlagenTyp,
     CapexBreakdown,
@@ -84,7 +85,9 @@ def _positionstabelle(
     titel: str,
     hilfe: str,
     spalte_wert: str,
+    einheit: str,
     vorhandene: list[dict],
+    im_popover: bool,
 ) -> list[dict]:
     """Frei benannte Kostenpositionen als dynamische Tabelle.
 
@@ -92,41 +95,66 @@ def _positionstabelle(
     Eingabefelder mit "+"-Knopf: Der Editor bleibt ueber alle Durchlaeufe
     EIN Widget mit stabilem Key und fuehrt die Zeilen als Daten. Widgets,
     die zwischen zwei Durchlaeufen erscheinen und verschwinden, sind in
-    Streamlit ein bekanntes Risikomuster (siehe Modulkopf) - genau das
-    entstuende beim zeilenweisen Aufbauen. Dieselbe Technik nutzen bereits
-    die Globalen Annahmen fuer Preiskurven und Standardbetriebskosten.
+    Streamlit ein bekanntes Risikomuster (siehe Modulkopf).
 
-    Der Block ist hinter einem Schalter versteckt und standardmaessig
-    zugeklappt: Zusatzpositionen sind der Ausnahmefall, eine dauerhaft
-    sichtbare leere Tabelle wuerde die Maske nur belasten. Sind bereits
-    Positionen hinterlegt, startet der Schalter eingeschaltet - sonst
-    waeren sie beim Bearbeiten nicht auffindbar.
+    im_popover=True (Parameterspalte): Die Tabelle steht hinter einem
+    Popover, davor nur eine Zusammenfassung. Zusatzpositionen sind der
+    Ausnahmefall - in der schmalen Spalte kostete die Tabelle mehr Platz,
+    als sie im Alltag wert ist. Ein Popover ist dafuer das richtige
+    Mittel und kein Schalter: Sein Inhalt wird bei JEDEM Durchlauf
+    ausgefuehrt, das Widget existiert also auch zugeklappt weiter. Der
+    frueher benutzte Schalter erzeugte den Editor beim Aufklappen und
+    entfernte ihn beim Zuklappen - unfertige Zeilen gingen dabei
+    verloren.
 
-    Bei ausgeschaltetem Schalter bleiben die gespeicherten Positionen
-    unveraendert erhalten; Ausblenden loescht nichts.
+    im_popover=False (Neuanlage): unveraendert ein Schalter, der die
+    Tabelle bei Bedarf einblendet - im breiten Formular ist Platz, und
+    dort wird nicht im Sekundentakt gerechnet.
 
     Rueckgabe: bereinigte Liste - Zeilen ohne Bezeichnung entfallen,
     Betraege ohne Wert zaehlen als 0 (siehe _bereinige_positionen).
     """
-    schalter_key = f"{form_key}_{schluessel}_anzeigen"
-    if schalter_key not in st.session_state:
-        st.session_state[schalter_key] = bool(vorhandene)
-    st.toggle(titel, key=schalter_key, help=hilfe)
-    if not st.session_state[schalter_key]:
-        return list(vorhandene)
+    def editor():
+        st.caption(hilfe)
+        return st.data_editor(
+            pd.DataFrame(vorhandene or [], columns=["Position", "Wert"]),
+            width="stretch", hide_index=True, num_rows="dynamic",
+            key=f"{form_key}_{schluessel}",
+            column_config={
+                "Position": st.column_config.TextColumn(
+                    txt("oberflaeche.formular_zusatz_spalte_position"),
+                ),
+                "Wert": st.column_config.NumberColumn(
+                    spalte_wert, min_value=0.0
+                ),
+            },
+        )
 
-    st.caption(hilfe)
-    tabelle = st.data_editor(
-        pd.DataFrame(vorhandene or [], columns=["Position", "Wert"]),
-        width="stretch", hide_index=True, num_rows="dynamic",
-        key=f"{form_key}_{schluessel}",
-        column_config={
-            "Position": st.column_config.TextColumn(
-                txt("oberflaeche.formular_zusatz_spalte_position"),
-            ),
-            "Wert": st.column_config.NumberColumn(spalte_wert, min_value=0.0),
-        },
+    if not im_popover:
+        # Neuanlage: unveraendert ein Schalter, standardmaessig
+        # zugeklappt. Sind bereits Positionen hinterlegt, startet er
+        # eingeschaltet - sonst waeren sie beim Bearbeiten nicht
+        # auffindbar. Zuklappen loescht nichts.
+        schalter_key = f"{form_key}_{schluessel}_anzeigen"
+        if schalter_key not in st.session_state:
+            st.session_state[schalter_key] = bool(vorhandene)
+        st.toggle(titel, key=schalter_key, help=hilfe)
+        if not st.session_state[schalter_key]:
+            return list(vorhandene)
+        return _bereinige_positionen(editor())
+
+    st.caption(
+        txt("oberflaeche.formular_zusatz_zusammenfassung",
+            titel=titel, anzahl=len(vorhandene),
+            summe=fmt_number(sum(z["Wert"] for z in vorhandene), 0),
+            einheit=einheit)
+        if vorhandene
+        else txt("oberflaeche.formular_zusatz_leer", titel=titel)
     )
+    with st.popover(txt("oberflaeche.formular_zusatz_bearbeiten"),
+                    width="stretch", help=hilfe):
+        st.markdown(f"**{titel}**")
+        tabelle = editor()
     return _bereinige_positionen(tabelle)
 
 
@@ -165,8 +193,17 @@ def render_parameter_spalte(
     gerechnet, aber nicht gespeichert. Das Speichern ist ein eigener
     Schritt (siehe app/views/project_page.py), damit sich gefahrlos
     ausprobieren laesst.
+
+    Ohne Stammdaten: Name, Standort und Variantenname sind keine
+    What-if-Groessen - man dreht nicht am Projektnamen, um eine Rendite
+    zu sehen. Sie stehen im Ueberlaufmenue bzw. in der Variantenleiste
+    und werden hier unveraendert aus dem gespeicherten Projekt
+    uebernommen.
     """
-    return _felder(existing, form_key, spaltig=True, mit_formular=False)
+    return _felder(
+        existing, form_key, spaltig=True, mit_formular=False,
+        mit_stammdaten=False,
+    )
 
 
 def verwirf_entwurf(form_key: str) -> None:
@@ -185,6 +222,7 @@ def _felder(
     *,
     spaltig: bool,
     mit_formular: bool,
+    mit_stammdaten: bool = True,
 ) -> PVProject | None:
     """Gemeinsamer Rumpf beider Darstellungen der Projektmaske.
 
@@ -197,6 +235,10 @@ def _felder(
                      Entwurf wird bei JEDEM Durchlauf zurueckgegeben. Das
                      ist die Grundlage der sofortigen Neuberechnung neben
                      dem Ergebnis; gespeichert wird davon nichts.
+    mit_stammdaten=False - Name, Standort und Variantenname werden nicht
+                     zur Eingabe angeboten, sondern unveraendert aus
+                     `existing` uebernommen (siehe
+                     render_parameter_spalte).
     """
 
     def spalten(anzahl: int):
@@ -204,36 +246,47 @@ def _felder(
         st selbst verhaelt sich wie ein Spaltencontainer."""
         return st.columns(anzahl) if not spaltig else [st] * anzahl
 
+    if not mit_stammdaten:
+        # Kein Widget, keine Eingabe - die Werte kommen aus dem
+        # gespeicherten Projekt und laufen unveraendert in den Entwurf.
+        # Ohne `existing` gaebe es nichts zu uebernehmen; diesen Fall
+        # gibt es nur bei der Neuanlage, die ihre Stammdaten selbst
+        # erfasst.
+        name = existing.name if existing else ""
+        standort = existing.standort if existing else ""
+        variante = existing.variante if existing else ""
+
     # Der Projektname steht ganz oben - in der schmalen Parameterspalte
     # war er zwischen Investkosten und Pacht praktisch unauffindbar.
     # Bewusst ausserhalb des Formularrahmens: In der Spalte gibt es
     # keinen Absenden-Knopf, der Wert muss sofort in den Entwurf laufen.
-    name = st.text_input(
-        txt("oberflaeche.formular_name_label"),
-        value=existing.name if existing else "",
-        placeholder=txt("oberflaeche.formular_name_platzhalter"),
-        key=f"{form_key}_name",
-        help=txt("oberflaeche.formular_name_hilfe"),
-    )
-    # Der Standort ist die Kurzbezeichnung fuer Diagramme - die
-    # vollstaendige Kennung darueber ist als Punktbeschriftung zu lang.
-    standort = st.text_input(
-        txt("oberflaeche.formular_standort_label"),
-        value=existing.standort if existing else "",
-        placeholder=txt("oberflaeche.formular_standort_platzhalter"),
-        key=f"{form_key}_standort",
-        help=txt("oberflaeche.formular_standort_hilfe"),
-    )
-    # Der Variantenname macht die Sensitivitaet benennbar. Er darf leer
-    # bleiben - das ist der Grundfall des Standorts; die Oberflaeche
-    # nennt ihn "Basis".
-    variante = st.text_input(
-        txt("oberflaeche.formular_variante_label"),
-        value=existing.variante if existing else "",
-        placeholder=txt("oberflaeche.formular_variante_platzhalter"),
-        key=f"{form_key}_variante",
-        help=txt("oberflaeche.formular_variante_hilfe"),
-    )
+    if mit_stammdaten:
+        name = st.text_input(
+            txt("oberflaeche.formular_name_label"),
+            value=existing.name if existing else "",
+            placeholder=txt("oberflaeche.formular_name_platzhalter"),
+            key=f"{form_key}_name",
+            help=txt("oberflaeche.formular_name_hilfe"),
+        )
+        # Der Standort ist die Kurzbezeichnung fuer Diagramme - die
+        # vollstaendige Kennung darueber ist als Punktbeschriftung zu lang.
+        standort = st.text_input(
+            txt("oberflaeche.formular_standort_label"),
+            value=existing.standort if existing else "",
+            placeholder=txt("oberflaeche.formular_standort_platzhalter"),
+            key=f"{form_key}_standort",
+            help=txt("oberflaeche.formular_standort_hilfe"),
+        )
+        # Der Variantenname macht die Sensitivitaet benennbar. Er darf leer
+        # bleiben - das ist der Grundfall des Standorts; die Oberflaeche
+        # nennt ihn "Basis".
+        variante = st.text_input(
+            txt("oberflaeche.formular_variante_label"),
+            value=existing.variante if existing else "",
+            placeholder=txt("oberflaeche.formular_variante_platzhalter"),
+            key=f"{form_key}_variante",
+            help=txt("oberflaeche.formular_variante_hilfe"),
+        )
 
     st.markdown("**Technische Anlagenparameter**")
     col1, col2, col3 = spalten(3)
@@ -404,6 +457,8 @@ def _felder(
         titel=txt("oberflaeche.formular_capex_zusatz_titel"),
         hilfe=txt("oberflaeche.formular_capex_zusatz_hilfe"),
         spalte_wert=txt("oberflaeche.formular_capex_zusatz_betrag"),
+        einheit="€",
+        im_popover=spaltig,
         vorhandene=[
             {"Position": z.name, "Wert": z.betrag_eur}
             for z in (existing.capex.zusatzpositionen if existing else [])
@@ -415,6 +470,8 @@ def _felder(
         titel=txt("oberflaeche.formular_opex_zusatz_titel"),
         hilfe=txt("oberflaeche.formular_opex_zusatz_hilfe"),
         spalte_wert=txt("oberflaeche.formular_opex_zusatz_betrag"),
+        einheit="€/kWp/Jahr",
+        im_popover=spaltig,
         vorhandene=[
             {"Position": z.name, "Wert": z.basiswert_eur_kwp}
             for z in (existing.zusatz_opex if existing else [])

@@ -242,31 +242,28 @@ class TestAlphabetischeReihenfolge:
 class TestProjektUmbenennen:
     """Gemeldet: Der Titel eines Projekts liess sich nicht mehr aendern.
 
-    Das Feld war vorhanden, stand in der Parameterspalte aber zwischen
-    Investkosten und Pacht - in einer scrollenden Spalte praktisch
-    unauffindbar. Es steht jetzt an erster Stelle.
+    Das Feld stand danach an erster Stelle der Parameterspalte. Seit der
+    Aufraeumrunde steht es nicht mehr dort: Name und Standort sind keine
+    What-if-Groessen und kosteten in der schmalen Live-Spalte dauerhaft
+    Platz. Sie stehen jetzt im Ueberlaufmenue des Projektkopfs, der
+    Variantenname in der Reiterreihe - beide speichern sofort statt ueber
+    den Entwurf.
     """
 
-    def test_name_ist_das_erste_feld_der_parameterspalte(self, at: AppTest):
+    def test_stammdaten_stehen_nicht_mehr_in_der_parameterspalte(
+        self, at: AppTest
+    ):
         keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
         at = _klick(at, keys[0])
         projekt_id = keys[0].removeprefix("open_")
 
-        namensfeld = [t for t in at.get("text_input")
-                      if t.key == f"param_{projekt_id}_name"]
-        assert namensfeld, "Namensfeld fehlt in der Parameterspalte"
+        spaltenfelder = {t.key for t in at.get("text_input") if t.key}
+        for feld in ("name", "standort", "variante"):
+            assert f"param_{projekt_id}_{feld}" not in spaltenfelder
 
-        # Erstes Eingabefeld der Spalte ueberhaupt - vor Leistung und
-        # Vollbenutzungsstunden.
-        quelle = (ROOT / "app" / "components" / "project_form.py").read_text(
-            encoding="utf-8"
-        )
-        rumpf = quelle[quelle.index("def _felder("):]
-        assert rumpf.index('key=f"{form_key}_name"') < rumpf.index(
-            "Technische Anlagenparameter"
-        )
-
-    def test_umbenennen_wird_gezaehlt_und_gespeichert(self, at: AppTest, tmp_path):
+    def test_umbenennen_im_ueberlaufmenue_speichert_sofort(
+        self, at: AppTest, tmp_path
+    ):
         import shutil
 
         from app.config import PROJECTS_DIR
@@ -280,14 +277,16 @@ class TestProjektUmbenennen:
             projekt_id = keys[0].removeprefix("open_")
 
             feld = [t for t in at.get("text_input")
-                    if t.key == f"param_{projekt_id}_name"][0]
+                    if t.key == f"stammdaten_name_{projekt_id}"][0]
             feld.set_value("Umbenannt im Test")
             at.run()
             assert not at.exception
-            assert any(":orange[" in m.value and "Änderung" in m.value
-                       for m in at.markdown)
+            # Der Name gehoert nicht zum Entwurf - die Rechnung bleibt
+            # unveraendert, es steht keine offene Aenderung an.
+            assert not any(":orange[" in m.value and "Änderung" in m.value
+                           for m in at.markdown)
 
-            _klick(at, f"param_{projekt_id}__speichern")
+            _klick(at, f"stammdaten_speichern_{projekt_id}")
             assert any(m.value == "### Umbenannt im Test" for m in at.markdown)
             # Die Datei behaelt ihre Identitaet, nur der Name aendert sich.
             assert (PROJECTS_DIR / f"{projekt_id}.yaml").exists()
@@ -295,6 +294,35 @@ class TestProjektUmbenennen:
                 b.label for b in at.button
                 if b.key and b.key.startswith("projektwahl_")
             ]
+        finally:
+            for datei in PROJECTS_DIR.glob("*.yaml"):
+                datei.unlink()
+            for datei in sicherung.glob("*.yaml"):
+                shutil.copy(datei, PROJECTS_DIR / datei.name)
+
+    def test_variante_wird_in_der_reiterreihe_umbenannt(self, at: AppTest, tmp_path):
+        import shutil
+
+        from app.config import PROJECTS_DIR
+        from engine.io_yaml import load_project_yaml
+
+        sicherung = tmp_path / "projects"
+        shutil.copytree(PROJECTS_DIR, sicherung)
+        try:
+            keys = [b.key for b in at.button
+                    if b.key and b.key.startswith("open_")]
+            at = _klick(at, keys[0])
+            projekt_id = keys[0].removeprefix("open_")
+
+            feld = [t for t in at.get("text_input")
+                    if t.key == f"variante_name_{projekt_id}"][0]
+            feld.set_value("Netz hoch")
+            at.run()
+            _klick(at, f"variante_name_speichern_{projekt_id}")
+            assert not at.exception
+
+            gespeichert = load_project_yaml(PROJECTS_DIR / f"{projekt_id}.yaml")
+            assert gespeichert.variante == "Netz hoch"
         finally:
             for datei in PROJECTS_DIR.glob("*.yaml"):
                 datei.unlink()

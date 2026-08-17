@@ -223,3 +223,47 @@ class TestAlteExportdateien:
         Pflichtspalte muss weiterhin einen klaren Fehler ausloesen."""
         with pytest.raises(ValueError, match="capex_epc_eur"):
             excel_to_projects(self._ohne_spalten(project, ["capex_epc_eur"]))
+
+
+class TestParameterspalte:
+    """Zusatzpositionen stehen in der Live-Spalte hinter einem Popover.
+
+    Der frueher benutzte Schalter erzeugte die Tabelle beim Aufklappen
+    und entfernte sie beim Zuklappen - unfertige Zeilen gingen dabei
+    verloren. Ein Popover fuehrt seinen Inhalt bei JEDEM Durchlauf aus,
+    das Widget existiert also auch zugeklappt weiter.
+    """
+
+    def _projektseite(self):
+        from pathlib import Path as _P
+
+        from streamlit.testing.v1 import AppTest
+
+        wurzel = _P(__file__).resolve().parent.parent
+        at = AppTest.from_file(str(wurzel / "streamlit_app.py"), default_timeout=300)
+        at.run()
+        keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
+        [b for b in at.button if b.key == keys[0]][0].click()
+        at.run()
+        assert not at.exception, at.exception
+        return at, keys[0].removeprefix("open_")
+
+    def test_editoren_existieren_ohne_aufklappen(self):
+        at, projekt_id = self._projektseite()
+        # Der dynamische Editor erscheint im AppTest-Baum als "dataframe".
+        keys = {e.key for e in at.get("dataframe") if e.key}
+        assert f"param_{projekt_id}_capex_zusatz" in keys
+        assert f"param_{projekt_id}_opex_zusatz" in keys
+
+    def test_kein_schalter_mehr_in_der_spalte(self):
+        at, projekt_id = self._projektseite()
+        schalter = {t.key for t in at.get("toggle") if t.key}
+        assert f"param_{projekt_id}_capex_zusatz_anzeigen" not in schalter
+        assert f"param_{projekt_id}_opex_zusatz_anzeigen" not in schalter
+
+    def test_zusammenfassung_steht_vor_dem_popover(self):
+        at, _ = self._projektseite()
+        zeilen = " ".join(c.value for c in at.caption)
+        assert "Weitere Investkosten" in zeilen
+        assert "Weitere Betriebskosten" in zeilen
+
