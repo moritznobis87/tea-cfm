@@ -1094,28 +1094,42 @@ Sie muss nichtleer sein und darf keine der reservierten Spaltenbezeichnungen
 der Cashflow-Zeitreihe (etwa `opex_gesamt_eur` oder `erloes_eur`) tragen, da jede
 Position als eigene Spalte in die Zeitreihe geschrieben wird.
 
-## 8.3 Produktionsbasierte Positionen
+## 8.3 Mengenbasierte Positionen
 
-**Gemeindeabgabe** (je erzeugter kWh an die Standortgemeinde):
+Bezugsgröße ist die **eingespeiste** Menge $E^{\mathrm{ein}}_t$, nicht die
+erzeugte $E_t$. Beide fallen auseinander, sobald die Anlage in Stunden
+negativer Preise abgeregelt wird (Modus *Abregeln*, Abschnitt 7.7):
 
-$$ C^{\mathrm{gem}}_t = E_t \cdot c_{\mathrm{gem}} \cdot \Theta_t $$
+$$ E^{\mathrm{ein}}_t = \begin{cases}
+E_t \cdot (1 - \nu_t) & \text{Modus Abregeln} \\
+E_t & \text{Modus weiter einspeisen}
+\end{cases} $$
+
+> **Korrektur gegenüber Version 5.18.** Zuvor stand hier $E_t$. Eine
+> abgeregelte Anlage speist die betreffende Energie nie ins Netz — eine
+> Gemeindeabgabe oder ein Direktvermarktungsentgelt darauf gibt es nicht.
+> Der Markterlös sank korrekt, die Kosten blieben stehen.
+
+**Gemeindeabgabe** (je eingespeister kWh an die Standortgemeinde):
+
+$$ C^{\mathrm{gem}}_t = E^{\mathrm{ein}}_t \cdot c_{\mathrm{gem}} \cdot \Theta_t $$
 
 **Direktvermarktungskosten** (Bilanzkreis, Prognose, Marktzugang) in drei
 Modi:
 
 Modus **absolut** – fester Satz je kWh:
 
-$$ C^{\mathrm{dv}}_t = E_t \cdot c_{\mathrm{dv}} \cdot \Theta_t $$
+$$ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot c_{\mathrm{dv}} \cdot \Theta_t $$
 
 Modus **Anteil am Großhandelspreis** – Anteil $\varphi$ am nominalen
 Baseload-Preis $b_t$ des Szenarios:
 
-$$ C^{\mathrm{dv}}_t = E_t \cdot \frac{b_t}{100} \cdot \varphi $$
+$$ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot \frac{b_t}{100} \cdot \varphi $$
 
 Modus **Anteil am Marktwert Solar** – derselbe Anteil, bezogen auf den
 technologiespezifischen Marktwert:
 
-$$ C^{\mathrm{dv}}_t = E_t \cdot \frac{m_t}{100} \cdot \varphi $$
+$$ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot \frac{m_t}{100} \cdot \varphi $$
 
 Marktüblich sind rund 10 %, bezogen auf den **Großhandelspreis**: Der
 Direktvermarkter rechnet gegen den Spotmarkt ab, nicht gegen den
@@ -1312,7 +1326,20 @@ Bei einem Hebesatz von 400 % ergibt das $\tau = 14{,}0\,\%$.
 
 ## 10.4 Steuerliches Ergebnis vor Verlustvortrag
 
-$$ G_t = \mathrm{EBT}^{\mathrm{vA}}_t - A_t - \Phi $$
+$$ G_t = \mathrm{EBT}^{\mathrm{vA}}_t - A_t $$
+
+Der Freibetrag $\Phi$ steht **nicht** in dieser Zeile. Er mindert die
+Bemessungsgrundlage (Abschnitt 10.5), ist aber kein Verlust: Ein Jahr mit
+kleinem Gewinn und großem Freibetrag darf keinen vortragsfähigen Verlust
+erzeugen.
+
+> **Korrektur gegenüber Version 5.18.** Zuvor wurde $\Phi$ hier abgezogen.
+> Bei einem Ergebnis von 30.000 € und einem Freibetrag von 45.000 € entstand
+> dadurch je Jahr ein Verlustvortrag von 15.000 €, der später echte Gewinne
+> abschirmte. Für die deutsche Gewerbesteuer blieb die Steuer richtig
+> (Verrechnungsgrenze $\gamma = 0$), nur der ausgewiesene Vortragsbestand
+> war falsch; für die österreichische Körperschaftsteuer mit gesetztem
+> Freibetrag wurde die Steuer unterschätzt.
 
 ## 10.5 Verlustvortrag
 
@@ -1325,7 +1352,10 @@ Mit dem Vortragsbestand $V_t$ zu Jahresbeginn ($V_1 = 0$):
 
 $$ U_t = \min\left(V_t,\ \gamma \cdot G_t\right) \cdot \mathbf{1}_{[\,G_t\, >\, 0\,]} $$
 
-$$ G^{\mathrm{st}}_t = \left(G_t - U_t\right)^{+} $$
+$$ G^{\mathrm{st}}_t = \left(G_t - U_t - \Phi\right)^{+} $$
+
+Die Reihenfolge ist: steuerliches Ergebnis, dann Verlustabzug, dann
+Freibetrag (§ 11 GewStG für die Gewerbesteuer).
 
 $$ S_t = G^{\mathrm{st}}_t \cdot \tau $$
 
@@ -1759,6 +1789,19 @@ Eine Skalierung des Marktwert-Niveaus verändert dadurch auch die
 Prämienhöhe, den Zeitpunkt, an dem der Marktwert den Zuschlagswert
 übersteigt, und im relativen Modus die Direktvermarktungskosten. Damit wird der
 vollständige fachliche Wirkungszusammenhang berücksichtigt.
+
+Kurvenwertige Treiber (Marktwert, negative Stunden) werden auf **beiden
+Ebenen** skaliert – Jahres- und Monatsreihe. Welche davon die Rechnung
+tatsächlich liest, hängt an der Zeitauflösung (Abschnitt 4.4) und am
+Anlaufjahr (Abschnitt 7.9).
+
+> **Korrektur gegenüber Version 5.18.** Zuvor wurde nur die Jahresreihe
+> skaliert. In der Monatsauflösung greifen die Treiber „Marktwert" und
+> „negative Stunden" damit ins Leere: Tornado, Heatmap und Monte Carlo
+> wiesen für sie eine Spanne von **exakt null** aus, ohne dass etwas
+> darauf hinwies. Das wichtigste Preisrisiko fehlte damit in der
+> gesamten Risikoanalyse; da der Aurora-Import die Zeitauflösung
+> standardmäßig auf Monat stellt, war der Fall nicht exotisch.
 
 ## 14.2 EAG-Zuschlag-Sensitivität
 

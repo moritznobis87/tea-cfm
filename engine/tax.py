@@ -19,6 +19,13 @@ wird hier bewusst nicht abgebildet, da das als Referenz validierte
 Modell (Vergleich mit einer realen Projekt-Excel) ihn ebenfalls nicht
 beruecksichtigt.
 
+Freibetrag und Verlust sind zweierlei: Der Freibetrag mindert die
+Bemessungsgrundlage bis auf null, erzeugt aber KEINEN vortragsfaehigen
+Verlust. Wurde er (bis v5.18) vor der Verlustermittlung abgezogen, baute
+schon ein Jahr mit kleinem Gewinn einen Verlustvortrag auf, den es nie
+gegeben hat. Die Reihenfolge ist deshalb: steuerliches Ergebnis, dann
+Verlustabzug, dann Freibetrag.
+
 Fuer volle Nachvollziehbarkeit werden AfA, Verlustvortrag-Bestand
 (Anfang/Ende) und das tatsaechlich versteuerte Ergebnis als eigene
 Spalten zurueckgegeben, nicht nur der Steuerbetrag - die UI zeigt diese
@@ -96,7 +103,11 @@ def calculate_tax(
             if afa_aktiv and jahr <= afa_nutzungsdauer_jahre
             else 0.0
         )
-        ergebnis_vor_verlustvortrag = ebt_ohne_afa - afa - freibetrag_wirksam
+        # Der Freibetrag steht BEWUSST nicht in dieser Zeile: Er mindert die
+        # Bemessungsgrundlage, ist aber kein Verlust. Zog man ihn hier ab,
+        # baute ein Jahr mit kleinem Gewinn einen Verlustvortrag auf, den es
+        # nie gegeben hat - und der spaeter echte Gewinne abschirmte.
+        ergebnis_vor_verlustvortrag = ebt_ohne_afa - afa
 
         if ergebnis_vor_verlustvortrag > 0:
             max_verrechenbar = ergebnis_vor_verlustvortrag * verrechnungsgrenze_wirksam
@@ -104,8 +115,13 @@ def calculate_tax(
         else:
             verlustvortrag_genutzt = 0.0
 
+        # Reihenfolge: erst Verlustabzug, dann Freibetrag (§ 11 GewStG fuer
+        # die Gewerbesteuer; fuer die Koerperschaftsteuer ist der
+        # Freibetrag mit dem ausgelieferten Standard 0 ohne Wirkung).
         steuerliches_ergebnis = max(
-            ergebnis_vor_verlustvortrag - verlustvortrag_genutzt, 0.0
+            ergebnis_vor_verlustvortrag - verlustvortrag_genutzt
+            - freibetrag_wirksam,
+            0.0,
         )
         steuer = steuerliches_ergebnis * effektiver_satz
 
