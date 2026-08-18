@@ -1,5 +1,47 @@
 # Changelog
 
+## v5.19 – Drei Rechenfehler aus der Durchsicht (2026-08)
+
+Ergebnis einer systematischen Durchsicht des Rechenkerns.
+
+**Das Marktpreisrisiko war in der Monatsauflösung unsichtbar.** Die
+Treiber „Marktwert" und „negative Stunden" skalierten nur die
+Jahreskurve — die Engine rechnet dort aber ausschließlich mit den
+Monatsreihen. Tornado, IRR-Heatmap, Monte Carlo und die
+Gebotsverteilung wiesen für den wichtigsten Preistreiber eine Spanne
+von **exakt null** aus, ohne dass etwas darauf hinwies. Da der
+Aurora-Import die Zeitauflösung standardmäßig auf Monat stellt, war der
+Fall nicht exotisch. Für Völkermarkt zeigt der Tornado jetzt eine
+Marktwert-Spanne von 4,2 Prozentpunkten statt 0,0. Derselbe Fehler war
+im Szenarienvergleich schon einmal behoben worden; in den
+Treiber-Mutationen wurde er nie nachgezogen.
+
+**Der Freibetrag erzeugte einen Verlustvortrag.** Er wurde vor der
+Verlustermittlung abgezogen, sodass ein Jahr mit 30.000 € Gewinn und
+45.000 € Freibetrag einen Vortrag von 15.000 € aufbaute, der später
+echte Gewinne abschirmte. Ein Freibetrag mindert die
+Bemessungsgrundlage, ist aber kein Verlust. Neue Reihenfolge:
+steuerliches Ergebnis, dann Verlustabzug, dann Freibetrag. Die deutsche
+Gewerbesteuer rechnete schon vorher richtig (Verrechnungsgrenze 0), dort
+war nur die ausgewiesene Vortragsspalte falsch.
+
+**Gemeindeabgabe und Direktvermarktungskosten liefen auf die erzeugte
+statt auf die eingespeiste Menge.** Im Modus „Abregeln" sank der
+Markterlös korrekt, die Abgaben je MWh blieben aber auf dem vollen
+Wert stehen — für Energie, die nie ins Netz floss. Die Erlösrechnung
+weist die eingespeiste Menge jetzt als eigene Größe aus, die
+Kostenrechnung liest sie. Im Regelfall „weiter einspeisen" ändert sich
+nichts.
+
+Rechenmodell 8.3, 10.4, 10.5 und 14.1 nachgezogen.
+
+Offen und bewusst nicht geändert, weil es Konventionsentscheidungen
+sind: die volle Jahres-AfA im Rumpfjahr, die Zählung des Rumpfjahres als
+volles Förder- und Betriebsjahr, und die systematische Überschätzung des
+Erlöses in der Monatsauflösung (Monatsreihen erfassen die
+Intraday-Kannibalisierung nicht, die im Jahres-Capture-Price enthalten
+ist — rund 16 % Unterschied).
+
 ## v5.18 – Zwei Nachbesserungen an der Bedienung (2026-08)
 
 - **Der Länderschalter tritt zurück.** Er stand als zwei Knöpfe in

@@ -49,6 +49,66 @@ class TestFinancing:
         assert (fin["schuldendienst_eur"].iloc[20:] == 0.0).all()
 
 
+class TestFreibetragUndVerlustvortrag:
+    """Gemeldet bei der Durchsicht: Der Freibetrag wurde vor der
+    Verlustermittlung abgezogen und erzeugte dadurch einen
+    Verlustvortrag, den es nie gegeben hat.
+
+    Ein Freibetrag mindert die Bemessungsgrundlage bis auf null - er
+    macht aus einem kleinen Gewinn keinen vortragsfaehigen Verlust.
+    """
+
+    def test_freibetrag_erzeugt_keinen_verlustvortrag(self):
+        tax = _tax_fuer(
+            [30_000.0] * 4,
+            tax_modus=TaxModus.AFA_KOERPERSCHAFTSTEUER,
+            afa_nutzungsdauer_jahre=20,
+            freibetrag_eur=45_000.0,
+        )
+        assert tax["verlustvortrag_bestand_eur"].tolist() == pytest.approx([0.0] * 4)
+        assert tax["steuer_eur"].tolist() == pytest.approx([0.0] * 4)
+
+    def test_echter_verlust_wird_weiterhin_vorgetragen(self):
+        """Die Gegenprobe - ein tatsaechliches Minus muss vortragen."""
+        tax = _tax_fuer(
+            [-20_000.0, 100_000.0],
+            tax_modus=TaxModus.AFA_KOERPERSCHAFTSTEUER,
+            afa_nutzungsdauer_jahre=20,
+            freibetrag_eur=0.0,
+        )
+        assert tax["verlustvortrag_bestand_eur"].iloc[0] == pytest.approx(20_000.0)
+        assert tax["verlustvortrag_genutzt_eur"].iloc[1] == pytest.approx(20_000.0)
+
+    def test_freibetrag_schirmt_spaetere_gewinne_nicht_ab(self):
+        """Der eigentliche Schaden: Der Phantom-Vortrag aus mageren
+        Jahren minderte die Steuer eines spaeteren guten Jahres."""
+        tax = _tax_fuer(
+            [30_000.0, 30_000.0, 200_000.0],
+            tax_modus=TaxModus.AFA_KOERPERSCHAFTSTEUER,
+            afa_nutzungsdauer_jahre=20,
+            freibetrag_eur=45_000.0,
+        )
+        # 200.000 - 45.000 Freibetrag = 155.000, davon 25 %.
+        assert tax["steuer_eur"].iloc[2] == pytest.approx(155_000.0 * 0.25)
+
+    def test_gewerbesteuer_bleibt_unveraendert(self):
+        """Der deutsche Freibetrag wirkte schon vorher richtig auf die
+        Steuer (Verrechnungsgrenze 0); nur die ausgewiesene
+        Vortragsspalte war falsch."""
+        tax = _tax_fuer(
+            [100_000.0],
+            tax_modus=TaxModus.GEWERBESTEUER_DE,
+            afa_nutzungsdauer_jahre=20,
+            capex_total_eur=0.0,
+            gewerbesteuer_freibetrag_eur=24_500.0,
+            gewerbesteuer_hebesatz_pct=400.0,
+        )
+        assert tax["steuer_eur"].iloc[0] == pytest.approx(
+            (100_000.0 - 24_500.0) * 0.035 * 4.0
+        )
+        assert tax["verlustvortrag_bestand_eur"].iloc[0] == pytest.approx(0.0)
+
+
 class TestRumpfjahrSchuldendienst:
     """Gemeldet am Projekt Voelkermarkt (Inbetriebnahme Dezember 2027):
     Die Zinsen des Rumpfjahres waren anteilig, die Tilgung aber nicht -

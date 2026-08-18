@@ -1113,8 +1113,15 @@ class EffectiveAssumptions(BaseModel):
     negative_stunden_regel: NegativeStundenRegel
 
     # --- Monatsebene ----------------------------------------------------------
-    # Nur wirksam bei zeitaufloesung = MONAT; sonst tragen sie dieselbe
-    # Aussage wie die Jahreskurven und bleiben ungenutzt.
+    # Wirksam bei zeitaufloesung = MONAT - und seit der Rumpfjahr-Korrektur
+    # ausserdem im Anlaufjahr, auch in der Jahresaufloesung (siehe
+    # engine/revenue.py::_scheiben).
+    #
+    # Sie tragen NICHT dieselbe Aussage wie die Jahreskurven: Der
+    # Jahreswert einer Marktpreisstudie ist der Capture Price und enthaelt
+    # auch die Intraday-Kannibalisierung; eine mit der Einspeisekurve
+    # gewichtete Monatsreihe erfasst nur den saisonalen Teil und liegt
+    # deshalb systematisch darueber.
     zeitaufloesung: Zeitaufloesung = Zeitaufloesung.JAHR
     einspeisekurve_pct_je_monat: list[float] = Field(
         default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)

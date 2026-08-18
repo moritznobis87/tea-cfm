@@ -568,6 +568,103 @@ class TestDirektvermarktungsModus:
         assert geladen.direktvermarktung_pct_marktwert == pytest.approx(0.12)
 
 
+class TestAbgabenAufDieEingespeisteMenge:
+    """Gemeldet bei der Durchsicht: Gemeindeabgabe und
+    Direktvermarktungskosten wurden je MWh auf die ERZEUGTE Menge
+    gerechnet.
+
+    Wird die Anlage in Stunden negativer Preise abgeregelt, fliesst
+    diese Energie nie ins Netz - eine Abgabe darauf gibt es nicht. Der
+    Markterloes sank korrekt, die Kosten blieben stehen.
+    """
+
+    #: Anteil der Erzeugung in Stunden negativer Preise.
+    NEGATIV = 0.10
+
+    def _annahmen(self, global_assumptions, modus):
+        """Dasselbe Szenario, aber mit negativen Stunden - das
+        Standardszenario der Fixtures hat keine, dann gibt es nichts
+        abzuregeln."""
+        ga = global_assumptions.model_copy(deep=True)
+        ga.negative_stunden_modus = modus
+        ga.gemeindeabgabe_eur_kwh = 0.002
+        ga.direktvermarktungskosten_eur_kwh = 0.001
+        for szenario in ga.marktpreisszenarien:
+            jahre = list(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+            szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr = {
+                j: self.NEGATIV for j in jahre
+            }
+            szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr = {
+                j: self.NEGATIV for j in jahre
+            }
+        return ga
+
+    def test_abregelung_senkt_die_abgaben(self, project, global_assumptions):
+        from engine import run_valuation
+        from engine.models import NegativeStundenModus
+
+        werte = {}
+        for modus in (NegativeStundenModus.MARKTWERT,
+                      NegativeStundenModus.ABREGELUNG):
+            ga = self._annahmen(global_assumptions, modus)
+            df = run_valuation(project, ga).cashflow.data
+            zeile = df[df["jahr"] == 2].iloc[0]
+            werte[modus] = (
+                float(zeile["gemeindeabgabe_eur"]),
+                float(zeile["direktvermarktungskosten_eur"]),
+                float(zeile["erloes_markt_eur"]),
+            )
+
+        voll = werte[NegativeStundenModus.MARKTWERT]
+        gekuerzt = werte[NegativeStundenModus.ABREGELUNG]
+        # Der Erloes sinkt - das war schon immer richtig.
+        assert gekuerzt[2] < voll[2]
+        # Und die Abgaben sinken jetzt im selben Verhaeltnis.
+        assert gekuerzt[0] < voll[0]
+        assert gekuerzt[1] < voll[1]
+        assert gekuerzt[0] / voll[0] == pytest.approx(gekuerzt[1] / voll[1])
+
+    def test_ohne_abregelung_unveraendert(self, project, global_assumptions):
+        """Im Regelfall (weiter einspeisen) sind erzeugte und
+        eingespeiste Menge gleich - dort darf sich nichts aendern."""
+        from engine import run_valuation
+        from engine.models import NegativeStundenModus
+
+        ga = self._annahmen(global_assumptions, NegativeStundenModus.MARKTWERT)
+        df = run_valuation(project, ga).cashflow.data
+        zeile = df[df["jahr"] == 2].iloc[0]
+        assert zeile["gemeindeabgabe_eur"] == pytest.approx(
+            zeile["produktion_kwh"] * ga.gemeindeabgabe_eur_kwh
+            * (1 + ga.kosten_inflation_pct_pa)
+        )
+
+    def test_menge_steht_in_der_erloesrechnung(self, project, global_assumptions):
+        """Die eingespeiste Menge ist eine Groesse der Erloesrechnung -
+        die Kostenrechnung liest sie, statt sie neu abzuleiten."""
+        from datetime import date
+
+        from engine.energy import calculate_energy_production
+        from engine.models import NegativeStundenModus
+        from engine.pipeline import resolve_assumptions
+        from engine.revenue import calculate_revenue
+        from engine.timeline import build_timeline
+
+        ga = self._annahmen(global_assumptions, NegativeStundenModus.ABREGELUNG)
+        ea = resolve_assumptions(project, ga)
+        timeline = build_timeline(
+            date(ea.inbetriebnahme_jahr, ea.inbetriebnahme_monat, 1),
+            ea.betriebsdauer_jahre,
+        )
+        energy = calculate_energy_production(timeline, ea)
+        revenue = calculate_revenue(timeline, energy, ea)
+
+        assert "menge_vermarktet_kwh" in revenue.columns
+        # Abgeregelt wird der Anteil negativer Stunden.
+        assert revenue["menge_vermarktet_kwh"].iloc[1] == pytest.approx(
+            energy["produktion_kwh"].iloc[1] * (1 - self.NEGATIV)
+        )
+
+
 class TestUnterjaehrigeInbetriebnahme:
     """Gemeldet am Projekt Voelkermarkt (Inbetriebnahme Dezember): Die
     Betriebskosten fielen im Rumpfjahr voll an, obwohl die Anlage nur

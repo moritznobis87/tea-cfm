@@ -64,6 +64,11 @@ REVENUE_COLUMNS = [
     # Ohne PPA ist erloes_ppa_eur = 0 und erloes_merchant_eur =
     # erloes_markt_eur; ohne Rueckzahlungspflicht ist rueckzahlung_eur = 0.
     "erloes_ppa_eur", "erloes_merchant_eur", "rueckzahlung_eur",
+    # Tatsaechlich eingespeiste Menge. Sie weicht von der Produktion ab,
+    # sobald die Anlage in Stunden negativer Preise abgeregelt wird - die
+    # Kosten je MWh (Gemeindeabgabe, Direktvermarktung) haengen an ihr,
+    # nicht an der Erzeugung (siehe engine/opex.py).
+    "menge_vermarktet_kwh",
     # Grosshandelspreis (Baseload) des Szenarios: rechnet im Erloes nicht
     # mit, ist aber die Bezugsgroesse der Direktvermarktungskosten im
     # Modus RELATIV_GROSSHANDEL - und im Diagramm der Abstand, aus dem
@@ -278,6 +283,7 @@ def calculate_revenue(
     menge_ppa = menge_vermarktet * ppa_anteil
     menge_merchant = menge_vermarktet - menge_ppa
 
+    df["menge_vermarktet_kwh"] = menge_vermarktet
     df["erloes_ppa_eur"] = menge_ppa * ppa_preis / 100.0
     df["erloes_merchant_eur"] = menge_merchant * mw / 100.0
     df["erloes_markt_eur"] = df["erloes_ppa_eur"] + df["erloes_merchant_eur"]
@@ -331,6 +337,7 @@ def _verdichte_auf_jahre(df: pd.DataFrame) -> pd.DataFrame:
         erloes_ppa_eur=("erloes_ppa_eur", "sum"),
         erloes_merchant_eur=("erloes_merchant_eur", "sum"),
         rueckzahlung_eur=("rueckzahlung_eur", "sum"),
+        menge_vermarktet_kwh=("menge_vermarktet_kwh", "sum"),
     )
     for spalte in ("marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
                    "verguetungssatz_ct_kwh", "baseload_nominal_ct_kwh"):

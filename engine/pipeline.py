@@ -249,6 +249,7 @@ def run_valuation_from_assumptions(
         pacht_mindestpacht_eur_ha_jahr=assumptions.pacht_mindestpacht_eur_ha_jahr,
         projektflaeche_ha=assumptions.projektflaeche_ha,
         erloes_eur=revenue["erloes_eur"].to_numpy(),
+        menge_vermarktet_kwh=revenue["menge_vermarktet_kwh"].to_numpy(),
     )
     financing = calculate_financing(
         timeline,

@@ -198,6 +198,88 @@ class TestLcoeUndSzenarien:
         }
 
 
+class TestTreiberInDerMonatsaufloesung:
+    """Gemeldet bei der Durchsicht: In der Monatsaufloesung hatten die
+    Treiber "marktwert" und "negative_stunden" eine Spanne von exakt
+    null.
+
+    Ursache: _mutiere skalierte nur die Jahreskurven, die Engine rechnet
+    dort aber ausschliesslich mit den Monatsreihen. Das wichtigste
+    Preisrisiko verschwand damit lautlos aus Tornado, Heatmap und Monte
+    Carlo - und der Aurora-Import stellt die Zeitaufloesung
+    standardmaessig auf Monat.
+    """
+
+    def _ga_mit_monatsreihen(self, global_assumptions, szenario_flach):
+        from engine.models import MarktpreisSzenario, Zeitaufloesung
+
+        ga = global_assumptions
+        vorlage = szenario_flach.model_dump()
+        jahre = list(vorlage["marktwert_solar_ct_kwh_je_kalenderjahr"])
+        vorlage["marktwert_solar_ct_kwh_je_monat"] = {
+            jahr: [6.0] * 12 for jahr in jahre
+        }
+        vorlage["erzeugungsmenge_negativ_6h_pct_je_monat"] = {
+            jahr: [0.05] * 12 for jahr in jahre
+        }
+        vorlage["erzeugungsmenge_negativ_1h_pct_je_monat"] = {
+            jahr: [0.05] * 12 for jahr in jahre
+        }
+        ga.marktpreisszenarien = [MarktpreisSzenario(**vorlage)]
+        ga.zeitaufloesung = Zeitaufloesung.MONAT
+        return ga
+
+    @pytest.mark.parametrize("treiber", ["marktwert", "negative_stunden"])
+    def test_kurventreiber_wirken_auch_monatlich(
+        self, project, global_assumptions, szenario_flach, treiber
+    ):
+        from engine.analytics import _irr_fuer, _mutiere
+        from engine.pipeline import resolve_assumptions
+
+        ga = self._ga_mit_monatsreihen(global_assumptions, szenario_flach)
+        project.marktpreisszenario = szenario_flach.name
+        ea = resolve_assumptions(project, ga)
+
+        basis = _irr_fuer(ea)
+        runter = _irr_fuer(_mutiere(ea, treiber, 0.8))
+        rauf = _irr_fuer(_mutiere(ea, treiber, 1.2))
+        assert None not in (basis, runter, rauf)
+        assert runter != pytest.approx(rauf), (
+            f"Treiber {treiber} ohne Wirkung in der Monatsaufloesung"
+        )
+
+    def test_monatsreihe_wird_mitskaliert(
+        self, project, global_assumptions, szenario_flach
+    ):
+        """Die Zahlen selbst, nicht nur ihre Wirkung."""
+        from engine.analytics import _mutiere
+        from engine.pipeline import resolve_assumptions
+
+        ga = self._ga_mit_monatsreihen(global_assumptions, szenario_flach)
+        project.marktpreisszenario = szenario_flach.name
+        ea = resolve_assumptions(project, ga)
+        mutiert = _mutiere(ea, "marktwert", 2.0)
+
+        jahr = next(iter(ea.marktwert_solar_ct_kwh_je_monat))
+        assert mutiert.marktwert_solar_ct_kwh_je_monat[jahr] == pytest.approx(
+            [w * 2.0 for w in ea.marktwert_solar_ct_kwh_je_monat[jahr]]
+        )
+        assert mutiert.marktwert_solar_ct_kwh_je_kalenderjahr[jahr] == pytest.approx(
+            ea.marktwert_solar_ct_kwh_je_kalenderjahr[jahr] * 2.0
+        )
+
+    def test_tornado_zeigt_marktpreisrisiko(
+        self, project, global_assumptions, szenario_flach
+    ):
+        from engine.analytics import run_tornado
+
+        ga = self._ga_mit_monatsreihen(global_assumptions, szenario_flach)
+        project.marktpreisszenario = szenario_flach.name
+        df = run_tornado(project, ga)
+        spanne = float(df[df["treiber"] == "marktwert"]["spanne"].iloc[0])
+        assert spanne > 0.0, "Marktpreisrisiko im Tornado unsichtbar"
+
+
 class TestSzenarienvergleichBauform:
     """Der Vergleich rechnet jedes Szenario in der Bauform des Projekts.
 

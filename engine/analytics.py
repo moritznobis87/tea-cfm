@@ -45,9 +45,30 @@ def _skaliere_kurve(kurve: dict[int, float], faktor: float) -> dict[int, float]:
     return {jahr: wert * faktor for jahr, wert in kurve.items()}
 
 
+def _skaliere_monatskurve(
+    kurve: dict[int, list[float]], faktor: float
+) -> dict[int, list[float]]:
+    """Dasselbe fuer die Monatsreihen.
+
+    Sie MUESSEN mitwandern: In der Monatsaufloesung rechnet die Engine
+    ausschliesslich mit ihnen, und seit der Rumpfjahr-Korrektur auch in
+    der Jahresaufloesung fuer das Anlaufjahr. Wer nur die Jahreskurve
+    skaliert, laesst den Treiber ins Leere greifen - die Sensitivitaet
+    zeigte dann eine Spanne von exakt null, ohne dass irgendetwas darauf
+    hinweist.
+    """
+    return {jahr: [wert * faktor for wert in werte] for jahr, werte in kurve.items()}
+
+
 def _mutiere(ea: EffectiveAssumptions, treiber: str, faktor: float) -> EffectiveAssumptions:
     """Wendet einen multiplikativen Faktor auf einen benannten Werttreiber
-    an und liefert eine neue EffectiveAssumptions-Kopie."""
+    an und liefert eine neue EffectiveAssumptions-Kopie.
+
+    Kurvenwertige Treiber werden auf BEIDEN Ebenen skaliert - Jahres- und
+    Monatsreihe. Welche davon die Engine tatsaechlich liest, haengt an der
+    Zeitaufloesung und am Anlaufjahr; ein Treiber, der nur eine Ebene
+    trifft, wirkt sonst je nach Einstellung ganz oder gar nicht.
+    """
     if treiber == "eag_zuschlag":
         return ea.model_copy(
             update={
@@ -60,7 +81,10 @@ def _mutiere(ea: EffectiveAssumptions, treiber: str, faktor: float) -> Effective
             update={
                 "marktwert_solar_ct_kwh_je_kalenderjahr": _skaliere_kurve(
                     ea.marktwert_solar_ct_kwh_je_kalenderjahr, faktor
-                )
+                ),
+                "marktwert_solar_ct_kwh_je_monat": _skaliere_monatskurve(
+                    ea.marktwert_solar_ct_kwh_je_monat, faktor
+                ),
             }
         )
     if treiber == "produktion":
@@ -107,7 +131,10 @@ def _mutiere(ea: EffectiveAssumptions, treiber: str, faktor: float) -> Effective
             update={
                 "anteil_negativer_stunden_pct_je_kalenderjahr": _skaliere_kurve(
                     ea.anteil_negativer_stunden_pct_je_kalenderjahr, faktor
-                )
+                ),
+                "anteil_negativer_stunden_pct_je_monat": _skaliere_monatskurve(
+                    ea.anteil_negativer_stunden_pct_je_monat, faktor
+                ),
             }
         )
     raise ValueError(f"Unbekannter Treiber: {treiber}")

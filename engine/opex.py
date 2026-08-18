@@ -42,6 +42,7 @@ def calculate_opex(
     pacht_mindestpacht_eur_ha_jahr: float = 0.0,
     projektflaeche_ha: float | None = None,
     erloes_eur: np.ndarray | None = None,
+    menge_vermarktet_kwh: np.ndarray | None = None,
 ) -> pd.DataFrame:
     df = timeline[["jahr"]].copy()
     df["opex_gesamt_eur"] = 0.0
@@ -80,6 +81,15 @@ def calculate_opex(
         df["opex_gesamt_eur"] += betrag
 
     produktion_kwh = energy["produktion_kwh"].to_numpy()
+    # Bezugsgroesse der Kosten je MWh ist die EINGESPEISTE Menge, nicht die
+    # erzeugte: Wird die Anlage in Stunden negativer Preise abgeregelt,
+    # fliesst diese Energie nie ins Netz - eine Gemeindeabgabe oder ein
+    # Direktvermarktungsentgelt darauf gibt es nicht. Im Modus
+    # "weiter einspeisen" sind beide Mengen gleich.
+    menge_kwh = (
+        produktion_kwh if menge_vermarktet_kwh is None
+        else np.asarray(menge_vermarktet_kwh, dtype=float)
+    )
     # Allgemeine Kosteninflation fuer die produktionsbasierten Positionen
     # sowie Pacht (EUR/kWh- bzw. EUR/kWp- oder EUR/ha-Saetze, Preisstand
     # Inbetriebnahme = Betriebsjahr 1).
@@ -88,7 +98,7 @@ def calculate_opex(
         ** (df["jahr"] - 1).clip(lower=0).to_numpy()
     )
     df["gemeindeabgabe_eur"] = (
-        produktion_kwh * gemeindeabgabe_eur_kwh * inflation_faktor
+        menge_kwh * gemeindeabgabe_eur_kwh * inflation_faktor
     )
     # Direktvermarktung: absolut je MWh oder als Anteil eines Preises.
     # Im relativen Modus traegt der Satz keine eigene Kosteninflation - er
@@ -108,11 +118,11 @@ def calculate_opex(
 
     if bezug is not None:
         df["direktvermarktungskosten_eur"] = (
-            produktion_kwh * bezug / 100.0 * direktvermarktung_pct_marktwert
+            menge_kwh * bezug / 100.0 * direktvermarktung_pct_marktwert
         )
     else:
         df["direktvermarktungskosten_eur"] = (
-            produktion_kwh * direktvermarktungskosten_eur_kwh * inflation_faktor
+            menge_kwh * direktvermarktungskosten_eur_kwh * inflation_faktor
         )
     df["opex_gesamt_eur"] += df["gemeindeabgabe_eur"] + df["direktvermarktungskosten_eur"]
 

@@ -226,7 +226,7 @@
       {\sffamily\fontsize{9.2}{13}\selectfont\color{InkSoft}
       Wirtschaftlichkeitsrechnung für PV-Projekte nach dem
       österreichischen EAG-Marktprämienmodell\\[4pt]
-      Stand: 17.08.2026 · erzeugt aus
+      Stand: 18.08.2026 · erzeugt aus
       \nolinkurl{docs/rechenmodell/rechenmodell.md}}
     \end{tcolorbox}
   \end{titlepage}
@@ -249,7 +249,7 @@
 \title{Dokumentation Cash-Flow-Model - Rechenmodell und
 Berechnungsvorschrift}
 \author{Valyze}
-\date{17.08.2026}
+\date{18.08.2026}
 
 \begin{document}
 \maketitle
@@ -1659,30 +1659,47 @@ reservierten Spaltenbezeichnungen der Cashflow-Zeitreihe (etwa
 \texttt{opex\_gesamt\_eur} oder \texttt{erloes\_eur}) tragen, da jede
 Position als eigene Spalte in die Zeitreihe geschrieben wird.
 
-\hypertarget{produktionsbasierte-positionen}{%
-\subsection{8.3 Produktionsbasierte
-Positionen}\label{produktionsbasierte-positionen}}
+\hypertarget{mengenbasierte-positionen}{%
+\subsection{8.3 Mengenbasierte
+Positionen}\label{mengenbasierte-positionen}}
 
-\textbf{Gemeindeabgabe} (je erzeugter kWh an die Standortgemeinde):
+Bezugsgröße ist die \textbf{eingespeiste} Menge \(E^{\mathrm{ein}}_t\),
+nicht die erzeugte \(E_t\). Beide fallen auseinander, sobald die Anlage
+in Stunden negativer Preise abgeregelt wird (Modus \emph{Abregeln},
+Abschnitt 7.7):
 
-\[ C^{\mathrm{gem}}_t = E_t \cdot c_{\mathrm{gem}} \cdot \Theta_t \]
+\[ E^{\mathrm{ein}}_t = \begin{cases}
+E_t \cdot (1 - \nu_t) & \text{Modus Abregeln} \\
+E_t & \text{Modus weiter einspeisen}
+\end{cases} \]
+
+\begin{quote}
+\textbf{Korrektur gegenüber Version 5.18.} Zuvor stand hier \(E_t\).
+Eine abgeregelte Anlage speist die betreffende Energie nie ins Netz ---
+eine Gemeindeabgabe oder ein Direktvermarktungsentgelt darauf gibt es
+nicht. Der Markterlös sank korrekt, die Kosten blieben stehen.
+\end{quote}
+
+\textbf{Gemeindeabgabe} (je eingespeister kWh an die Standortgemeinde):
+
+\[ C^{\mathrm{gem}}_t = E^{\mathrm{ein}}_t \cdot c_{\mathrm{gem}} \cdot \Theta_t \]
 
 \textbf{Direktvermarktungskosten} (Bilanzkreis, Prognose, Marktzugang)
 in drei Modi:
 
 Modus \textbf{absolut} -- fester Satz je kWh:
 
-\[ C^{\mathrm{dv}}_t = E_t \cdot c_{\mathrm{dv}} \cdot \Theta_t \]
+\[ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot c_{\mathrm{dv}} \cdot \Theta_t \]
 
 Modus \textbf{Anteil am Großhandelspreis} -- Anteil \(\varphi\) am
 nominalen Baseload-Preis \(b_t\) des Szenarios:
 
-\[ C^{\mathrm{dv}}_t = E_t \cdot \frac{b_t}{100} \cdot \varphi \]
+\[ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot \frac{b_t}{100} \cdot \varphi \]
 
 Modus \textbf{Anteil am Marktwert Solar} -- derselbe Anteil, bezogen auf
 den technologiespezifischen Marktwert:
 
-\[ C^{\mathrm{dv}}_t = E_t \cdot \frac{m_t}{100} \cdot \varphi \]
+\[ C^{\mathrm{dv}}_t = E^{\mathrm{ein}}_t \cdot \frac{m_t}{100} \cdot \varphi \]
 
 Marktüblich sind rund 10 \%, bezogen auf den \textbf{Großhandelspreis}:
 Der Direktvermarkter rechnet gegen den Spotmarkt ab, nicht gegen den
@@ -1938,7 +1955,23 @@ Bei einem Hebesatz von 400 \% ergibt das \(\tau = 14{,}0\,\%\).
 \subsection{10.4 Steuerliches Ergebnis vor
 Verlustvortrag}\label{steuerliches-ergebnis-vor-verlustvortrag}}
 
-\[ G_t = \mathrm{EBT}^{\mathrm{vA}}_t - A_t - \Phi \]
+\[ G_t = \mathrm{EBT}^{\mathrm{vA}}_t - A_t \]
+
+Der Freibetrag \(\Phi\) steht \textbf{nicht} in dieser Zeile. Er mindert
+die Bemessungsgrundlage (Abschnitt 10.5), ist aber kein Verlust: Ein
+Jahr mit kleinem Gewinn und großem Freibetrag darf keinen
+vortragsfähigen Verlust erzeugen.
+
+\begin{quote}
+\textbf{Korrektur gegenüber Version 5.18.} Zuvor wurde \(\Phi\) hier
+abgezogen. Bei einem Ergebnis von 30.000 € und einem Freibetrag von
+45.000 € entstand dadurch je Jahr ein Verlustvortrag von 15.000 €, der
+später echte Gewinne abschirmte. Für die deutsche Gewerbesteuer blieb
+die Steuer richtig (Verrechnungsgrenze \(\gamma = 0\)), nur der
+ausgewiesene Vortragsbestand war falsch; für die österreichische
+Körperschaftsteuer mit gesetztem Freibetrag wurde die Steuer
+unterschätzt.
+\end{quote}
 
 \hypertarget{verlustvortrag}{%
 \subsection{10.5 Verlustvortrag}\label{verlustvortrag}}
@@ -1952,7 +1985,10 @@ Mit dem Vortragsbestand \(V_t\) zu Jahresbeginn (\(V_1 = 0\)):
 
 \[ U_t = \min\left(V_t,\ \gamma \cdot G_t\right) \cdot \mathbf{1}_{[\,G_t\, >\, 0\,]} \]
 
-\[ G^{\mathrm{st}}_t = \left(G_t - U_t\right)^{+} \]
+\[ G^{\mathrm{st}}_t = \left(G_t - U_t - \Phi\right)^{+} \]
+
+Die Reihenfolge ist: steuerliches Ergebnis, dann Verlustabzug, dann
+Freibetrag (§ 11 GewStG für die Gewerbesteuer).
 
 \[ S_t = G^{\mathrm{st}}_t \cdot \tau \]
 
@@ -2528,6 +2564,21 @@ des Marktwert-Niveaus verändert dadurch auch die Prämienhöhe, den
 Zeitpunkt, an dem der Marktwert den Zuschlagswert übersteigt, und im
 relativen Modus die Direktvermarktungskosten. Damit wird der
 vollständige fachliche Wirkungszusammenhang berücksichtigt.
+
+Kurvenwertige Treiber (Marktwert, negative Stunden) werden auf
+\textbf{beiden Ebenen} skaliert -- Jahres- und Monatsreihe. Welche davon
+die Rechnung tatsächlich liest, hängt an der Zeitauflösung (Abschnitt
+4.4) und am Anlaufjahr (Abschnitt 7.9).
+
+\begin{quote}
+\textbf{Korrektur gegenüber Version 5.18.} Zuvor wurde nur die
+Jahresreihe skaliert. In der Monatsauflösung greifen die Treiber
+„Marktwert'' und „negative Stunden'' damit ins Leere: Tornado, Heatmap
+und Monte Carlo wiesen für sie eine Spanne von \textbf{exakt null} aus,
+ohne dass etwas darauf hinwies. Das wichtigste Preisrisiko fehlte damit
+in der gesamten Risikoanalyse; da der Aurora-Import die Zeitauflösung
+standardmäßig auf Monat stellt, war der Fall nicht exotisch.
+\end{quote}
 
 \hypertarget{eag-zuschlag-sensitivituxe4t}{%
 \subsection{14.2
