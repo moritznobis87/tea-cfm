@@ -269,17 +269,25 @@ EPC_DEFAULT_EUR_KWP = {"Agri-PV": 520.0, "Konventionell": 430.0}
 #
 #   Zahlen:   ein leeres Zahlenfeld, der Platzhalter nennt die Vorgabe.
 #             Leeren heisst zurueck zur Vorgabe.
-#   Auswahl:  eine zusaetzliche erste Option "Vorgabe (Annuität)". Sie
-#             ist einem grauen Platzhalter vorzuziehen, weil sie den
-#             geerbten Wert MITLIEST und sich immer wieder waehlen
-#             laesst - ein Selectbox-Platzhalter ist nach der ersten
-#             Wahl nicht mehr erreichbar.
-#   Ja/Nein:  dieselbe Loesung mit drei Optionen.
-
-
-def _vorgabe_label(wert) -> str:
-    """Beschriftung der Vorgabe-Option: "Vorgabe (Annuität)"."""
-    return txt("oberflaeche.erbfeld_vorgabe", wert=_lesbar(wert))
+#   Auswahl:  nur die echten Optionen; vorausgewaehlt ist der GELTENDE
+#             Wert. Wer die Vorgabe stehen laesst, erbt sie weiter.
+#   Ja/Nein:  dieselbe Loesung mit zwei Optionen.
+#
+# Bis v5.23 trug die Auswahl eine zusaetzliche erste Option "Vorgabe:
+# Annuität" vor den Enumwerten. Sie war redundant - "Vorgabe: Annuität"
+# und "Annuität" fuehrten zu derselben Rechnung, und die Liste behauptete
+# eine Wahl, die keine war. Stattdessen gilt jetzt die Regel:
+#
+#     Auswahl == Vorgabe  ->  None (folgt der Vorgabe)
+#     Auswahl != Vorgabe  ->  Abweichung
+#
+# Der Preis: Ein Auswahlfeld laesst sich nicht mehr auf den Wert der
+# Vorgabe FESTNAGELN (bei Zahlen geht das - wer die Vorgabezahl eintippt,
+# friert sie ein). Das ist zu verschmerzen: Wer bei einem Enum denselben
+# Wert waehlt, den die Vorgabe ohnehin hat, will fast nie etwas gegen
+# eine spaetere Aenderung absichern, sondern nur den aktuellen Zustand
+# bestaetigen. Und faende die Aenderung doch statt, zeigt sie die
+# Abweichungszeile unter dem Block.
 
 
 def _lesbar(wert) -> str:
@@ -336,43 +344,71 @@ def _erbe_wahl(
     ziel, form_key: str, schluessel: str, label: str, typ,
     vorgabe, gesetzt, *, hilfe: str | None = None,
 ):
-    """Eine Auswahl mit vorangestellter Vorgabe-Option.
+    """Eine Auswahl unter den echten Optionen - vorausgewaehlt ist der
+    geltende Wert, gleich ob geerbt oder gesetzt.
 
     Bewusst ein Radio und kein Dropdown: Keiner dieser Parameter hat
-    mehr als vier Optionen (drei Enumwerte plus die Vorgabe), und ein
-    Dropdown verbirgt bei so wenigen genau das, worum es geht - die
-    Alternative. "Annuitaet oder linear" will man nebeneinander sehen
-    und mit einem Klick wechseln, nicht erst aufklappen.
+    mehr als drei Optionen, und ein Dropdown verbirgt bei so wenigen
+    genau das, worum es geht - die Alternative. "Annuitaet oder linear"
+    will man nebeneinander sehen und mit einem Klick wechseln, nicht
+    erst aufklappen.
 
-    Untereinander statt nebeneinander: Die Beschriftungen tragen die
-    Vorgabe mit ("Vorgabe: EAG mit Toleranzband") und sind dafuer zu
-    lang; in der schmalen Spalte braechen sie mitten im Wort um.
-    Senkrecht kostet das Zeilen, aber die sind im Popover billig.
+    Untereinander statt nebeneinander: Einige Beschriftungen sind lang
+    ("EAG mit Toleranzband") und braechen in der schmalen Spalte mitten
+    im Wort um. Senkrecht kostet Zeilen, aber die sind im Popover
+    billig.
+
+    Rueckgabe ist None, solange die Auswahl der Vorgabe entspricht -
+    das Projekt folgt ihr dann weiter (siehe Modulkopf).
     """
-    optionen = [_vorgabe_label(vorgabe)] + [_lesbar(w) for w in typ]
-    werte = [None] + list(typ)
-    gewaehlt = ziel.radio(
-        label, optionen,
-        index=werte.index(gesetzt) if gesetzt in werte else 0,
-        key=f"{form_key}_{schluessel}", help=hilfe,
+    return _erbe_auswahl(
+        ziel, form_key, schluessel, label,
+        [_lesbar(w) for w in typ], list(typ), vorgabe, gesetzt, hilfe,
     )
-    return werte[optionen.index(gewaehlt)]
 
 
 def _erbe_janein(
     ziel, form_key: str, schluessel: str, label: str,
     vorgabe: bool, gesetzt: bool | None, *, hilfe: str | None = None,
 ) -> bool | None:
-    """Ein dreiwertiges Ja/Nein - der dritte Wert ist die Vorgabe."""
-    ja = txt("oberflaeche.projekt_ja")
-    nein = txt("oberflaeche.projekt_nein")
-    optionen = [_vorgabe_label(vorgabe), ja, nein]
-    werte = [None, True, False]
-    gewaehlt = ziel.radio(
-        label, optionen, index=werte.index(gesetzt),
-        key=f"{form_key}_{schluessel}", help=hilfe,
+    """Ja/Nein nach derselben Regel: Wer die Vorgabe stehen laesst, erbt."""
+    return _erbe_auswahl(
+        ziel, form_key, schluessel, label,
+        [txt("oberflaeche.projekt_ja"), txt("oberflaeche.projekt_nein")],
+        [True, False], vorgabe, gesetzt, hilfe,
     )
-    return werte[optionen.index(gewaehlt)]
+
+
+def _erbe_auswahl(
+    ziel, form_key: str, schluessel: str, label: str,
+    optionen: list[str], werte: list, vorgabe, gesetzt, hilfe: str | None,
+):
+    """Der gemeinsame Kern von _erbe_wahl und _erbe_janein.
+
+    Vorausgewaehlt wird der GELTENDE Wert: die Abweichung, wenn es eine
+    gibt, sonst die Vorgabe. Zurueck kommt None, wenn die Auswahl der
+    Vorgabe entspricht - so bleibt ein Projekt erbfaehig, ohne dass die
+    Liste eine eigene Option dafuer braeuchte.
+    """
+    schluessel_voll = f"{form_key}_{schluessel}"
+    geltend = vorgabe if gesetzt is None else gesetzt
+
+    # `index` NUR beim ersten Aufbau. Steht der Zustand schon im
+    # Sessionstate - weil der Nutzer gewaehlt oder der Laenderschalter
+    # eingetragen hat -, gaebe Streamlit sonst die Warnung "created with
+    # a default value but also had its value set via the Session State
+    # API" aus. Sie ist heute folgenlos, weil der Zustand gewinnt; sie
+    # zu erzeugen und wegzusehen waere trotzdem der falsche Umgang mit
+    # einer Warnung, die genau vor der Zweideutigkeit warnt.
+    kw = {}
+    if schluessel_voll not in st.session_state:
+        kw["index"] = werte.index(geltend) if geltend in werte else 0
+
+    gewaehlt = ziel.radio(
+        label, optionen, key=schluessel_voll, help=hilfe, **kw,
+    )
+    wert = werte[optionen.index(gewaehlt)]
+    return None if wert == vorgabe else wert
 
 
 #: Was ein Land als Paket festlegt - dieselben Zuordnungen wie beim

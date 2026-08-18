@@ -248,8 +248,8 @@ class TestParameterspalte:
         assert offen == set()
 
     def test_wenige_optionen_stehen_als_radio(self):
-        """Keiner dieser Parameter hat mehr als vier Optionen. Ein
-        Dropdown verbaergen bei so wenigen genau das, worum es geht -
+        """Keiner dieser Parameter hat mehr als drei Optionen. Ein
+        Dropdown verbaerge bei so wenigen genau das, worum es geht -
         die Alternative."""
         from engine.models import Projektannahmen as _PA
 
@@ -266,8 +266,8 @@ class TestParameterspalte:
                 a for a in _PA.model_fields[feld].annotation.__args__
                 if isinstance(a, type) and issubclass(a, Enum)
             )
-            assert len(list(typ)) + 1 <= 4, (
-                f"{feld}: {len(list(typ)) + 1} Optionen - als Radio zu viele"
+            assert len(list(typ)) <= 3, (
+                f"{feld}: {len(list(typ))} Optionen - als Radio zu viele"
             )
 
     def test_ohne_abweichung_steht_nach_vorgabe(self, spalte):
@@ -333,3 +333,124 @@ class TestParameterspalte:
         assert not at.exception
         assert at.session_state[schluessel] is None
         assert not any("Kreditlaufzeit" in c.value for c in at.caption)
+
+
+class TestAuswahlOhneVorgabeOption:
+    """Auswahlfelder zeigen nur die echten Optionen (seit v5.24).
+
+    Bis dahin stand eine zusaetzliche erste Option "Vorgabe: Annuität"
+    vor den Enumwerten. Sie war redundant - beide fuehrten zur selben
+    Rechnung, und die Liste behauptete eine Wahl, die keine war. Die
+    Erbfaehigkeit haengt jetzt an der Regel "Auswahl == Vorgabe heisst
+    folgt der Vorgabe", nicht an einem eigenen Listeneintrag.
+    """
+
+    @pytest.fixture
+    def spalte(self):
+        at = AppTest.from_file(str(_ROOT / "streamlit_app.py"), default_timeout=90)
+        at.run()
+        knoepfe = [b.key for b in at.button if b.key and b.key.startswith("open_")]
+        [b for b in at.button if b.key == knoepfe[0]][0].click()
+        at.run()
+        return at, f"param_{knoepfe[0].removeprefix('open_')}"
+
+    def _radios(self, at, form_key):
+        return {
+            r.key.removeprefix(f"{form_key}_abw_"): r
+            for r in at.get("radio") if r.key and f"{form_key}_abw_" in r.key
+        }
+
+    def test_keine_option_nennt_die_vorgabe(self, spalte):
+        at, form_key = spalte
+        radios = self._radios(at, form_key)
+        assert radios, "keine Auswahl-Erbfelder gefunden"
+        for name, r in radios.items():
+            for option in r.options:
+                assert "Vorgabe" not in option and "Default" not in option, (
+                    f"{name}: Option „{option}“ nennt noch die Vorgabe"
+                )
+
+    def test_optionen_sind_genau_die_enumwerte(self, spalte):
+        from engine.models import TilgungsArt
+
+        at, form_key = spalte
+        assert len(self._radios(at, form_key)["tilgungsart"].options) == len(
+            list(TilgungsArt)
+        )
+
+    def test_geerbter_wert_ist_vorausgewaehlt(self, spalte):
+        """Ein Projekt ohne Abweichung zeigt trotzdem, was gilt - der
+        Nutzer soll den geltenden Wert sehen, nicht einen leeren Rahmen."""
+        from app.components.project_form import _lesbar
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        at, form_key = spalte
+        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        radios = self._radios(at, form_key)
+        assert radios["tilgungsart"].value == _lesbar(ga.tilgungsart)
+        assert radios["zinsmethode"].value == _lesbar(ga.zinsmethode)
+
+    def test_vorgabe_stehen_lassen_erzeugt_keine_abweichung(self, spalte):
+        """Der Kern der Regel: Wer nichts anfasst - oder die Vorgabe
+        ausdruecklich noch einmal anklickt - erbt weiter."""
+        from app.components.project_form import _lesbar
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        at, form_key = spalte
+        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(ga.tilgungsart))
+        at.run()
+        assert not at.exception, at.exception
+        assert not any("Tilgungsart" in c.value for c in at.caption)
+
+    def test_andere_wahl_wird_zur_abweichung(self, spalte):
+        from app.components.project_form import _lesbar
+        from engine.io_yaml import load_global_assumptions_yaml
+        from engine.models import TilgungsArt
+
+        at, form_key = spalte
+        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        andere = next(w for w in TilgungsArt if w != ga.tilgungsart)
+        self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(andere))
+        at.run()
+        assert not at.exception, at.exception
+        assert any("Tilgungsart" in c.value for c in at.caption)
+
+    def test_zurueck_auf_die_vorgabe_loescht_die_abweichung(self, spalte):
+        """Ohne eigene Vorgabe-Option muss der Rueckweg ueber das
+        Anklicken des Vorgabewerts fuehren - sonst waere eine einmal
+        gesetzte Abweichung nicht mehr aufzuheben."""
+        from app.components.project_form import _lesbar
+        from engine.io_yaml import load_global_assumptions_yaml
+        from engine.models import TilgungsArt
+
+        at, form_key = spalte
+        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        andere = next(w for w in TilgungsArt if w != ga.tilgungsart)
+
+        self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(andere))
+        at.run()
+        assert any("Tilgungsart" in c.value for c in at.caption)
+
+        self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(ga.tilgungsart))
+        at.run()
+        assert not at.exception, at.exception
+        assert not any("Tilgungsart" in c.value for c in at.caption)
+
+    def test_janein_hat_nur_ja_und_nein(self, spalte):
+        at, form_key = spalte
+        optionen = self._radios(at, form_key)["tilgungsfreies_anlaufjahr"].options
+        assert len(optionen) == 2
+
+    def test_land_das_der_vorgabe_entspricht_erzeugt_keine_abweichung(self, spalte):
+        """Österreich ist die ausgelieferte Vorgabe - ein Klick darauf
+        soll das Projekt nicht von der Vorgabe abkoppeln."""
+        at, form_key = spalte
+        [b for b in at.button
+         if b.key == f"{form_key}_land_Österreich"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+        # Auf den Marker der Abweichungszeile pruefen, nicht auf
+        # Feldnamen: Die Hilfe des Laenderschalters nennt "Zinsmethode"
+        # und "Prämienmodell" ebenfalls, ohne dass etwas abweicht.
+        assert not any("abweichend" in c.value for c in at.caption)

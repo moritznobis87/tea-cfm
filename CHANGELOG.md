@@ -1,5 +1,37 @@
 # Changelog
 
+## v5.24 – Auswahlfelder ohne Vorgabe-Option (2026-08)
+
+**Die Radios in den Parameter-Popovern zeigen nur noch die echten
+Optionen.** Bisher stand vor den Werten eine zusätzliche erste Option
+„Vorgabe: Annuität". Sie war redundant — „Vorgabe: Annuität" und
+„Annuität" führten zur selben Rechnung, und die Liste behauptete eine
+Wahl, die keine war.
+
+An ihre Stelle tritt eine Regel:
+
+| Auswahl | Bedeutung |
+| --- | --- |
+| entspricht der Vorgabe | Das Projekt folgt ihr weiter und zieht bei einer Änderung mit. |
+| weicht ab | Abweichung, wie bisher. |
+
+Vorausgewählt ist damit immer der **geltende** Wert, gleich ob geerbt
+oder gesetzt — man sieht auf einen Blick, womit gerechnet wird, ohne
+eine zweite Markierung dafür, woher er kommt. Ob ein Projekt abweicht,
+steht weiterhin in der Abweichungszeile unter jedem Block.
+
+Der Preis: Ein Auswahlfeld lässt sich nicht mehr auf den Wert der
+Vorgabe *festnageln* (bei Zahlen geht das — wer die Vorgabezahl
+einträgt, friert sie ein). Das ist zu verschmerzen: Wer bei einem
+Aufzählungsfeld denselben Wert wählt, den die Vorgabe ohnehin hat, will
+fast nie etwas gegen eine spätere Änderung absichern.
+
+**Nebenbefund behoben.** Streamlit meldete beim Länderschalter „widget
+was created with a default value but also had its value set via the
+Session State API". Der Startwert wird jetzt nur noch beim ersten Aufbau
+übergeben; steht der Zustand bereits im Sessionstate, entscheidet er
+allein.
+
 ## v5.23 – Rückvergütung an den Fördergeber sichtbar (2026-08)
 
 **Die Rückzahlung bleibt in der Erlösgrafik stehen, auch wenn sie null
