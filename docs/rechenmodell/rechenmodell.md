@@ -782,6 +782,11 @@ teureren Randstunden. In die Rechnung geht das über die Marktwertkurve
 des Szenarios ein (Aurora liefert je Bauform eine eigene), nicht über
 die Monatsanteile.
 
+Alle vier Auflösungen – Monat, Tag, Stunde und mittlerer Tagesgang –
+stehen in den globalen Annahmen unter **Erzeugungsprofil**. Sie kommen
+aus derselben Stundenreihe und lassen sich dort gegeneinander halten;
+gerechnet wird weiterhin allein mit den zwölf Monatsanteilen.
+
 **Warum die Stundenreihen und nicht PVGIS.** Bis Version 5.20 lagen hier
 PVGIS-Monatserträge einer 1-kWp-Anlage. Deren Jahresform ist deutlich
 flacher – 24,4 % der Erzeugung fielen auf November bis Februar statt der

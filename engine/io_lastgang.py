@@ -26,6 +26,8 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import pandas as pd
 
@@ -37,6 +39,16 @@ _STUNDEN_JE_MONAT_SCHALT = [744, 696, 744, 720, 744, 720, 744, 744, 720, 744, 72
 
 STUNDEN_NORMALJAHR = sum(_STUNDEN_JE_MONAT)
 STUNDEN_SCHALTJAHR = sum(_STUNDEN_JE_MONAT_SCHALT)
+
+#: Tage je Monat im Normaljahr - fuer die Tagesansicht.
+_TAGE_JE_MONAT = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+TAGE_NORMALJAHR = sum(_TAGE_JE_MONAT)
+
+STUNDEN_JE_TAG = 24
+
+#: Ablage der hinterlegten Stundenreihen. Je Bauform eine Datei, benannt
+#: nach der kleingeschriebenen Bauform (Pult -> pult.csv).
+LASTGANG_VERZEICHNIS = Path(__file__).resolve().parent.parent / "data" / "lastgang"
 
 
 class LastgangFehler(ValueError):
@@ -192,3 +204,168 @@ def monatsnamen_kurz() -> list[str]:
     uebersetzte Liste (app/config.py)."""
     return ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
             "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"][:MONATE]
+
+
+# --- Hinterlegte Reihen -----------------------------------------------------
+#
+# Die Stundenreihen unter data/lastgang/ sind die QUELLE der
+# Einspeisekurven (siehe models.MONATSERTRAG_KWH_JE_BAUFORM). Bisher
+# lagen nur die daraus verdichteten zwoelf Monatswerte im Modell; die
+# Reihen selbst wurden allein von den Tests gelesen.
+#
+# Die Funktionen hier machen sie auch der Oberflaeche zugaenglich - und
+# halten sie bereit fuer den Fall, dass die Rechnung eines Tages
+# stundenscharf wird. Bis dahin sind sie reine Anschauung: Gerechnet
+# wird weiterhin mit den zwoelf Monatsanteilen.
+#
+# Alle Profile kommen NORMIERT zurueck (Summe 1). Die Hoehe der Reihen
+# ist bedeutungslos und zwischen den Bauformen ohnehin nicht
+# vergleichbar - siehe die Warnung an MONATSERTRAG_KWH_JE_BAUFORM.
+
+
+def _dateiname(bauform: str) -> Path:
+    return LASTGANG_VERZEICHNIS / f"{bauform.lower()}.csv"
+
+
+def verfuegbare_bauformen() -> list[str]:
+    """Bauformen, zu denen eine Stundenreihe hinterlegt ist.
+
+    Massgeblich sind die Kurven des Modells, nicht das Verzeichnis: Eine
+    verwaiste CSV ohne zugehoerige Kurve waere kein Angebot, sondern nur
+    eine Datei.
+    """
+    from .models import MONATSERTRAG_KWH_JE_BAUFORM
+
+    return [b for b in MONATSERTRAG_KWH_JE_BAUFORM if _dateiname(b).is_file()]
+
+
+@lru_cache(maxsize=8)
+def stundenprofil(bauform: str) -> tuple[float, ...]:
+    """8.760 Stundenanteile der Jahreserzeugung, Summe 1.
+
+    Gecacht, weil die Datei bei jedem Streamlit-Durchlauf sonst neu
+    gelesen und geparst wuerde - 8.760 Zeilen je Bauform, und die
+    Annahmenseite laeuft bei jeder Eingabe komplett durch.
+
+    Der Rueckgabewert ist ein tuple und keine Liste: Ein gecachtes
+    Ergebnis, das der Aufrufer versehentlich aendern kann, waere ab dem
+    zweiten Aufruf falsch.
+    """
+    pfad = _dateiname(bauform)
+    if not pfad.is_file():
+        raise LastgangFehler(
+            f"Für die Bauform „{bauform}“ ist keine Stundenreihe "
+            f"hinterlegt ({pfad.name} fehlt)."
+        )
+    werte = lies_stundenreihe(pfad.read_bytes(), pfad.name)
+    if len(werte) not in (STUNDEN_NORMALJAHR, STUNDEN_SCHALTJAHR):
+        raise LastgangFehler(
+            f"{pfad.name} hat {len(werte)} Werte – erwartet werden "
+            f"{STUNDEN_NORMALJAHR} Stunden."
+        )
+    gesamt = sum(werte)
+    if gesamt <= 0:
+        raise LastgangFehler(f"{pfad.name} summiert sich auf null.")
+    return tuple(w / gesamt for w in werte)
+
+
+def tagesprofil(bauform: str) -> list[float]:
+    """365 Tagesanteile der Jahreserzeugung, Summe 1.
+
+    Nur zur Anschauung: Die Stundenreihe faellt jede Nacht auf null und
+    ist ueber ein ganzes Jahr gezeichnet eine schwarze Flaeche. Die
+    Tagessummen zeigen denselben Verlauf als lesbare Kurve - Jahreszeit
+    UND Wetter, was die geglaetteten Monatswerte beides verschlucken.
+    """
+    stunden = stundenprofil(bauform)
+    return [
+        float(sum(stunden[t * STUNDEN_JE_TAG:(t + 1) * STUNDEN_JE_TAG]))
+        for t in range(len(stunden) // STUNDEN_JE_TAG)
+    ]
+
+
+def monatsprofil(bauform: str) -> list[float]:
+    """Zwoelf Monatsanteile, Summe 1 - die Kurve, mit der gerechnet wird.
+
+    Absichtlich aus der Stundenreihe neu gebildet statt aus
+    EINSPEISEKURVEN_JE_BAUFORM abgeschrieben: Damit zeigt die
+    Oberflaeche, was in den Daten steht, und nicht, was im Modell
+    steht. Weichen beide voneinander ab, ist das ein Befund und keine
+    Anzeigefrage (tests/test_lastgang.py haelt sie zusammen).
+    """
+    stunden = stundenprofil(bauform)
+    laengen = (
+        _STUNDEN_JE_MONAT_SCHALT
+        if len(stunden) == STUNDEN_SCHALTJAHR
+        else _STUNDEN_JE_MONAT
+    )
+    summen: list[float] = []
+    start = 0
+    for laenge in laengen:
+        summen.append(float(sum(stunden[start:start + laenge])))
+        start += laenge
+    return summen
+
+
+def mittlerer_tagesgang(bauform: str, monat: int | None = None) -> list[float]:
+    """24 Stundenanteile eines mittleren Tages, Summe 1.
+
+    Hier liegt der eigentliche Unterschied zwischen den Bauformen: Das
+    Pult hat einen scharfen Mittagspeak, der Tracker ein breites
+    Plateau mit deutlich mehr Ertrag frueh und spaet. Im Monatsprofil
+    ist davon nichts zu sehen - es geht ueber die Marktwertkurve des
+    Szenarios in die Rechnung ein, nicht ueber die Monatsanteile.
+
+    monat = 1..12 grenzt auf einen Kalendermonat ein (Dezember und Juni
+    sehen sehr verschieden aus), None mittelt ueber das ganze Jahr.
+    """
+    stunden = stundenprofil(bauform)
+    if monat is not None:
+        von, bis = _monatsfenster(len(stunden), monat)
+        stunden = stunden[von:bis]
+
+    gesamt = sum(stunden)
+    if gesamt <= 0:
+        return [0.0] * STUNDEN_JE_TAG
+    je_stunde = [0.0] * STUNDEN_JE_TAG
+    for i, wert in enumerate(stunden):
+        je_stunde[i % STUNDEN_JE_TAG] += wert
+    return [w / gesamt for w in je_stunde]
+
+
+def _monatsfenster(anzahl_stunden: int, monat: int) -> tuple[int, int]:
+    """Erste und letzte Stunde eines Kalendermonats in der Jahresreihe."""
+    if not 1 <= monat <= MONATE:
+        raise LastgangFehler(f"Monat {monat} liegt ausserhalb von 1..{MONATE}.")
+    laengen = (
+        _STUNDEN_JE_MONAT_SCHALT
+        if anzahl_stunden == STUNDEN_SCHALTJAHR
+        else _STUNDEN_JE_MONAT
+    )
+    von = sum(laengen[:monat - 1])
+    return von, von + laengen[monat - 1]
+
+
+def stundenfenster(bauform: str, monat: int | None = None) -> list[float]:
+    """Die rohen Stundenanteile, wahlweise auf einen Monat begrenzt.
+
+    Ueber das ganze Jahr sind das 8.760 Punkte - zeichenbar, aber nur
+    als Silhouette lesbar. Ein einzelner Monat (rund 730 Punkte) zeigt
+    die Tage einzeln.
+    """
+    stunden = stundenprofil(bauform)
+    if monat is None:
+        return list(stunden)
+    von, bis = _monatsfenster(len(stunden), monat)
+    return list(stunden[von:bis])
+
+
+def tagesindex_monatsgrenzen() -> list[int]:
+    """Tagesnummern (0-basiert), an denen ein Monat beginnt - fuer die
+    Achsenbeschriftung der Tagesansicht."""
+    grenzen: list[int] = []
+    tag = 0
+    for laenge in _TAGE_JE_MONAT:
+        grenzen.append(tag)
+        tag += laenge
+    return grenzen

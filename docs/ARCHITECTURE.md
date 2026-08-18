@@ -206,6 +206,26 @@ Rohwerte, Normierung, Umschalter und Gegenprobe. In den globalen
 Annahmen wird nur zwischen den Bauformen umgeschaltet oder von Hand
 nachgebessert.
 
+**Rubrik „Erzeugungsprofil"** (globale Annahmen, `_erzeugungsprofil()`
+in `app/views/assumptions.py`): dieselbe Reihe in vier Auflösungen —
+Monat, Tag, Stunde, mittlerer Tagesgang. Gerechnet wird ausschließlich
+mit den zwölf Monatsanteilen; die feineren Ansichten machen prüfbar, was
+diese Kurve behauptet, und halten den Ladeweg bereit, falls die Rechnung
+einmal stundenscharf wird. Die Aggregation steht in
+`engine/io_lastgang.py` (`stundenprofil()` gecacht und als Tupel,
+darüber `tagesprofil()`, `monatsprofil()`, `mittlerer_tagesgang()`,
+`stundenfenster()`), die Diagramme in `app/components/charts.py`. Farben
+hängen an der Bauform, nicht an der Reihenfolge im Diagramm; ab 3.000
+Punkten zeichnet die Stundenansicht über WebGL statt SVG.
+
+**Aurora-Import und die Einspeisekurve**: Das Häkchen „Einspeisekurve
+übernehmen" ist **nicht** vorbelegt. Auroras Erzeugungsspalte beschreibt
+den Anlagenpark des Marktgebiets, die hinterlegte Kurve dagegen die
+eigene Anlage — angehakt ersetzte ein Reimport still die spezifischere
+Angabe durch die allgemeinere. Fehlt die Erzeugungsspalte ganz, bildet
+der Importer den Jahreswert als *ungewichtetes* Monatsmittel; solche
+Stände (z. B. Aurora Q1/25) taugen nicht als Maßstab für eine Kurve.
+
 **Szenarionamen** folgen dem Schema `Stamm · Bauform ·
 Preisszenario` (`Aurora Q3/26 · Pult · Central`).
 `io_aurora.zerlege_szenarioname()` zerlegt sie wieder – erkannt wird an
