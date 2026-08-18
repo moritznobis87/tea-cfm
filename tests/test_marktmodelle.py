@@ -19,6 +19,7 @@ Hand nachvollziehbar.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -589,3 +590,136 @@ class TestSzenarienvergleichMonatlich:
                 vergleich.kennzahlen["erloes_gesamt_eur"], strict=True)
         )
         assert erloese["Hoch"] > erloese["Niedrig"]
+
+
+class TestRueckzahlungImBild:
+    """Die Rueckverguetung an den Foerdergeber - roter Balken unter der
+    Nulllinie in der Erloesgrafik, dazu eine Summe ueber die Laufzeit.
+
+    Sie ist die einzige Richtung, in der die Foerderung Geld KOSTET
+    statt zu bringen, und sie faellt in Preisszenarien, die niemand
+    erwartet hat. Genau deshalb muss sie auch dann sichtbar bleiben,
+    wenn sie null ist: Sonst ist "die Grenze wird nie erreicht" nicht
+    von "das Tool zeigt es nicht" zu unterscheiden.
+    """
+
+    def _df(self, rueckzahlung: list[float]):
+        import pandas as pd
+
+        n = len(rueckzahlung)
+        return pd.DataFrame({
+            "jahr": list(range(1, n + 1)),
+            "erloes_markt_eur": [100_000.0] * n,
+            "erloes_merchant_eur": [100_000.0] * n,
+            "erloes_praemie_eur": [20_000.0] * n,
+            "erloes_eur": [120_000.0] * n,
+            "rueckzahlung_eur": rueckzahlung,
+        })
+
+    def test_balken_ist_rot_und_zeigt_nach_unten(self):
+        from app.components import charts
+        from app.theme import Colors
+
+        fig = charts.revenue_split_chart(self._df([0.0, 5_000.0, 0.0]), True)
+        balken = [s for s in fig.data if "ckzahlung" in s.name]
+        assert len(balken) == 1
+        assert balken[0].marker.color == Colors.NEGATIVE
+        # Unter der Nulllinie: Es ist ein Abfluss, kein Erloes.
+        assert list(balken[0].y) == [-0.0, -5_000.0, -0.0]
+
+    def test_kategorie_bleibt_sichtbar_wenn_sie_null_ist(self):
+        """Dass die Ueberfoerderungsgrenze nie erreicht wird, ist ein
+        Ergebnis - und ohne die Kategorie waere es nicht ablesbar."""
+        from app.components import charts
+
+        fig = charts.revenue_split_chart(self._df([0.0, 0.0, 0.0]), True)
+        assert any("ckzahlung" in s.name for s in fig.data)
+
+    def test_ohne_rueckzahlungsmodell_keine_kategorie(self):
+        """Der einseitige CfD (EEG) kennt keine Rueckzahlung - ein
+        dauerhaft leerer Legendeneintrag behauptete eine Struktur, die
+        das Projekt nicht hat."""
+        from app.components import charts
+
+        fig = charts.revenue_split_chart(self._df([0.0, 0.0, 0.0]), False)
+        assert not any("ckzahlung" in s.name for s in fig.data)
+
+    def test_vorhandene_rueckzahlung_erscheint_auch_ungefragt(self):
+        """Steht Geld in der Spalte, gehoert es ins Bild - auch wenn der
+        Aufrufer das Modell nicht mitgibt."""
+        from app.components import charts
+
+        fig = charts.revenue_split_chart(self._df([0.0, 5_000.0, 0.0]), False)
+        assert any("ckzahlung" in s.name for s in fig.data)
+
+
+class TestRueckzahlungSummeInDerOberflaeche:
+    """Die Summenbox unter der Erloesgrafik."""
+
+    def _projekt_mit_rueckzahlung(self):
+        """Ein Projekt ueber der 5-MW-Schwelle, dessen Marktwert das
+        Toleranzband reisst - sonst bliebe die Summe null."""
+        from engine.io_yaml import load_global_assumptions_yaml, load_project_yaml
+        from engine.pipeline import run_valuation
+
+        wurzel = Path(__file__).resolve().parent.parent
+        ga = load_global_assumptions_yaml(wurzel / "data" / "global_assumptions.yaml")
+        projekt = load_project_yaml(
+            wurzel / "data" / "projects" / "template-konventionell.yaml"
+        )
+        return run_valuation(projekt, ga)
+
+    def test_ausgeliefertes_projekt_reisst_das_band(self):
+        """Haelt die Annahme des Tests: Ohne Rueckzahlung im Datenbestand
+        pruefte die Box nichts."""
+        ergebnis = self._projekt_mit_rueckzahlung()
+        betrieb = ergebnis.cashflow.data
+        betrieb = betrieb[betrieb["jahr"] >= 1]
+        assert float(betrieb["rueckzahlung_eur"].sum()) > 0
+
+    def test_box_nennt_betrag_und_jahre(self):
+        from app.views.project_detail import _rueckzahlung_box
+
+        ergebnis = self._projekt_mit_rueckzahlung()
+        betrieb = ergebnis.cashflow.data
+        betrieb = betrieb[betrieb["jahr"] >= 1]
+
+        gesehen = {}
+        import streamlit as st
+
+        echt_warning, echt_caption = st.warning, st.caption
+        st.warning = lambda text, **_: gesehen.setdefault("warning", text)
+        st.caption = lambda text, **_: gesehen.setdefault("caption", text)
+        try:
+            _rueckzahlung_box(betrieb, ergebnis.effective_assumptions)
+        finally:
+            st.warning, st.caption = echt_warning, echt_caption
+
+        assert "warning" in gesehen, "Bei einer Rückzahlung muss die Box gelb sein"
+        assert "caption" not in gesehen
+
+    def test_ohne_rueckzahlung_bleibt_die_box_neutral(self):
+        """Null Euro ist keine Warnung - aber eine Auskunft."""
+        import pandas as pd
+        import streamlit as st
+
+        from app.views.project_detail import _rueckzahlung_box
+
+        ergebnis = self._projekt_mit_rueckzahlung()
+        betrieb = pd.DataFrame({
+            "jahr": [1, 2],
+            "erloes_eur": [100_000.0, 100_000.0],
+            "rueckzahlung_eur": [0.0, 0.0],
+        })
+
+        gesehen = {}
+        echt_warning, echt_caption = st.warning, st.caption
+        st.warning = lambda text, **_: gesehen.setdefault("warning", text)
+        st.caption = lambda text, **_: gesehen.setdefault("caption", text)
+        try:
+            _rueckzahlung_box(betrieb, ergebnis.effective_assumptions)
+        finally:
+            st.warning, st.caption = echt_warning, echt_caption
+
+        assert "caption" in gesehen
+        assert "warning" not in gesehen

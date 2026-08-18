@@ -842,3 +842,7 @@ annahmen_profil_monat_fussnote: "Diese zwölf Anteile gehen in die Rechnung ein.
 annahmen_profil_tag_fussnote: "Tagessummen statt Stundenwerte — sonst fiele die Kurve jede Nacht auf null. Zwischen dem besten und dem schlechtesten Tag eines Monats liegt mehr als zwischen zwei Monaten; die Monatskurve glättet das weg."
 annahmen_profil_stunde_fussnote: "Die Rohreihe, ein Zahn je Tag. Diese Werte werden heute nicht gerechnet — sie liegen bereit, falls das Modell einmal stundenscharf rechnen soll."
 annahmen_profil_tagesgang_fussnote: "Die einzige Ansicht, die etwas zeigt, was in der Monatskurve nicht steckt: Das Pult läuft auf einen scharfen Mittagspeak zu, der Tracker hält ein Plateau und trägt früh und spät mehr. Daran hängt sein höherer Marktwert — die Randstunden sind die teureren. Ins Modell kommt das über die Marktwertkurve des Szenarios, nicht über die Monatsanteile."
+
+# Rueckverguetung an den Foerdergeber (Reiter Erloese)
+projekt_rueckzahlung_summe: "**Rückvergütung an den Fördergeber: {betrag}** über die Gesamtlaufzeit — {anteil} der Erlöse. Betroffen sind die Betriebsjahre {jahre}. Ausgelöst wird sie, wenn der Referenzmarktwert den anzulegenden Wert um mehr als das Toleranzband übersteigt; ein PPA schützt nicht davor, weil sie sich am Referenzmarktwert bemisst und nicht am erzielten Preis."
+projekt_rueckzahlung_keine: "Keine Rückvergütung an den Fördergeber: Der Referenzmarktwert erreicht in diesem Preisszenario nie die Überförderungsgrenze von {grenze}."

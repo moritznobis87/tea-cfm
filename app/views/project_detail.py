@@ -21,6 +21,7 @@ from app.theme import section_title
 from engine import (
     NegativeStundenModus,
     NegativeStundenRegel,
+    PraemienModell,
 )
 from engine.analytics import HEATMAP_ACHSEN
 from texte import txt
@@ -205,9 +206,20 @@ def render_revenue_tab(result, df) -> None:
         width="stretch",
     )
 
+    # Kennt das Foerdermodell ueberhaupt eine Rueckzahlung? Nur dann
+    # gehoert sie ins Bild - beim einseitigen CfD gibt es die Kategorie
+    # nicht, und ein dauerhaft leerer Legendeneintrag behauptete sonst
+    # eine Struktur, die das Projekt nicht hat.
+    mit_rueckzahlung = ea.praemien_modell in (
+        PraemienModell.EAG_TOLERANZBAND,
+        PraemienModell.ZWEISEITIG_CFD,
+    )
+
     section_title(txt("oberflaeche.dashboard_markterloes_vs_praemie"))
     st.caption(txt("oberflaeche.projekt_markterloes_praemie_beschreibung"))
-    st.plotly_chart(charts.revenue_split_chart(df), width="stretch")
+    st.plotly_chart(
+        charts.revenue_split_chart(df, mit_rueckzahlung), width="stretch"
+    )
 
     betrieb = df[df["jahr"] >= 1]
     erloes_gesamt = float(betrieb["erloes_eur"].sum())
@@ -216,8 +228,44 @@ def render_revenue_tab(result, df) -> None:
     st.info(txt("oberflaeche.projekt_praemienanteil_info",
                    anteil=fmt_pct(anteil, 1), betrag=fmt_eur(praemie_gesamt)))
 
+    if mit_rueckzahlung:
+        _rueckzahlung_box(betrieb, ea)
+
     section_title(txt("oberflaeche.dashboard_umsatzerloese_jahr"))
     st.plotly_chart(charts.revenue_chart(df), width="stretch")
+
+
+def _rueckzahlung_box(betrieb, ea) -> None:
+    """Summe der Rueckvergütung an den Foerdergeber ueber die Laufzeit.
+
+    Gelb, sobald etwas zurueckfliesst - es ist kein Fehler, aber es ist
+    Geld, das das Projekt erwirtschaftet und nicht behaelt, und in der
+    Erloesgrafik steht es als einzelner roter Balken weit unter den
+    anderen. Bleibt die Summe null, erscheint die Box trotzdem, nur
+    neutral: Dass die Ueberfoerderungsgrenze in diesem Preisszenario nie
+    erreicht wird, ist ein Ergebnis - und ohne die Box waere es von
+    "das Tool zeigt es nicht" nicht zu unterscheiden.
+    """
+    summe = float(betrieb["rueckzahlung_eur"].sum())
+    jahre = [int(j) for j in betrieb.loc[betrieb["rueckzahlung_eur"] > 0, "jahr"]]
+
+    if summe <= 0:
+        st.caption(txt(
+            "oberflaeche.projekt_rueckzahlung_keine",
+            grenze=fmt_ct_kwh(
+                ea.eag_zuschlagswert_effektiv_ct_kwh
+                * (1 + ea.eag_rueckzahlung_toleranzband_pct)
+            ),
+        ))
+        return
+
+    erloes_gesamt = float(betrieb["erloes_eur"].sum())
+    st.warning(txt(
+        "oberflaeche.projekt_rueckzahlung_summe",
+        betrag=fmt_eur(summe),
+        anteil=fmt_pct(summe / erloes_gesamt if erloes_gesamt else 0.0, 1),
+        jahre=_jahresliste(jahre),
+    ))
 
 
 # ---------------------------------------------------------------------------
