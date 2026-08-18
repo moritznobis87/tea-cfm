@@ -336,10 +336,22 @@ def _erbe_wahl(
     ziel, form_key: str, schluessel: str, label: str, typ,
     vorgabe, gesetzt, *, hilfe: str | None = None,
 ):
-    """Eine Auswahl mit vorangestellter Vorgabe-Option."""
+    """Eine Auswahl mit vorangestellter Vorgabe-Option.
+
+    Bewusst ein Radio und kein Dropdown: Keiner dieser Parameter hat
+    mehr als vier Optionen (drei Enumwerte plus die Vorgabe), und ein
+    Dropdown verbirgt bei so wenigen genau das, worum es geht - die
+    Alternative. "Annuitaet oder linear" will man nebeneinander sehen
+    und mit einem Klick wechseln, nicht erst aufklappen.
+
+    Untereinander statt nebeneinander: Die Beschriftungen tragen die
+    Vorgabe mit ("Vorgabe: EAG mit Toleranzband") und sind dafuer zu
+    lang; in der schmalen Spalte braechen sie mitten im Wort um.
+    Senkrecht kostet das Zeilen, aber die sind im Popover billig.
+    """
     optionen = [_vorgabe_label(vorgabe)] + [_lesbar(w) for w in typ]
     werte = [None] + list(typ)
-    gewaehlt = ziel.selectbox(
+    gewaehlt = ziel.radio(
         label, optionen,
         index=werte.index(gesetzt) if gesetzt in werte else 0,
         key=f"{form_key}_{schluessel}", help=hilfe,
@@ -381,27 +393,87 @@ LAENDER: dict[str, dict] = {
 }
 
 
-def _land_schalter(form_key: str, global_assumptions, spaltig: bool) -> None:
+def _land_wunsch_einloesen(form_key: str) -> None:
+    """Traegt ein am Fuss der Spalte gewaehltes Laenderpaket ein.
+
+    Wird am ANFANG des Maskenaufbaus gerufen, also bevor die vier
+    betroffenen Erbfelder als Widgets entstehen - nur dann laesst sich
+    ihr Zustand noch setzen (siehe _land_schalter).
+    """
+    land = st.session_state.pop(f"{form_key}_land_wunsch", None)
+    if land is None:
+        return
+    for feld, wert in LAENDER[land].items():
+        # Der Zustand eines Erbfeldes ist die Beschriftung der
+        # gewaehlten Option, nicht der Wert selbst.
+        st.session_state[f"{form_key}_abw_{feld}"] = _lesbar(wert)
+
+
+def _geltendes_land(global_assumptions, *bloecke: dict) -> str | None:
+    """Welches Laenderpaket dieses Projekt tatsaechlich rechnet.
+
+    Verglichen werden die WIRKSAMEN Werte - eine Abweichung, wo sie
+    gesetzt ist, sonst die globale Vorgabe. Passt keine der beiden
+    Zusammenstellungen, ist die Antwort None ("gemischt"): Das ist ein
+    zulaessiger Zustand, denn die vier Felder bleiben einzeln
+    aenderbar.
+    """
+    gesetzt: dict = {}
+    for block in bloecke:
+        gesetzt.update(block)
+    wirksam = {
+        feld: (getattr(global_assumptions, feld)
+               if gesetzt.get(feld) is None else gesetzt[feld])
+        for feld in next(iter(LAENDER.values()))
+    }
+    for land, felder in LAENDER.items():
+        if wirksam == felder:
+            return land
+    return None
+
+
+def _land_schalter(form_key: str, global_assumptions, *bloecke: dict) -> None:
     """Setzt Zinsmethode, Steuermodell, Praemienmodell und
     Negativstunden-Regel in einem Zug.
 
-    Der Knopf schreibt die Werte in den Zustand der Erbfelder, BEVOR
-    diese weiter unten im selben Durchlauf entstehen - dieselbe Technik
-    wie beim Einheiten-Umschalter der Investkosten (siehe Modulkopf).
-    Danach zeigen die vier Felder ihre Werte und lassen sich einzeln
-    weiter aendern; der Schalter haelt keinen eigenen Zustand.
+    Bewusst zurueckhaltend: Der Schalter stand zuerst als zwei Knoepfe
+    in voller Breite ganz oben in der Spalte - noch vor der Leistung.
+    Das ist zu viel Gewicht fuer eine Einrichtungsaufgabe, die man je
+    Projekt einmal erledigt. Jetzt ist es ein Popover am Fuss der
+    Spalte, das ausserdem ANZEIGT, welches Regelwerk gerade gilt - eine
+    Auskunft, die die beiden Knoepfe nie gegeben haben.
+
+    Der Klick schreibt die Werte NICHT selbst: Die vier Felder stehen
+    weiter oben in der Spalte und sind zu diesem Zeitpunkt bereits
+    erzeugt - Streamlit verbietet es, den Zustand eines bestehenden
+    Widgets zu aendern ("cannot be modified after the widget ... is
+    instantiated"). Stattdessen wird der Wunsch unter einem eigenen,
+    widgetfreien Schluessel geparkt und im naechsten Durchlauf von
+    `_land_wunsch_einloesen()` eingeloest, bevor die Felder entstehen -
+    dieselbe Technik wie beim Einheiten-Umschalter der Investkosten
+    (siehe Modulkopf).
+
+    Ein eigenes Modellfeld waere hier falsch: Ein gespeichertes "Land"
+    koennte dem Inhalt der vier Felder widersprechen, sobald jemand
+    eines davon einzeln aendert.
     """
-    spalten = st.columns(len(LAENDER)) if spaltig else st.columns(
-        [1] * len(LAENDER) + [3]
-    )
-    for spalte, (land, felder) in zip(spalten, LAENDER.items(), strict=False):
-        with spalte:
-            if st.button(land, key=f"{form_key}_land_{land}", width="stretch",
-                         help=txt("oberflaeche.formular_land_hilfe")):
-                for feld, wert in felder.items():
-                    # Der Zustand der Erbfelder ist die Beschriftung der
-                    # gewaehlten Option, nicht der Wert selbst.
-                    st.session_state[f"{form_key}_abw_{feld}"] = _lesbar(wert)
+    land = _geltendes_land(global_assumptions, *bloecke)
+    with st.popover(
+        txt("oberflaeche.formular_land_knopf",
+            land=land or txt("oberflaeche.formular_land_gemischt")),
+        width="stretch", help=txt("oberflaeche.formular_land_hilfe"),
+    ):
+        st.markdown(f"**{txt('oberflaeche.formular_land_label')}**")
+        st.caption(txt("oberflaeche.formular_land_hilfe"))
+        for spalte, (name, felder) in zip(
+            st.columns(len(LAENDER)), LAENDER.items(), strict=False
+        ):
+            with spalte:
+                if st.button(name, key=f"{form_key}_land_{name}",
+                             width="stretch",
+                             type="primary" if name == land else "secondary"):
+                    st.session_state[f"{form_key}_land_wunsch"] = name
+                    st.rerun()
 
 
 #: Beschriftung je Abweichungsfeld - fuer die Zaehlzeile unter dem Block.
@@ -882,6 +954,10 @@ def _felder(
         return st.columns(anzahl) if not spaltig else [st] * anzahl
 
     global_assumptions = services.get_global_assumptions()
+    # Ein am Fuss der Spalte gewaehltes Laenderpaket wird hier eingeloest -
+    # vor dem ersten Erbfeld, sonst laesst sich dessen Zustand nicht mehr
+    # setzen (siehe _land_schalter).
+    _land_wunsch_einloesen(form_key)
     # Die gespeicherten Abweichungen dieses Projekts. Ohne Projekt (Neuanlage)
     # ein leerer Block: Ein neues Projekt folgt in allem der Vorgabe.
     gespeicherte_abweichung = (
@@ -929,18 +1005,6 @@ def _felder(
             key=f"{form_key}_variante",
             help=txt("oberflaeche.formular_variante_hilfe"),
         )
-
-    # --- Regelwerk des Standorts ------------------------------------------
-    # Zinsmethode, Steuerberechnung und Praemienmodell haengen am Land und
-    # wechseln gemeinsam. Sie einzeln in drei verschiedenen Popovern zu
-    # suchen, waere die haeufigste Aufgabe zur muehsamsten gemacht -
-    # deshalb steht hier ein Schalter, der alle drei auf einmal setzt.
-    #
-    # Bewusst KEIN eigenes Modellfeld: Der Schalter schreibt die drei
-    # Erbfelder und ist danach fertig. Ein gespeichertes "Land" waere
-    # eine vierte Wahrheit, die dem Inhalt der drei Felder widersprechen
-    # koennte, sobald jemand eines davon einzeln aendert.
-    _land_schalter(form_key, global_assumptions, spaltig)
 
     st.markdown("**Technische Anlagenparameter**")
     col1, col2 = spalten(2)
@@ -1665,6 +1729,20 @@ def _felder(
         )
     with steuern_zeile:
         _abweichungszeile(_beschriftungen(steuern))
+
+    # --- Regelwerk des Standorts ------------------------------------------
+    # Zinsmethode, Steuermodell, Praemienmodell und Negativstunden-Regel
+    # haengen am Land und wechseln gemeinsam. Sie einzeln in drei
+    # Popovern zu suchen, machte die haeufigste Einrichtungsaufgabe zur
+    # muehsamsten - deshalb dieser Schalter.
+    #
+    # Er steht am Fuss der Spalte, hinter den drei Bloecken, die er
+    # setzt: Er braucht deren aufgeloeste Werte, um das geltende Land zu
+    # benennen, und er ist eine Einrichtungsaufgabe, keine
+    # What-if-Groesse.
+    _land_schalter(
+        form_key, global_assumptions, kreditvertrag, steuern, foerdermodell
+    )
 
     abweichungen = Projektannahmen(
         **kreditvertrag, **steuern, **foerdermodell, **ertrag,

@@ -743,7 +743,7 @@ aurora_mappe_erfolg: "{anzahl} Szenarien gespeichert ({technologie}, {von}–{bi
 annahmen_dv_modus_grosshandel: "Anteil am Großhandelspreis (%)"
 
 # --- Erbfelder: Vorgabe aus den globalen Annahmen, im Projekt änderbar ---
-erbfeld_vorgabe: "Vorgabe ({wert})"
+erbfeld_vorgabe: "Vorgabe: {wert}"
 erbfeld_platzhalter: "Vorgabe: {wert}"
 erbfeld_alles_vorgabe: "nach Vorgabe"
 erbfeld_abweichungen: "{anzahl} abweichend · {felder}"
@@ -821,3 +821,5 @@ annahmen_vorbelegung_ek_label: "Eigenkapitalanteil (%)"
 annahmen_vorbelegung_fk_label: "Fremdkapitalzins (%)"
 annahmen_vorbelegung_typ_label: "Anlagentyp"
 annahmen_vorbelegung_epc_label: "EPC (€/kWp)"
+formular_land_knopf: "Regelwerk: {land} …"
+formular_land_gemischt: "gemischt"

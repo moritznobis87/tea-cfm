@@ -742,7 +742,7 @@ aurora_mappe_erfolg: "{anzahl} escenarios guardados ({technologie}, {von}–{bis
 annahmen_dv_modus_grosshandel: "Porcentaje del precio mayorista (%)"
 
 # --- Campos heredados: valor por defecto global, modificable en el proyecto ---
-erbfeld_vorgabe: "Por defecto ({wert})"
+erbfeld_vorgabe: "Por defecto: {wert}"
 erbfeld_platzhalter: "Por defecto: {wert}"
 erbfeld_alles_vorgabe: "según valores por defecto"
 erbfeld_abweichungen: "{anzahl} modificados · {felder}"
@@ -820,3 +820,5 @@ annahmen_vorbelegung_ek_label: "Participación de fondos propios (%)"
 annahmen_vorbelegung_fk_label: "Tipo de interés de la deuda (%)"
 annahmen_vorbelegung_typ_label: "Tipo de instalación"
 annahmen_vorbelegung_epc_label: "EPC (€/kWp)"
+formular_land_knopf: "Marco normativo: {land} …"
+formular_land_gemischt: "mixto"
