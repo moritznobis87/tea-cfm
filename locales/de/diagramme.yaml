@@ -104,3 +104,11 @@ achse_kalenderjahr: "Kalenderjahr"
 achse_marktwert_solar: "Marktwert Solar (ct/kWh)"
 achse_negativ_anteil: "Erzeugung in Stunden negativer Preise"
 serie_baseload: "Großhandelspreis (Baseload)"
+
+# Erzeugungsprofil (globale Annahmen)
+achse_monat: "Monat"
+achse_tag_im_jahr: "Tag im Jahr"
+achse_stunde_im_jahr: "Stunde im Jahr"
+achse_stunde_des_tages: "Stunde des Tages"
+achse_anteil_jahreserzeugung: "Anteil der Jahreserzeugung"
+achse_anteil_tageserzeugung: "Anteil der Tageserzeugung"

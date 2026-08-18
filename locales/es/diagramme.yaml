@@ -103,3 +103,11 @@ achse_kalenderjahr: "Año natural"
 achse_marktwert_solar: "Valor de mercado solar (ct/kWh)"
 achse_negativ_anteil: "Generación en horas de precio negativo"
 serie_baseload: "Precio mayorista (baseload)"
+
+# Erzeugungsprofil (globale Annahmen)
+achse_monat: "Mes"
+achse_tag_im_jahr: "Día del año"
+achse_stunde_im_jahr: "Hora del año"
+achse_stunde_des_tages: "Hora del día"
+achse_anteil_jahreserzeugung: "Cuota de la generación anual"
+achse_anteil_tageserzeugung: "Cuota de la generación diaria"

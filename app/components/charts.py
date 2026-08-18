@@ -1308,3 +1308,171 @@ def auktion_historische_verteilungen_chart(modell, art: str = "dichte") -> go.Fi
         legend=dict(font=dict(size=10)),
     )
     return fig
+
+
+# --- Erzeugungsprofil -------------------------------------------------------
+#
+# Vier Sichten auf dieselbe Groesse: den Anteil der Jahreserzeugung, den
+# ein Monat, ein Tag oder eine Stunde traegt. Alle Reihen kommen bereits
+# normiert aus engine.io_lastgang; hier wird nur noch mit 100
+# multipliziert.
+#
+# Die Farben liegen fest an der Bauform, nicht an der Reihenfolge im
+# Diagramm: Pult ist Navy, Tracker Tuerkis, eine von Hand gepflegte
+# Kurve grau und gestrichelt. Wer zwischen den Ansichten wechselt, soll
+# nicht neu lernen muessen, welche Linie wem gehoert.
+_PROFIL_FARBEN = [Colors.SERIES[0], Colors.SERIES[1]]
+_PROFIL_EIGENE = Colors.NEUTRAL
+
+
+def _profil_farbe(name: str, bauformen: list[str]) -> str:
+    if name in bauformen:
+        return _PROFIL_FARBEN[bauformen.index(name) % len(_PROFIL_FARBEN)]
+    return _PROFIL_EIGENE
+
+
+def erzeugung_monat_chart(
+    reihen: list[tuple[str, list[float]]],
+    bauformen: list[str],
+    monatsnamen: list[str],
+) -> go.Figure:
+    """Zwoelf Monatsanteile je Bauform als gruppierte Balken.
+
+    Balken und nicht Linien: Der Monatsanteil ist eine Menge je Abschnitt,
+    keine stetige Groesse zwischen zwei Zeitpunkten. Eine Linie zwischen
+    Januar und Februar behauptete Zwischenwerte, die es nicht gibt.
+    """
+    fig = go.Figure()
+    for name, kurve in reihen:
+        farbe = _profil_farbe(name, bauformen)
+        fig.add_bar(
+            x=monatsnamen, y=[w * 100 for w in kurve], name=name,
+            marker=dict(
+                color=farbe,
+                # Schmaler Papierrand zwischen benachbarten Balken -
+                # sonst verschmelzen die Paare zu einem Block.
+                line=dict(color=Colors.PAPER, width=2),
+            ),
+            hovertemplate=f"{name}<br>%{{x}}: %{{y:,.2f}} %<extra></extra>",
+        )
+    fig.update_layout(
+        barmode="group", bargap=0.25, bargroupgap=0.04,
+        height=340,
+        xaxis_title=txt("diagramme.achse_monat"),
+        yaxis=dict(title=txt("diagramme.achse_anteil_jahreserzeugung"), ticksuffix=" %"),
+        margin=dict(t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    return fig
+
+
+def erzeugung_tag_chart(
+    reihen: list[tuple[str, list[float]]],
+    bauformen: list[str],
+    monatsnamen: list[str],
+    monatsgrenzen: list[int],
+) -> go.Figure:
+    """365 Tagesanteile als Linie - die Jahresform mit Wetter.
+
+    Die Monatsbalken zeigen den geglaetteten Verlauf, die Stundenreihe
+    faellt jede Nacht auf null. Dazwischen liegt diese Ansicht: Sie
+    zeigt, wie ungleich das Jahr auch innerhalb eines Monats ist -
+    zwischen dem besten und dem schlechtesten Tag eines Junis liegt mehr
+    als zwischen Juni und Juli.
+    """
+    fig = go.Figure()
+    for name, kurve in reihen:
+        fig.add_scatter(
+            x=list(range(1, len(kurve) + 1)), y=[w * 100 for w in kurve],
+            mode="lines", name=name,
+            line=dict(color=_profil_farbe(name, bauformen), width=1.4),
+            hovertemplate=f"{name}<br>%{{y:,.3f}} %<extra></extra>",
+        )
+    fig.update_layout(
+        height=340,
+        xaxis=dict(
+            title=txt("diagramme.achse_tag_im_jahr"),
+            # Striche an den Monatsanfaengen: "Tag 213" sagt niemandem
+            # etwas, "Aug" schon.
+            tickmode="array",
+            tickvals=[g + 1 for g in monatsgrenzen],
+            ticktext=monatsnamen,
+        ),
+        yaxis=dict(title=txt("diagramme.achse_anteil_jahreserzeugung"), ticksuffix=" %"),
+        margin=dict(t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        hovermode="x unified",
+    )
+    return fig
+
+
+def erzeugung_stunde_chart(
+    reihen: list[tuple[str, list[float]]],
+    bauformen: list[str],
+    startstunde: int = 0,
+) -> go.Figure:
+    """Die rohen Stundenanteile - ein Zahnkamm, ein Tag je Zahn.
+
+    startstunde verschiebt die Achse auf die Stunde des Jahres, damit
+    ein herausgegriffener Monat seine wahre Lage behaelt.
+    """
+    fig = go.Figure()
+    # Ueber das ganze Jahr sind das 8.760 Punkte je Bauform. Als SVG
+    # gezeichnet legt das die Seite spuerbar lahm - ab dieser Groesse
+    # uebernimmt die WebGL-Spur. Sie sieht gleich aus, nur der
+    # Zeichenweg ist ein anderer; fuer einen einzelnen Monat (rund 730
+    # Punkte) bleibt es beim schaerferen SVG.
+    viele_punkte = any(len(kurve) > 3000 for _, kurve in reihen)
+    for name, kurve in reihen:
+        spur = go.Scattergl if viele_punkte else go.Scatter
+        fig.add_trace(spur(
+            x=[startstunde + i + 1 for i in range(len(kurve))],
+            y=[w * 100 for w in kurve],
+            mode="lines", name=name,
+            line=dict(color=_profil_farbe(name, bauformen), width=1.2),
+            hovertemplate=f"{name}<br>%{{y:,.4f}} %<extra></extra>",
+        ))
+    fig.update_layout(
+        height=340,
+        xaxis_title=txt("diagramme.achse_stunde_im_jahr"),
+        yaxis=dict(title=txt("diagramme.achse_anteil_jahreserzeugung"), ticksuffix=" %"),
+        margin=dict(t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        hovermode="x unified",
+    )
+    return fig
+
+
+def tagesgang_chart(
+    reihen: list[tuple[str, list[float]]],
+    bauformen: list[str],
+) -> go.Figure:
+    """Mittlerer Tagesgang, 24 Stunden, Summe je Reihe 100 %.
+
+    Das Diagramm, das den Unterschied der Bauformen wirklich zeigt: Das
+    Pult laeuft auf einen scharfen Mittagspeak zu, der Tracker haelt ein
+    Plateau und traegt frueh und spaet deutlich mehr. Genau daran haengt
+    der hoehere Marktwert des Trackers - die Randstunden sind die
+    teureren.
+    """
+    fig = go.Figure()
+    for name, kurve in reihen:
+        fig.add_scatter(
+            x=list(range(len(kurve))), y=[w * 100 for w in kurve],
+            mode="lines+markers", name=name,
+            line=dict(color=_profil_farbe(name, bauformen), width=2),
+            marker=dict(size=6, line=dict(color=Colors.PAPER, width=1)),
+            hovertemplate=f"{name}<br>%{{y:,.2f}} %<extra></extra>",
+        )
+    fig.update_layout(
+        height=340,
+        xaxis=dict(
+            title=txt("diagramme.achse_stunde_des_tages"),
+            tickmode="linear", dtick=2, range=[-0.5, 23.5],
+        ),
+        yaxis=dict(title=txt("diagramme.achse_anteil_tageserzeugung"), ticksuffix=" %"),
+        margin=dict(t=30, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+        hovermode="x unified",
+    )
+    return fig

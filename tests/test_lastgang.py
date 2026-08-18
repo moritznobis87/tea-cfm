@@ -15,9 +15,16 @@ Normierung). Die Pflichtlaenge ist der wichtigste Fall - eine um Stunden
 verschobene Reihe ergaebe eine still verschobene Kurve, und der Fehler
 faende sich erst in der Rendite wieder.
 
-Am Ende steht das Praemienmodell des Laenderschalters: Oesterreich
+Dann die Rubrik „Erzeugungsprofil" der globalen Annahmen: dieselbe
+Reihe in vier Aufloesungen (Monat, Tag, Stunde, mittlerer Tagesgang).
+Der wichtigste Test dort ist nicht, dass die Bilder plausibel aussehen,
+sondern dass die Aufloesungen zueinander passen - Tagessummen und
+Monatssummen muessen sich zu denselben Anteilen addieren, und die
+Monatsansicht muss genau die Kurve zeigen, mit der gerechnet wird.
+
+Am Ende steht das Praemienmodell des Laenderschalters (Oesterreich
 rechnet mit dem Toleranzband des EAG, Deutschland mit dem einseitigen
-CfD des EEG.
+CfD des EEG) und die Vorbelegung des Aurora-Importhaekchens.
 """
 
 from __future__ import annotations
@@ -343,3 +350,291 @@ class TestMarktsystemSetztPraemienmodell:
         felder = GlobalAssumptions.model_fields
         assert felder["markt_system"].default == MarktSystem.OESTERREICH
         assert felder["praemien_modell"].default == PraemienModell.EAG_TOLERANZBAND
+
+
+class TestHinterlegteProfile:
+    """Die drei Aufloesungen der Rubrik „Erzeugungsprofil".
+
+    Sie kommen alle aus derselben Stundenreihe. Der wichtigste Test ist
+    deshalb nicht, dass sie plausibel aussehen, sondern dass sie
+    zueinander passen: Tagessummen und Monatssummen muessen sich zu
+    denselben Anteilen aufaddieren, und die Monatsansicht muss genau
+    die Kurve zeigen, mit der auch gerechnet wird.
+    """
+
+    def test_bauformen_haben_eine_hinterlegte_reihe(self):
+        from engine.io_lastgang import verfuegbare_bauformen
+        from engine.models import MONATSERTRAG_KWH_JE_BAUFORM
+
+        assert verfuegbare_bauformen() == list(MONATSERTRAG_KWH_JE_BAUFORM)
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_stundenprofil_ist_ein_volles_jahr(self, bauform):
+        from engine.io_lastgang import stundenprofil
+
+        reihe = stundenprofil(bauform)
+        assert len(reihe) == STUNDEN_NORMALJAHR
+        assert sum(reihe) == pytest.approx(1.0)
+        assert all(w >= 0 for w in reihe)
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_stundenprofil_ist_gegen_aenderung_geschuetzt(self, bauform):
+        """Gecacht und damit geteilt: Eine Liste koennte der Aufrufer
+        veraendern, und ab dem zweiten Aufruf saehe jeder den Schaden."""
+        from engine.io_lastgang import stundenprofil
+
+        assert isinstance(stundenprofil(bauform), tuple)
+        assert stundenprofil(bauform) is stundenprofil(bauform)
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_tagesprofil_deckt_das_jahr_ab(self, bauform):
+        from engine.io_lastgang import TAGE_NORMALJAHR, tagesprofil
+
+        tage = tagesprofil(bauform)
+        assert len(tage) == TAGE_NORMALJAHR
+        assert sum(tage) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_monatsprofil_ist_die_kurve_des_modells(self, bauform):
+        """Die Oberflaeche zeigt, was in den Daten steht - das Modell
+        rechnet mit dem, was in models.py steht. Laufen beide
+        auseinander, ist das ein Befund und keine Anzeigefrage."""
+        from engine.io_lastgang import monatsprofil
+        from engine.models import EINSPEISEKURVEN_JE_BAUFORM
+
+        assert monatsprofil(bauform) == pytest.approx(
+            EINSPEISEKURVEN_JE_BAUFORM[bauform], abs=1e-12
+        )
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_tagessummen_ergeben_die_monatsanteile(self, bauform):
+        from engine.io_lastgang import monatsprofil, tagesprofil
+
+        tage = tagesprofil(bauform)
+        laengen = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        aus_tagen, start = [], 0
+        for laenge in laengen:
+            aus_tagen.append(sum(tage[start:start + laenge]))
+            start += laenge
+        assert aus_tagen == pytest.approx(monatsprofil(bauform), abs=1e-12)
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_tagesgang_summiert_sich_auf_einen_tag(self, bauform):
+        from engine.io_lastgang import STUNDEN_JE_TAG, mittlerer_tagesgang
+
+        gang = mittlerer_tagesgang(bauform)
+        assert len(gang) == STUNDEN_JE_TAG
+        assert sum(gang) == pytest.approx(1.0)
+        # Nachts ist nichts zu holen - laege hier Ertrag, waere die
+        # Reihe um Stunden verschoben eingelesen worden.
+        assert gang[0] == 0 and gang[23] == 0
+
+    def test_tagesgang_trennt_die_bauformen(self):
+        """Der eigentliche Unterschied der Bauformen, und der einzige,
+        den die Monatskurve nicht enthaelt: Das Pult laeuft auf einen
+        Mittagspeak zu, der Tracker haelt ein Plateau und traegt frueh
+        und spaet mehr."""
+        from engine.io_lastgang import mittlerer_tagesgang
+
+        pult = mittlerer_tagesgang("Pult")
+        tracker = mittlerer_tagesgang("Tracker")
+        assert max(pult) > max(tracker)
+        # Randstunden: 6 Uhr morgens und 17 Uhr - dort liegt der
+        # hoehere Marktwert des Trackers begruendet.
+        assert tracker[6] > pult[6]
+        assert tracker[17] > pult[17]
+
+    def test_tagesgang_eines_monats_ist_kuerzer_als_im_juni(self):
+        from engine.io_lastgang import mittlerer_tagesgang
+
+        dezember = mittlerer_tagesgang("Pult", 12)
+        juni = mittlerer_tagesgang("Pult", 6)
+        assert sum(1 for w in dezember if w > 0) < sum(1 for w in juni if w > 0)
+        # Der Dezembertag drueckt seine Erzeugung in weniger Stunden -
+        # der Anteil der Spitzenstunde am Tag ist deshalb groesser.
+        assert max(dezember) > max(juni)
+
+    def test_stundenfenster_schneidet_den_richtigen_monat(self):
+        from engine.io_lastgang import stundenfenster, stundenprofil
+
+        januar = stundenfenster("Pult", 1)
+        assert len(januar) == 31 * 24
+        assert januar == pytest.approx(list(stundenprofil("Pult")[:31 * 24]))
+        assert len(stundenfenster("Pult")) == STUNDEN_NORMALJAHR
+
+    def test_unbekannter_monat_wird_abgewiesen(self):
+        from engine.io_lastgang import mittlerer_tagesgang
+
+        with pytest.raises(LastgangFehler):
+            mittlerer_tagesgang("Pult", 13)
+
+    def test_unbekannte_bauform_wird_abgewiesen(self):
+        from engine.io_lastgang import stundenprofil
+
+        with pytest.raises(LastgangFehler):
+            stundenprofil("Fassade")
+
+    def test_monatsgrenzen_beginnen_bei_null(self):
+        from engine.io_lastgang import TAGE_NORMALJAHR, tagesindex_monatsgrenzen
+
+        grenzen = tagesindex_monatsgrenzen()
+        assert len(grenzen) == 12
+        assert grenzen[0] == 0
+        assert grenzen == sorted(grenzen)
+        assert grenzen[-1] < TAGE_NORMALJAHR
+
+
+class TestProfilRubrik:
+    """Die Rubrik auf der Seite „Globale Annahmen" - jede Ansicht muss
+    ohne Ausnahme durchlaufen."""
+
+    def test_rubrik_erscheint_mit_allen_ansichten(self):
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        radios = [r for r in at.radio if r.key == "profil_ansicht"]
+        assert radios, "Auflösungs-Umschalter fehlt"
+        # options traegt die uebersetzten Etiketten, value den stabilen
+        # Schluessel - deshalb wird hier die Anzahl geprueft und die
+        # Schluessel selbst im parametrisierten Test darunter.
+        assert len(radios[0].options) == 4
+        assert radios[0].value == "monat"
+
+    @pytest.mark.parametrize("ansicht", ["monat", "tag", "stunde", "tagesgang"])
+    def test_jede_ansicht_zeichnet_ohne_fehler(self, ansicht):
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        [r for r in at.radio if r.key == "profil_ansicht"][0].set_value(ansicht)
+        at.run()
+        assert not at.exception, at.exception
+
+    def test_monatsfilter_nur_bei_den_feinen_ansichten(self):
+        """Monats- und Tagesansicht zeigen ohnehin das ganze Jahr - ein
+        Zeitraumfilter daneben behauptete eine Wirkung, die er nicht
+        hat."""
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        assert not [
+            s for s in at.selectbox if (s.key or "").startswith("profil_monat_")
+        ]
+
+        [r for r in at.radio if r.key == "profil_ansicht"][0].set_value("stunde")
+        at.run()
+        assert [s for s in at.selectbox if s.key == "profil_monat_stunde"]
+
+
+class TestAuroraKurveNichtVorbelegt:
+    """Der Aurora-Import bringt eine eigene Einspeisekurve mit - die des
+    MARKTGEBIETS. Die hinterlegte Kurve beschreibt dagegen die eigene
+    Anlage. Angehakt ersetzte ein Reimport still die spezifischere
+    Angabe durch die allgemeinere."""
+
+    def test_haekchen_ist_standardmaessig_aus(self):
+        """Die Optionen erscheinen erst, wenn eine Technologiedatei
+        hochgeladen ist - der Test laedt deshalb eine."""
+        from test_aurora_import import _tech_monat_csv
+
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        inhalt, name = _tech_monat_csv()
+        [u for u in at.file_uploader if u.key == "aurora_tech_monat"][0].set_value(
+            (name, inhalt, "text/csv")
+        )
+        at.run()
+        assert not at.exception, at.exception
+
+        treffer = [
+            c for c in at.checkbox
+            if "Einspeisekurve" in c.label or "feed-in curve" in c.label
+        ]
+        assert treffer, "Häkchen „Einspeisekurve übernehmen“ nicht gefunden"
+        assert treffer[0].value is False
+
+    def test_die_anderen_beiden_optionen_bleiben_vorbelegt(self):
+        """Inflation und Monatsmodus kommen aus derselben Datei und
+        beschreiben nichts Anlagenspezifisches - nur die Kurve tut das."""
+        from test_aurora_import import _tech_monat_csv
+
+        at = _app()
+        _navigiere(at, "nav_annahmen")
+        inhalt, name = _tech_monat_csv()
+        [u for u in at.file_uploader if u.key == "aurora_tech_monat"][0].set_value(
+            (name, inhalt, "text/csv")
+        )
+        at.run()
+        andere = [
+            c for c in at.checkbox
+            if "Einspeisekurve" not in c.label and "feed-in curve" not in c.label
+            and ("übernehmen" in c.label or "Monat" in c.label
+                 or "Adopt" in c.label or "monthly" in c.label)
+        ]
+        assert andere, "Import-Optionen nicht gefunden"
+        assert all(c.value is True for c in andere)
+
+
+class TestProfilDiagramme:
+    """Die Diagramm-Bausteine - reine Funktionen, ohne Streamlit."""
+
+    def test_jahresansicht_zeichnet_ueber_webgl(self):
+        """8.760 Punkte je Bauform als SVG legen die Seite lahm."""
+        from app.components import charts
+        from engine.io_lastgang import stundenfenster, verfuegbare_bauformen
+
+        bauformen = verfuegbare_bauformen()
+        fig = charts.erzeugung_stunde_chart(
+            [(b, stundenfenster(b)) for b in bauformen], bauformen
+        )
+        assert all(spur.type == "scattergl" for spur in fig.data)
+
+    def test_monatsansicht_bleibt_bei_svg(self):
+        from app.components import charts
+        from engine.io_lastgang import stundenfenster, verfuegbare_bauformen
+
+        bauformen = verfuegbare_bauformen()
+        fig = charts.erzeugung_stunde_chart(
+            [(b, stundenfenster(b, 6)) for b in bauformen], bauformen
+        )
+        assert all(spur.type == "scatter" for spur in fig.data)
+
+    def test_farben_haengen_an_der_bauform_nicht_an_der_reihenfolge(self):
+        """Wer zwischen den Ansichten wechselt, soll nicht neu lernen
+        muessen, welche Linie wem gehoert."""
+        from app.components import charts
+
+        bauformen = ["Pult", "Tracker"]
+        namen = [str(i) for i in range(1, 13)]
+        vorwaerts = charts.erzeugung_monat_chart(
+            [(b, [1 / 12] * 12) for b in bauformen], bauformen, namen
+        )
+        rueckwaerts = charts.erzeugung_monat_chart(
+            [(b, [1 / 12] * 12) for b in reversed(bauformen)], bauformen, namen
+        )
+        farbe = {s.name: s.marker.color for s in vorwaerts.data}
+        assert {s.name: s.marker.color for s in rueckwaerts.data} == farbe
+        assert farbe["Pult"] != farbe["Tracker"]
+
+    def test_eigene_kurve_bekommt_die_neutrale_farbe(self):
+        from app.components import charts
+        from app.theme import Colors
+
+        fig = charts.erzeugung_monat_chart(
+            [("Pult", [1 / 12] * 12), ("Eigene", [1 / 12] * 12)],
+            ["Pult", "Tracker"], [str(i) for i in range(1, 13)],
+        )
+        eigene = [s for s in fig.data if s.name == "Eigene"][0]
+        assert eigene.marker.color == Colors.NEUTRAL
+
+    def test_tagesansicht_beschriftet_die_monatsanfaenge(self):
+        from app.components import charts
+        from engine.io_lastgang import (
+            monatsnamen_kurz,
+            tagesindex_monatsgrenzen,
+            tagesprofil,
+        )
+
+        namen = monatsnamen_kurz()
+        fig = charts.erzeugung_tag_chart(
+            [("Pult", tagesprofil("Pult"))], ["Pult"], namen,
+            tagesindex_monatsgrenzen(),
+        )
+        assert list(fig.layout.xaxis.ticktext) == namen
+        assert fig.layout.xaxis.tickvals[0] == 1

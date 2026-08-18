@@ -16,8 +16,9 @@ from app import services
 from app.components import charts
 from app.config import FLAGS_DIR, monate_kurz
 from app.formatting import fmt_number
-from engine import io_aurora
+from engine import io_aurora, io_lastgang
 from engine.io_aurora import AuroraImportFehler
+from engine.io_lastgang import LastgangFehler
 from engine import (
     DirektvermarktungsModus,
     GlobalAssumptions,
@@ -301,8 +302,13 @@ def _aurora_csv(ga: GlobalAssumptions) -> None:
     )
 
     col_o1, col_o2, col_o3 = st.columns(3)
+    # Vorgabe aus: Auroras Erzeugungsspalte beschreibt den Anlagenpark
+    # des MARKTGEBIETS, die hinterlegte Kurve die eigene Anlage (aus
+    # deren Stundenreihe abgeleitet). Angehakt ersetzte ein Reimport
+    # also still die spezifischere Angabe durch die allgemeinere - eine
+    # Entscheidung, die niemand getroffen hatte.
     mit_kurve = col_o1.checkbox(
-        txt("oberflaeche.aurora_uebernimm_kurve"), value=True,
+        txt("oberflaeche.aurora_uebernimm_kurve"), value=False,
         help=txt("oberflaeche.aurora_uebernimm_kurve_hilfe"),
     )
     mit_inflation = col_o2.checkbox(
@@ -420,6 +426,149 @@ def _waehle_aus_familie(stamm: str, geschwister: list[MarktpreisSzenario]):
 #: Kennung der frei bearbeiteten Kurve im Bauform-Umschalter - sie
 #: gehoert zu keiner hinterlegten Bauform.
 _EIGENE_KURVE = "__eigene__"
+
+#: Auflösungen der Profilansicht. Der Schluessel ist stabil (Sessionstate,
+#: Tests), das Etikett kommt aus den Sprachdateien.
+_PROFIL_MONAT = "monat"
+_PROFIL_TAG = "tag"
+_PROFIL_STUNDE = "stunde"
+_PROFIL_TAGESGANG = "tagesgang"
+_PROFIL_ANSICHTEN = [_PROFIL_MONAT, _PROFIL_TAG, _PROFIL_STUNDE, _PROFIL_TAGESGANG]
+
+
+def _profil_reihen(bauformen: list[str], holen) -> list[tuple[str, list[float]]]:
+    """Eine Reihe je Bauform, uebersprungen was sich nicht lesen laesst.
+
+    Eine fehlende oder kaputte CSV darf die Annahmenseite nicht
+    abbrechen - sie ist Anschauungsmaterial, keine Rechengrundlage.
+    """
+    reihen: list[tuple[str, list[float]]] = []
+    for bauform in bauformen:
+        try:
+            reihen.append((bauform, list(holen(bauform))))
+        except LastgangFehler:
+            continue
+    return reihen
+
+
+def _erzeugungsprofil(ga: GlobalAssumptions) -> None:
+    """Rubrik „Erzeugungsprofil": dieselbe Groesse in vier Aufloesungen.
+
+    Gerechnet wird ausschliesslich mit den zwoelf Monatsanteilen. Die
+    feineren Ansichten stehen aus zwei Gruenden hier:
+
+    - Sie machen pruefbar, was die Monatskurve behauptet. Wer sieht,
+      dass der Dezember flach ist und der April die Spitze traegt,
+      erkennt eine falsche Kurve, bevor sie in einer Rendite steckt.
+    - Die Stundenreihen liegen ohnehin im Repository (sie sind die
+      Quelle der Monatskurven). Sollte die Rechnung eines Tages
+      stundenscharf werden, ist der Ladeweg dann schon gebaut und
+      geprueft.
+
+    Der mittlere Tagesgang ist die einzige Ansicht, die etwas zeigt,
+    was die Monatskurve gar nicht enthaelt: den Unterschied zwischen
+    Mittagspeak und Plateau. Er wirkt im Modell ueber die Marktwertkurve
+    des Szenarios, nicht ueber die Monatsanteile.
+    """
+    st.markdown(txt("oberflaeche.annahmen_profil_titel"))
+    st.caption(txt("oberflaeche.annahmen_profil_hinweis"))
+
+    bauformen = io_lastgang.verfuegbare_bauformen()
+    if not bauformen:
+        st.info(txt("oberflaeche.annahmen_profil_keine_reihen"))
+        return
+
+    etiketten = {
+        _PROFIL_MONAT: txt("oberflaeche.annahmen_profil_ansicht_monat"),
+        _PROFIL_TAG: txt("oberflaeche.annahmen_profil_ansicht_tag"),
+        _PROFIL_STUNDE: txt("oberflaeche.annahmen_profil_ansicht_stunde"),
+        _PROFIL_TAGESGANG: txt("oberflaeche.annahmen_profil_ansicht_tagesgang"),
+    }
+    ansicht = st.radio(
+        txt("oberflaeche.annahmen_profil_ansicht_label"),
+        _PROFIL_ANSICHTEN,
+        format_func=lambda a: etiketten[a],
+        horizontal=True,
+        key="profil_ansicht",
+        help=txt("oberflaeche.annahmen_profil_ansicht_hilfe"),
+    )
+
+    namen_kurz = monate_kurz()
+
+    if ansicht == _PROFIL_MONAT:
+        reihen = _profil_reihen(bauformen, io_lastgang.monatsprofil)
+        # Eine von Hand gepflegte Kurve gehoert daneben - sie ist die,
+        # mit der tatsaechlich gerechnet wird. Bei einer der hinterlegten
+        # Bauformen laege sie deckungsgleich auf ihr und waere nur ein
+        # dritter Balken ohne Aussage.
+        if ga.einspeisekurve_bauform not in bauformen:
+            reihen.append((
+                txt("oberflaeche.annahmen_profil_serie_aktiv"),
+                list(ga.einspeisekurve_pct_je_monat),
+            ))
+        st.plotly_chart(
+            charts.erzeugung_monat_chart(reihen, bauformen, namen_kurz),
+            width="stretch",
+        )
+        st.caption(txt("oberflaeche.annahmen_profil_monat_fussnote"))
+        return
+
+    if ansicht == _PROFIL_TAG:
+        reihen = _profil_reihen(bauformen, io_lastgang.tagesprofil)
+        st.plotly_chart(
+            charts.erzeugung_tag_chart(
+                reihen, bauformen, namen_kurz,
+                io_lastgang.tagesindex_monatsgrenzen(),
+            ),
+            width="stretch",
+        )
+        st.caption(txt("oberflaeche.annahmen_profil_tag_fussnote"))
+        return
+
+    monat = _profil_monatswahl(namen_kurz, ansicht)
+
+    if ansicht == _PROFIL_STUNDE:
+        reihen = _profil_reihen(
+            bauformen, lambda b: io_lastgang.stundenfenster(b, monat)
+        )
+        start = 0
+        if monat is not None and reihen:
+            start = sum(
+                len(io_lastgang.stundenfenster(reihen[0][0], m))
+                for m in range(1, monat)
+            )
+        st.plotly_chart(
+            charts.erzeugung_stunde_chart(reihen, bauformen, start),
+            width="stretch",
+        )
+        st.caption(txt("oberflaeche.annahmen_profil_stunde_fussnote"))
+        return
+
+    reihen = _profil_reihen(
+        bauformen, lambda b: io_lastgang.mittlerer_tagesgang(b, monat)
+    )
+    st.plotly_chart(charts.tagesgang_chart(reihen, bauformen), width="stretch")
+    st.caption(txt("oberflaeche.annahmen_profil_tagesgang_fussnote"))
+
+
+def _profil_monatswahl(namen_kurz: list[str], ansicht: str) -> int | None:
+    """Monatsfilter der beiden feinen Ansichten - None heisst ganzes Jahr.
+
+    Nur dort, wo er etwas aendert: Die Monats- und die Tagesansicht
+    zeigen ohnehin das ganze Jahr.
+    """
+    optionen: list[int | None] = [None] + list(range(1, 13))
+    return st.selectbox(
+        txt("oberflaeche.annahmen_profil_monat_label"),
+        optionen,
+        format_func=lambda m: (
+            txt("oberflaeche.annahmen_profil_monat_alle")
+            if m is None
+            else namen_kurz[m - 1]
+        ),
+        key=f"profil_monat_{ansicht}",
+        help=txt("oberflaeche.annahmen_profil_monat_hilfe"),
+    )
 
 
 def _bauform_auswahl(ga: GlobalAssumptions) -> None:
@@ -788,6 +937,9 @@ def render_assumptions() -> None:
                                           errors="coerce").fillna(0).sum())
         st.caption(txt("oberflaeche.annahmen_einspeisekurve_summe",
                        summe=fmt_number(summe_kurve, 1)))
+
+        st.divider()
+        _erzeugungsprofil(ga)
 
         st.divider()
         st.markdown(txt("oberflaeche.annahmen_praemienmodell_titel"))

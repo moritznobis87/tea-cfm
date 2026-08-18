@@ -1,5 +1,41 @@
 # Changelog
 
+## v5.22 – Rubrik „Erzeugungsprofil" (2026-08)
+
+**Neu in den globalen Annahmen: dieselbe Erzeugung in vier
+Auflösungen.** Ein Umschalter zwischen Monat, Tag, Stunde und mittlerem
+Tagesgang, beide Bauformen jeweils nebeneinander, alles normiert auf den
+Anteil der Jahreserzeugung.
+
+| Ansicht | Was sie zeigt |
+| --- | --- |
+| **Monat** | Die zwölf Anteile, mit denen tatsächlich gerechnet wird. Eine von Hand gepflegte Kurve steht als dritte Reihe daneben. |
+| **Tag** | 365 Tagessummen — dieselbe Erzeugung ungeglättet. Zwischen dem besten und dem schlechtesten Tag eines Monats liegt mehr als zwischen zwei Monaten. |
+| **Stunde** | Die Rohreihe, ein Zahn je Tag. Wahlweise ein einzelner Monat, sonst 8.760 Punkte als Silhouette. |
+| **Tagesgang** | Der mittlere Tagesverlauf — die einzige Ansicht mit einer Aussage, die in der Monatskurve nicht steckt. |
+
+Der Tagesgang macht sichtbar, woher der höhere Marktwert des Trackers
+kommt: Das Pult läuft auf einen Mittagspeak von 13,4 % zu, der Tracker
+hält von 9 bis 14 Uhr ein Plateau bei rund 10 % und trägt früh und spät
+deutlich mehr (6 Uhr: 2,7 gegen 0,9 %). Die Randstunden sind die
+teureren. Ins Modell kommt das über die Marktwertkurve des Szenarios,
+nicht über die Monatsanteile.
+
+**Die Stundendaten liegen damit im Ladeweg bereit.** Gerechnet wird
+weiterhin ausschließlich mit den zwölf Monatsanteilen; sollte das Modell
+einmal auf eine stundenscharfe Betrachtung umgestellt werden, ist das
+Einlesen (`engine/io_lastgang.py`) gebaut, gecacht und geprüft. Die
+Tagesansicht ist reine Visualisierung — Tagessummen statt Stundenwerten,
+damit die Kurve nicht jede Nacht auf null fällt.
+
+**Aurora-Import: Das Häkchen „Einspeisekurve übernehmen" ist nicht mehr
+vorbelegt.** Auroras Erzeugungsspalte beschreibt den Anlagenpark des
+Marktgebiets, die hinterlegte Kurve dagegen die eigene Anlage.
+Angehakt ersetzte ein Reimport still die spezifischere Angabe durch die
+allgemeinere — eine Entscheidung, die niemand getroffen hatte. Wer das
+Marktgebietsprofil will, hakt es an; der Hilfetext sagt jetzt, worin der
+Unterschied besteht.
+
 ## v5.21 – Einspeisekurven aus den Stundenreihen (2026-08)
 
 **Die Monatsanteile der Erzeugung kommen wieder aus den

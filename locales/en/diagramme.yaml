@@ -102,3 +102,11 @@ achse_kalenderjahr: "Calendar year"
 achse_marktwert_solar: "Solar market value (ct/kWh)"
 achse_negativ_anteil: "Generation during negative-price hours"
 serie_baseload: "Wholesale price (baseload)"
+
+# Erzeugungsprofil (globale Annahmen)
+achse_monat: "Month"
+achse_tag_im_jahr: "Day of year"
+achse_stunde_im_jahr: "Hour of year"
+achse_stunde_des_tages: "Hour of day"
+achse_anteil_jahreserzeugung: "Share of annual generation"
+achse_anteil_tageserzeugung: "Share of daily generation"
