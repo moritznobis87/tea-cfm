@@ -1117,11 +1117,20 @@ class EffectiveAssumptions(BaseModel):
     # ausserdem im Anlaufjahr, auch in der Jahresaufloesung (siehe
     # engine/revenue.py::_scheiben).
     #
-    # Sie tragen NICHT dieselbe Aussage wie die Jahreskurven: Der
-    # Jahreswert einer Marktpreisstudie ist der Capture Price und enthaelt
-    # auch die Intraday-Kannibalisierung; eine mit der Einspeisekurve
-    # gewichtete Monatsreihe erfasst nur den saisonalen Teil und liegt
-    # deshalb systematisch darueber.
+    # Sie tragen NICHT dieselbe Aussage wie die Jahreskurven, und der
+    # Unterschied ist wesentlich: Beide sind Capture Prices, aber der
+    # JAHRESwert ist mit dem Erzeugungsprofil des Marktgebiets gewichtet
+    # (Aurora rechnet ihn stundenscharf fuer den deutschen Anlagenpark),
+    # waehrend die Monatsreihe erst hier mit der Einspeisekurve DIESER
+    # Anlage gewichtet wird.
+    #
+    # Nachgerechnet: Aus den Monatsreihen laesst sich der Jahreswert mit
+    # EINEM Gewichtsvektor ueber alle 34 Jahre auf 0,004 ct genau
+    # rekonstruieren - er impliziert ein Juli-zu-Dezember-Verhaeltnis von
+    # rund 10:1. Die PVGIS-Kurve des oesterreichischen Standorts liegt bei
+    # 2:1. Ein Standort mit ertragreicherem Winter erloest deshalb mehr
+    # als der Marktdurchschnitt; die Monatsrechnung bildet genau das ab,
+    # die Jahresrechnung unterstellt ihm das fremde Profil.
     zeitaufloesung: Zeitaufloesung = Zeitaufloesung.JAHR
     einspeisekurve_pct_je_monat: list[float] = Field(
         default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)

@@ -612,7 +612,7 @@ karte_hilfe_npv: "Contribution (NPV at {ziel}) versus equity return; bubble size
 # --- Zeitaufloesung, Foerdermodell, PPA (v5.4) --------------------------------
 annahmen_modell_titel: "Time resolution, support model and PPA"
 annahmen_zeitaufloesung_titel: "**Time resolution of the revenue calculation**"
-annahmen_zeitaufloesung_hinweis: "Annual resolution values one annual volume at one annual market value. Monthly resolution spreads annual generation over twelve months using the feed-in curve and values it at the scenario's monthly market values — more accurate, because PV generates most when prices are low. Cashflow, financing and tax stay annual."
+annahmen_zeitaufloesung_hinweis: "Annual resolution matches an annual volume against an annual capture price. A scenario's annual capture price is weighted with the generation profile of the market area — for a site with stronger winter yield it is therefore too low. Monthly resolution spreads annual generation over this plant's own profile and meets the monthly capture prices. Cash flow, financing and tax stay annual."
 annahmen_zeitaufloesung_label: "Time resolution"
 annahmen_zeitaufloesung_hilfe: "Where a calendar year has no monthly values, its annual value applies to all twelve months — switching stays possible with incomplete data."
 annahmen_aufloesung_jahr: "Annual values"

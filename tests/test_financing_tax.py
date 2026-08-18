@@ -49,6 +49,67 @@ class TestFinancing:
         assert (fin["schuldendienst_eur"].iloc[20:] == 0.0).all()
 
 
+class TestAfaImAnlaufjahr:
+    """Eine im Dezember in Betrieb genommene Anlage schrieb ein volles
+    Jahr ab, obwohl sie einen Monat lief.
+
+    Oesterreich kennt die Halbjahresregelung (§ 7 Abs. 2 EStG),
+    Deutschland rechnet monatsgenau (§ 7 Abs. 1 Satz 4 EStG). Der im
+    Anlaufjahr nicht genutzte Teil verfaellt nicht - er wandert ans Ende
+    der Nutzungsdauer.
+    """
+
+    CAPEX = 2_000_000.0
+    DAUER = 20
+    JAHRES_AFA = CAPEX / DAUER
+
+    def _afa(self, tax_modus, monat, jahre=22):
+        tax = _tax_fuer(
+            [500_000.0] * jahre,
+            tax_modus=tax_modus,
+            capex_total_eur=self.CAPEX,
+            afa_nutzungsdauer_jahre=self.DAUER,
+            inbetriebnahme_monat=monat,
+            gewerbesteuer_freibetrag_eur=0.0,
+            freibetrag_eur=0.0,
+        )
+        return tax["afa_eur"].to_numpy()
+
+    @pytest.mark.parametrize("monat,erwartet", [(1, 1.0), (6, 1.0), (7, 0.5), (12, 0.5)])
+    def test_oesterreich_halbjahresregelung(self, monat, erwartet):
+        """Mehr als sechs Monate Nutzung -> volle Jahres-AfA, sonst
+        halbe. Dazwischen gibt es nichts."""
+        afa = self._afa(TaxModus.AFA_KOERPERSCHAFTSTEUER, monat)
+        assert afa[0] == pytest.approx(self.JAHRES_AFA * erwartet)
+
+    @pytest.mark.parametrize("monat", [1, 4, 7, 12])
+    def test_deutschland_monatsgenau(self, monat):
+        afa = self._afa(TaxModus.GEWERBESTEUER_DE, monat)
+        assert afa[0] == pytest.approx(self.JAHRES_AFA * (13 - monat) / 12)
+
+    @pytest.mark.parametrize(
+        "tax_modus", [TaxModus.AFA_KOERPERSCHAFTSTEUER, TaxModus.GEWERBESTEUER_DE]
+    )
+    @pytest.mark.parametrize("monat", [1, 7, 12])
+    def test_summe_bleibt_die_investition(self, tax_modus, monat):
+        """Der Anlaufjahr-Rest verfaellt nicht - abgeschrieben wird, bis
+        der Restbuchwert null ist."""
+        afa = self._afa(tax_modus, monat)
+        assert afa.sum() == pytest.approx(self.CAPEX)
+
+    def test_rest_wandert_ans_ende(self):
+        """Bei halber AfA im Anlaufjahr bleibt am Ende genau eine halbe
+        Jahresrate uebrig."""
+        afa = self._afa(TaxModus.AFA_KOERPERSCHAFTSTEUER, 12)
+        assert afa[0] == pytest.approx(self.JAHRES_AFA * 0.5)
+        assert afa[self.DAUER] == pytest.approx(self.JAHRES_AFA * 0.5)
+        assert afa[self.DAUER + 1] == pytest.approx(0.0)
+
+    def test_pauschalmodus_kennt_keine_afa(self):
+        afa = self._afa(TaxModus.PAUSCHAL_AUF_EBT, 12)
+        assert afa.sum() == pytest.approx(0.0)
+
+
 class TestFreibetragUndVerlustvortrag:
     """Gemeldet bei der Durchsicht: Der Freibetrag wurde vor der
     Verlustermittlung abgezogen und erzeugte dadurch einen

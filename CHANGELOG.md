@@ -1,5 +1,46 @@
 # Changelog
 
+## v5.20 – Laufzeit und Abschreibung taggenau (2026-08)
+
+**Die Betriebsdauer zählt jetzt Monate, nicht Kalenderjahre.** 30 Jahre
+sind 30 × 12 Monate ab Netzanschluss. Bei unterjähriger Inbetriebnahme
+läuft die Zeitachse deshalb ein Kalenderjahr länger; das erste und das
+letzte Jahr ergänzen sich zu einem vollen. Ein im Dezember 2027
+angeschlossenes Projekt lief zuvor bis 31.12.2056, also 29,1 statt 30
+Jahre — der Rumpfmonat am Anfang wurde am Ende nie ausgeglichen.
+
+**Dasselbe für die Förderdauer**: 20 Jahre sind 20 × 12 Monate. Für
+Völkermarkt reicht die Förderung jetzt bis einschließlich November 2047;
+das letzte Förderjahr trägt 94,8 % einer Jahresmenge, sodass Anlauf- und
+Schlussrumpf zusammen exakt 20 volle Jahresmengen ergeben. Zuvor waren
+es 19 Jahre und ein Monat.
+
+**Die Abschreibung im Anlaufjahr folgt dem Landesrecht.** Österreich:
+Halbjahresregelung (§ 7 Abs. 2 EStG) — mehr als sechs Monate Nutzung
+ergeben die volle Jahres-AfA, sonst die halbe. Deutschland: monatsgenau
+(§ 7 Abs. 1 Satz 4 EStG). Für Völkermarkt fällt die AfA des ersten
+Jahres damit von 93.862 € auf 46.931 € (AT) beziehungsweise 7.822 €
+(DE). Der nicht genutzte Teil verfällt nicht — abgeschrieben wird, bis
+der Restbuchwert null ist, die Summe bleibt exakt die Investition.
+
+**Korrektur einer falschen Aussage aus v5.19.** Dort stand, die
+Monatsauflösung überschätze den Erlös um rund 16 %, weil die
+Monatsreihen die Intraday-Kannibalisierung nicht erfassten. Das war
+falsch. Nachgerechnet: Aus den Monatsreihen lässt sich der Jahreswert
+mit **einem** Gewichtsvektor über alle 34 Jahre auf 0,004 ct genau
+rekonstruieren — beide sind Capture Prices, nur verschieden gewichtet.
+Der Jahreswert trägt das Erzeugungsprofil des **Marktgebiets** (Aurora
+rechnet ihn stundenscharf für den deutschen Anlagenpark, Verhältnis
+Juli zu Dezember rund 10:1), die Monatsreihe wird erst im Tool mit der
+Einspeisekurve **dieser Anlage** gewichtet (PVGIS Österreich: 2:1). Ein
+Standort mit ertragreicherem Winter erlöst deshalb zu Recht mehr als der
+Marktdurchschnitt. Die Monatsauflösung ist damit die genauere, nicht die
+großzügigere — und die Jahresauflösung unterstellt dem Projekt ein
+fremdes Erzeugungsprofil. Oberflächentext, Modulkommentare und
+Rechenmodell sind entsprechend berichtigt.
+
+Rechenmodell 5.1, 5.2, 7.5 und 10.2 nachgezogen.
+
 ## v5.19 – Drei Rechenfehler aus der Durchsicht (2026-08)
 
 Ergebnis einer systematischen Durchsicht des Rechenkerns.

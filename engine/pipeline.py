@@ -273,6 +273,7 @@ def run_valuation_from_assumptions(
         assumptions.verlustvortrag_verrechnungsgrenze_pct,
         gewerbesteuer_hebesatz_pct=assumptions.gewerbesteuer_hebesatz_pct,
         gewerbesteuer_freibetrag_eur=assumptions.gewerbesteuer_freibetrag_eur,
+        inbetriebnahme_monat=assumptions.inbetriebnahme_monat,
     )
 
     cashflow = calculate_cashflow(

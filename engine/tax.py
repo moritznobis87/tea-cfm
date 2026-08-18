@@ -3,6 +3,13 @@ Berechnet die Steuerlast - drei Modi (siehe TaxModus in models.py):
 Pauschalsatz auf EBT, oesterreichische AfA-Koerperschaftsteuer mit
 Freibetrag und Verlustvortrag, oder deutsche Gewerbesteuer.
 
+Abschreibung im Anlaufjahr: Oesterreich kennt die Halbjahresregelung
+(§ 7 Abs. 2 EStG) - mehr als sechs Monate Nutzung ergeben die volle
+Jahres-AfA, sonst die halbe. Deutschland rechnet monatsgenau (§ 7 Abs. 1
+Satz 4 EStG). Der im Anlaufjahr nicht genutzte Teil verfaellt nicht: Es
+wird abgeschrieben, solange Restbuchwert vorhanden ist, die Abschreibung
+reicht also entsprechend weiter.
+
 Oesterreichischer Verlustvortrag (§8 Abs. 4 Z 2 KStG): Verluste sind
 zeitlich UNBEGRENZT vortragbar, aber in einem Gewinnjahr duerfen
 maximal verlustvortrag_verrechnungsgrenze_pct (gesetzlich 75%) des
@@ -52,6 +59,29 @@ TAX_COLUMNS = [
 ]
 
 
+def _anlaufjahr_afa_anteil(tax_modus: TaxModus, inbetriebnahme_monat: int) -> float:
+    """Anteil der Jahres-AfA, der im Anlaufjahr angesetzt werden darf.
+
+    OESTERREICH (Koerperschaftsteuer): Halbjahresregelung (§ 7 Abs. 2
+    EStG) - wird das Wirtschaftsgut mehr als sechs Monate genutzt, steht
+    die volle Jahres-AfA zu, sonst die halbe. Es gibt nichts dazwischen.
+
+    DEUTSCHLAND (Gewerbesteuer): pro rata temporis (§ 7 Abs. 1 Satz 4
+    EStG) - je angefangenem Nutzungsmonat ein Zwoelftel.
+
+    Frueher stand hier in beiden Faellen die volle Jahres-AfA: Eine im
+    Dezember angeschlossene Anlage schrieb ein ganzes Jahr ab, obwohl sie
+    einen Monat lief.
+    """
+    monate_in_betrieb = 13 - inbetriebnahme_monat
+    if tax_modus == TaxModus.GEWERBESTEUER_DE:
+        return monate_in_betrieb / 12
+    if tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER:
+        return 1.0 if monate_in_betrieb > 6 else 0.5
+    # Ohne AfA (Pauschalmodus) ist der Anteil ohne Bedeutung.
+    return 1.0
+
+
 def calculate_tax(
     revenue: pd.DataFrame,
     opex: pd.DataFrame,
@@ -64,6 +94,7 @@ def calculate_tax(
     verlustvortrag_verrechnungsgrenze_pct: float,
     gewerbesteuer_hebesatz_pct: float = 400.0,
     gewerbesteuer_freibetrag_eur: float = 24_500.0,
+    inbetriebnahme_monat: int = 1,
 ) -> pd.DataFrame:
     ebt_vor_afa = (
         revenue["erloes_eur"].to_numpy()
@@ -92,17 +123,23 @@ def calculate_tax(
         effektiver_satz = steuersatz_pct
         verrechnungsgrenze_wirksam = verlustvortrag_verrechnungsgrenze_pct
 
+    # Anteil der Jahres-AfA im Anlaufjahr. Eine im Dezember in Betrieb
+    # genommene Anlage schreibt kein volles Jahr ab - und der nicht
+    # genutzte Teil verfaellt nicht, er wandert ans Ende der
+    # Nutzungsdauer (der Restbuchwert wird abgeschrieben, nicht gekuerzt).
+    afa_anteil_anlaufjahr = _anlaufjahr_afa_anteil(tax_modus, inbetriebnahme_monat)
+
     rows = []
     verlustvortrag_bop = 0.0
+    restbuchwert = capex_total_eur if afa_aktiv else 0.0
     for jahr, ebt_ohne_afa in zip(revenue["jahr"], ebt_vor_afa, strict=True):
-        # AfA nur innerhalb der Nutzungsdauer - danach ist das Wirtschaftsgut
-        # steuerlich voll abgeschrieben, eine weitere Abschreibung waere
-        # unzulaessig.
-        afa = (
-            afa_eur_je_jahr
-            if afa_aktiv and jahr <= afa_nutzungsdauer_jahre
-            else 0.0
-        )
+        # Abgeschrieben wird, solange Restbuchwert da ist. Die Grenze
+        # ersetzt die frueher feste Bedingung "jahr <= Nutzungsdauer":
+        # Bei unterjaehrigem Beginn reicht die Abschreibung ein Jahr
+        # weiter, die SUMME bleibt aber die Investition.
+        anteil = afa_anteil_anlaufjahr if jahr == 1 else 1.0
+        afa = min(afa_eur_je_jahr * anteil, restbuchwert) if afa_aktiv else 0.0
+        restbuchwert -= afa
         # Der Freibetrag steht BEWUSST nicht in dieser Zeile: Er mindert die
         # Bemessungsgrundlage, ist aber kein Verlust. Zog man ihn hier ab,
         # baute ein Jahr mit kleinem Gewinn einen Verlustvortrag auf, den es

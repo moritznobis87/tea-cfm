@@ -5,9 +5,17 @@ Drei Fragen beantwortet dieses Modul, und sie sind bewusst getrennt:
 
 1. WANN erzeugt die Anlage? - Jahres- oder Monatsscheiben (siehe
    engine/energy.py und GlobalAssumptions.zeitaufloesung). In der
-   Monatsrechnung trifft die Sommermenge auf den Sommerpreis; die
-   Jahresrechnung mittelt beides und ueberschaetzt den Erloes deshalb
-   systematisch, weil PV genau dann erzeugt, wenn der Preis niedrig ist.
+   Monatsrechnung trifft die Erzeugung DIESER Anlage auf den Preis des
+   jeweiligen Monats.
+
+   Beide Kurven eines Szenarios sind Capture Prices, aber mit
+   verschiedenen Mengen gewichtet: Der Jahreswert stammt aus dem
+   Erzeugungsprofil des MARKTGEBIETS (Aurora rechnet ihn stundenscharf
+   fuer den deutschen Anlagenpark), die Monatsreihe wird erst hier mit
+   der Einspeisekurve dieser Anlage gewichtet. Ein Standort mit
+   ertragreicherem Winter erloest deshalb mehr als der
+   Marktdurchschnitt - die Monatsrechnung bildet das ab, die
+   Jahresrechnung unterstellt ihm das fremde Profil.
 
 2. AN WEN wird verkauft? - Merchant zum Marktwert, PPA zum
    Vertragspreis, oder ein Teil von beidem (hybrid, siehe PVProject.ppa_*).
@@ -48,7 +56,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .energy import calculate_energy_production_monatlich
+from .energy import (
+    aktive_monate,
+    calculate_energy_production_monatlich,
+    einspeisekurve,
+)
 from .models import (
     EffectiveAssumptions,
     NegativeStundenModus,
@@ -155,6 +167,57 @@ def _praemie_je_kwh(
     return praemie, np.zeros_like(praemie)
 
 
+def _foerderanteil(
+    df: pd.DataFrame, timeline: pd.DataFrame, assumptions: EffectiveAssumptions
+) -> np.ndarray:
+    """Anteil der Menge einer Scheibe, der noch in der Foerderdauer liegt.
+
+    Die Foerderdauer zaehlt in MONATEN ab Inbetriebnahme: 20 Jahre sind
+    20 mal 12 Monate, nicht 20 Kalenderjahre. Bei Inbetriebnahme im
+    Dezember 2027 laeuft sie bis einschliesslich November 2047 - das
+    letzte Foerderjahr ist also ein Rumpfjahr.
+
+    Frueher galt schlicht `Betriebsjahr <= Foerderdauer`. Ein im
+    Dezember angeschlossenes Projekt bekam damit 19 Jahre und einen
+    Monat Foerderung statt 20 Jahren.
+
+    Fuer Monatsscheiben ist das Ergebnis 0 oder 1, fuer Jahresscheiben
+    der mit der Einspeisekurve gewichtete Anteil der gefoerderten Monate
+    an der Menge dieses Jahres.
+    """
+    m0 = assumptions.inbetriebnahme_monat
+    erster = m0
+    letzter = m0 + assumptions.eag_foerderdauer_jahre * 12 - 1
+    kurve = einspeisekurve(assumptions)
+
+    def index(jahr: int, monat: int) -> int:
+        return (jahr - 1) * 12 + monat
+
+    # Aktive Monate je Betriebsjahr - dieselbe Quelle wie die Erzeugung.
+    aktiv = {
+        int(periode["jahr"]): aktive_monate(periode)
+        for _, periode in timeline.iterrows()
+    }
+
+    anteile = []
+    for jahr, monat in zip(df["jahr"], df["monat"], strict=True):
+        jahr, monat = int(jahr), int(monat)
+        if monat:
+            anteile.append(
+                1.0 if erster <= index(jahr, monat) <= letzter else 0.0
+            )
+            continue
+        von, bis = aktiv[jahr]
+        gesamt = float(kurve[von - 1:bis].sum())
+        gefoerdert = sum(
+            float(kurve[m - 1])
+            for m in range(von, bis + 1)
+            if erster <= index(jahr, m) <= letzter
+        )
+        anteile.append(gefoerdert / gesamt if gesamt else 0.0)
+    return np.array(anteile, dtype=float)
+
+
 def _scheiben(
     timeline: pd.DataFrame, energy: pd.DataFrame, assumptions: EffectiveAssumptions
 ) -> pd.DataFrame:
@@ -256,9 +319,7 @@ def calculate_revenue(
     produktion = df["produktion_kwh"].to_numpy()
     mw = df["marktwert_nominal_ct_kwh"].to_numpy()
     neg = df["anteil_negativ"].to_numpy()
-    innerhalb_foerderdauer = (
-        df["jahr"].to_numpy() <= assumptions.eag_foerderdauer_jahre
-    ).astype(float)
+    innerhalb_foerderdauer = _foerderanteil(df, timeline, assumptions)
 
     praemie_je_kwh, rueckzahlung_je_kwh = _praemie_je_kwh(mw, assumptions)
     praemie_je_kwh = praemie_je_kwh * innerhalb_foerderdauer

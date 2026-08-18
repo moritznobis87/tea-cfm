@@ -56,6 +56,24 @@ def anlaufjahr_anteil(assumptions: EffectiveAssumptions) -> float:
     return float(kurve[assumptions.inbetriebnahme_monat - 1:].sum())
 
 
+def aktive_monate(periode) -> tuple[int, int]:
+    """Erster und letzter Betriebsmonat einer Periode (1-12, einschliesslich).
+
+    Jede Periode liegt vollstaendig in EINEM Kalenderjahr (siehe
+    engine/timeline.py), also genuegen Start- und Endmonat ihrer Daten.
+    Damit ist sowohl das Anlaufjahr (Monat m0 bis 12) als auch das
+    Schlussjahr (Monat 1 bis m0-1) erfasst, ohne dass dieses Modul die
+    Laufzeitlogik kennen muss.
+    """
+    return periode["datum_start"].month, periode["datum_ende"].month
+
+
+def kurvenanteil(periode, kurve: np.ndarray) -> float:
+    """Anteil der Jahreserzeugung, der in dieser Periode anfaellt."""
+    von, bis = aktive_monate(periode)
+    return float(kurve[von - 1:bis].sum())
+
+
 def _jahresmenge_kwh(assumptions: EffectiveAssumptions, jahr: pd.Series) -> pd.Series:
     """Volle Jahresmenge je Betriebsjahr - ohne Anlaufjahr-Kuerzung."""
     basis = assumptions.nennleistung_kwp * assumptions.vollbenutzungsstunden_kwh_kwp
@@ -74,20 +92,21 @@ def calculate_energy_production_monatlich(
     an der Jahreserzeugung.
     """
     kurve = einspeisekurve(assumptions)
-    ibn_monat = assumptions.inbetriebnahme_monat
 
     zeilen = []
-    for jahr in timeline["jahr"]:
-        kalenderjahr = assumptions.inbetriebnahme_jahr + int(jahr) - 1
+    for _, periode in timeline.iterrows():
+        jahr = int(periode["jahr"])
+        kalenderjahr = assumptions.inbetriebnahme_jahr + jahr - 1
         jahresmenge = float(_jahresmenge_kwh(assumptions, pd.Series([jahr])).iloc[0])
         degradation = float(
-            (1 - assumptions.degradation_pct_pa) ** (int(jahr) - 1)
+            (1 - assumptions.degradation_pct_pa) ** (jahr - 1)
         )
+        von, bis = aktive_monate(periode)
         for monat in range(1, 13):
-            aktiv = not (jahr == 1 and monat < ibn_monat)
+            aktiv = von <= monat <= bis
             zeilen.append(
                 {
-                    "jahr": int(jahr),
+                    "jahr": jahr,
                     "monat": monat,
                     "kalenderjahr": kalenderjahr,
                     "degradationsfaktor": degradation,
@@ -120,14 +139,20 @@ def calculate_energy_production(
     df["degradationsfaktor"] = (1 - assumptions.degradation_pct_pa) ** (
         df["jahr"] - 1
     )
-    # Das Anlaufjahr folgt der Einspeisekurve, nicht dem Tagesanteil:
-    # Eine im Dezember in Betrieb gegangene Anlage hat 8,5 % des Jahres
-    # hinter sich, aber nur rund 5 % der Jahreserzeugung - der Dezember
-    # ist der schwaechste Monat. Umgekehrt liefert eine Julianlage mehr
-    # als die Haelfte. Der Tagesanteil kann das nicht wissen; er stand
-    # hier, solange es die Kurve noch nicht gab.
-    anteil = df["pro_rata_faktor"].to_numpy().astype(float).copy()
-    anteil[df["jahr"].to_numpy() == 1] = anlaufjahr_anteil(assumptions)
+    # Rumpfjahre folgen der Einspeisekurve, nicht dem Tagesanteil: Eine im
+    # Dezember in Betrieb gegangene Anlage hat 8,5 % des Jahres hinter
+    # sich, aber nur rund 5 % der Jahreserzeugung - der Dezember ist der
+    # schwaechste Monat. Umgekehrt liefert eine Julianlage mehr als die
+    # Haelfte. Der Tagesanteil kann das nicht wissen; er stand hier,
+    # solange es die Kurve noch nicht gab.
+    #
+    # Das betrifft ANLAUF- und SCHLUSSJAHR: Bei unterjaehriger
+    # Inbetriebnahme laeuft die Achse ein Kalenderjahr laenger, und das
+    # letzte deckt die Monate ab, die im ersten fehlten.
+    kurve = einspeisekurve(assumptions)
+    anteil = np.array(
+        [kurvenanteil(periode, kurve) for _, periode in timeline.iterrows()]
+    )
     df["produktion_kwh"] = _jahresmenge_kwh(assumptions, df["jahr"]) * anteil
 
     return df[ENERGY_COLUMNS]

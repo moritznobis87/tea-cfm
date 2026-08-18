@@ -568,6 +568,111 @@ class TestDirektvermarktungsModus:
         assert geladen.direktvermarktung_pct_marktwert == pytest.approx(0.12)
 
 
+class TestExakteLaufzeit:
+    """Eine Betriebsdauer von N Jahren meint N mal zwoelf Monate ab
+    Inbetriebnahme, nicht N Kalenderjahre.
+
+    Frueher endete die Achse nach N Kalenderjahren: Ein im Dezember
+    angeschlossenes Projekt verlor damit fast ein volles Betriebsjahr
+    gegenueber einem im Januar angeschlossenen - der Rumpfmonat am
+    Anfang wurde am Ende nie ausgeglichen.
+    """
+
+    @pytest.mark.parametrize("monat", [1, 4, 7, 12])
+    def test_laufzeit_ist_exakt(self, monat):
+        timeline = build_timeline(date(2027, monat, 1), 30)
+        assert timeline["pro_rata_faktor"].sum() == pytest.approx(30.0, abs=0.01)
+
+    def test_januar_bleibt_bei_n_perioden(self):
+        """Ohne Rumpfjahr aendert sich nichts an der bisherigen Achse."""
+        timeline = build_timeline(date(2027, 1, 1), 30)
+        assert len(timeline) == 30
+        assert timeline["datum_ende"].iloc[-1] == date(2056, 12, 31)
+
+    def test_unterjaehrig_braucht_ein_kalenderjahr_mehr(self):
+        timeline = build_timeline(date(2027, 12, 1), 30)
+        assert len(timeline) == 31
+        # Letzter Betriebstag: Tag vor dem 30. Jahrestag.
+        assert timeline["datum_ende"].iloc[-1] == date(2057, 11, 30)
+
+    def test_anlauf_und_schlussjahr_ergaenzen_sich(
+        self, project, global_assumptions
+    ):
+        """Die Monate, die im ersten Jahr fehlen, fallen im letzten an -
+        zusammen ergeben sie eine volle Jahresmenge."""
+        from engine.energy import einspeisekurve, kurvenanteil
+
+        project.inbetriebnahme_monat = 12
+        ea = resolve_assumptions(project, global_assumptions)
+        timeline = build_timeline(date(ea.inbetriebnahme_jahr, 12, 1),
+                                  ea.betriebsdauer_jahre)
+        kurve = einspeisekurve(ea)
+        erste = kurvenanteil(timeline.iloc[0], kurve)
+        letzte = kurvenanteil(timeline.iloc[-1], kurve)
+        assert erste + letzte == pytest.approx(1.0)
+
+    def test_foerderdauer_zaehlt_monate(self, project, global_assumptions):
+        """20 Jahre Foerderung sind 20 mal 12 Monate. Bei Inbetriebnahme
+        im Dezember 2027 laeuft sie bis einschliesslich November 2047 -
+        das letzte Foerderjahr ist ein Rumpfjahr."""
+        import pandas as pd
+
+        from engine.revenue import _foerderanteil
+
+        project.inbetriebnahme_monat = 12
+        global_assumptions.eag_foerderdauer_jahre = 20
+        ea = resolve_assumptions(project, global_assumptions)
+        timeline = build_timeline(date(ea.inbetriebnahme_jahr, 12, 1),
+                                  ea.betriebsdauer_jahre)
+        df = pd.DataFrame({"jahr": timeline["jahr"], "monat": 0})
+        anteil = _foerderanteil(df, timeline, ea)
+
+        assert anteil[0] == pytest.approx(1.0)     # Betriebsjahr 1
+        assert anteil[19] == pytest.approx(1.0)    # Betriebsjahr 20
+        assert 0.0 < anteil[20] < 1.0              # Betriebsjahr 21: Rumpf
+        assert anteil[21] == pytest.approx(0.0)    # danach nichts mehr
+
+    def test_gefoerderte_menge_entspricht_zwanzig_jahren(
+        self, project, global_assumptions
+    ):
+        """Die Probe aufs Ganze: Anlauf- und Schlussrumpf zusammen
+        ergeben exakt die Foerderdauer in vollen Jahresmengen."""
+        import pandas as pd
+
+        from engine.energy import einspeisekurve, kurvenanteil
+        from engine.revenue import _foerderanteil
+
+        project.inbetriebnahme_monat = 12
+        global_assumptions.eag_foerderdauer_jahre = 20
+        ea = resolve_assumptions(project, global_assumptions)
+        timeline = build_timeline(date(ea.inbetriebnahme_jahr, 12, 1),
+                                  ea.betriebsdauer_jahre)
+        kurve = einspeisekurve(ea)
+        df = pd.DataFrame({"jahr": timeline["jahr"], "monat": 0})
+        anteil = _foerderanteil(df, timeline, ea)
+        mengen = [kurvenanteil(p, kurve) for _, p in timeline.iterrows()]
+        assert float(sum(a * m for a, m in zip(anteil, mengen, strict=True))) == (
+            pytest.approx(20.0)
+        )
+
+    def test_januar_unveraendert(self, project, global_assumptions):
+        """Ohne Rumpfjahr muss die Foerderung wie bisher genau die
+        Betriebsjahre 1 bis N abdecken."""
+        import pandas as pd
+
+        from engine.revenue import _foerderanteil
+
+        project.inbetriebnahme_monat = 1
+        global_assumptions.eag_foerderdauer_jahre = 20
+        ea = resolve_assumptions(project, global_assumptions)
+        timeline = build_timeline(date(ea.inbetriebnahme_jahr, 1, 1),
+                                  ea.betriebsdauer_jahre)
+        df = pd.DataFrame({"jahr": timeline["jahr"], "monat": 0})
+        anteil = _foerderanteil(df, timeline, ea)
+        assert list(anteil[:20]) == pytest.approx([1.0] * 20)
+        assert list(anteil[20:]) == pytest.approx([0.0] * (len(anteil) - 20))
+
+
 class TestAbgabenAufDieEingespeisteMenge:
     """Gemeldet bei der Durchsicht: Gemeindeabgabe und
     Direktvermarktungskosten wurden je MWh auf die ERZEUGTE Menge
