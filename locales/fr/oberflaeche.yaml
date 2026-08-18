@@ -612,7 +612,7 @@ karte_hilfe_npv: "Marge (VAN à {ziel}) en fonction du rendement des capitaux pr
 # --- Zeitaufloesung, Foerdermodell, PPA (v5.4) --------------------------------
 annahmen_modell_titel: "Résolution temporelle, modèle de soutien et PPA"
 annahmen_zeitaufloesung_titel: "**Résolution temporelle du calcul des revenus**"
-annahmen_zeitaufloesung_hinweis: "La résolution annuelle confronte un volume annuel à une valeur de marché annuelle. La valeur annuelle d'un scénario est pondérée par le profil de production de la zone de marché ; elle est donc trop basse pour un site à meilleure production hivernale. La résolution mensuelle répartit la production annuelle selon le profil propre de cette installation. Trésorerie, financement et fiscalité restent annuels."
+annahmen_zeitaufloesung_hinweis: "La résolution annuelle confronte un volume annuel à une valeur de marché annuelle et manque donc l'évolution mensuelle des prix. La résolution mensuelle répartit la production annuelle selon la courbe de production et valorise chaque mois à sa propre valeur de marché, ce qui compte surtout pour les rémunérations qui écrêtent la valeur de marché (CfD bidirectionnel, captation). Trésorerie, financement et fiscalité restent annuels."
 annahmen_zeitaufloesung_label: "Résolution temporelle"
 annahmen_zeitaufloesung_hilfe: "Si une année ne dispose pas de valeurs mensuelles, sa valeur annuelle s'applique aux douze mois — le basculement reste possible avec des données incomplètes."
 annahmen_aufloesung_jahr: "Valeurs annuelles"

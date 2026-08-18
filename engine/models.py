@@ -330,25 +330,40 @@ class CapexBreakdown(BaseModel):
         )
 
 
-#: Monatsertrag einer 1-kWp-Anlage in kWh, Januar bis Dezember - die
-#: Quelle der Einspeisekurven. Ausgelesen aus PVGIS je Bauform,
-#: derselbe Standort und dieselbe Konfiguration; die Jahressummen sind
-#: 1.148 kWh/kWp (Pult) und 1.429 kWh/kWp (Tracker), also 24,5 %
-#: Nachfuehrgewinn.
+#: Monatsertrag in kWh, Januar bis Dezember - die Quelle der
+#: Einspeisekurven. Monatssummen der Stundenreihen unter data/lastgang/,
+#: je Bauform eine: Auslegungssimulationen aus RatedPower fuer ein
+#: eigenes Projekt, dieselbe Anlage einmal fest aufgestaendert und
+#: einmal einachsig nachgefuehrt.
 #:
-#: Die Werte stehen hier in ihrer Rohform und nicht schon normiert, weil
-#: sie damit nachpruefbar bleiben: Wer die PVGIS-Abfrage wiederholt,
-#: vergleicht Zahl fuer Zahl. Fuer die Rechnung zaehlt nur ihr
-#: Verhaeltnis - die Jahresmenge kommt aus Leistung und
-#: Vollbenutzungsstunden des Projekts, nicht von hier.
-PVGIS_MONATSERTRAG_KWH_KWP: dict[str, list[float]] = {
+#: ACHTUNG - die HOEHEN sind zwischen den beiden Reihen nicht
+#: vergleichbar: Sie stammen aus verschieden grossen Auslegungen (58.845
+#: gegen 32.399 kWh, Spitze 39,0 gegen 16,2 kW). Ein Nachfuehrgewinn
+#: laesst sich daraus nicht ableiten. Fuer die Rechnung zaehlt ohnehin
+#: nur die FORM: Die Jahresmenge kommt aus Leistung und
+#: Vollbenutzungsstunden des Projekts.
+#:
+#: Warum nicht PVGIS: Bis v5.20 standen hier Werte aus einer
+#: PVGIS-Abfrage. Sie wiesen dem Winter (Nov-Feb) 24,4 % der
+#: Jahreserzeugung zu - die Simulation der realen Anlage sagt 13,5 %.
+#: Die Gegenprobe entscheidet: Mit der PVGIS-Kurve ergeben Auroras
+#: Monatsmarktwerte einen Jahresmarktwert, der Auroras eigenen
+#: Jahreswert um 12 bis 22 % uebersteigt; mit dieser Kurve bleibt die
+#: Abweichung zwischen -2 und +4 %. Die PVGIS-Abfrage duerfte eine sehr
+#: steile Aufstaenderung getroffen haben (ihre Sommermonate liegen
+#: auffaellig flach bei 111-122 kWh/kWp).
+#:
+#: Die Rohwerte stehen hier und nicht schon normiert, weil sie damit
+#: nachpruefbar bleiben - tests/test_lastgang.py rechnet sie aus den
+#: Stundenreihen nach.
+MONATSERTRAG_KWH_JE_BAUFORM: dict[str, list[float]] = {
     "Pult": [
-        69.69, 87.20, 112.98, 113.01, 111.01, 113.67,
-        122.11, 110.76, 96.59, 88.06, 63.89, 59.50,
+        1272.8, 2693.0, 4264.6, 8021.2, 7076.0, 7041.9,
+        7384.2, 8187.8, 6041.5, 2898.2, 1675.0, 2289.0,
     ],
     "Tracker": [
-        85.42, 108.20, 139.14, 141.25, 137.08, 144.45,
-        157.08, 139.65, 118.34, 108.10, 78.07, 72.57,
+        635.7, 1431.3, 2246.0, 4257.8, 4074.2, 4165.7,
+        4243.7, 4466.7, 3201.8, 1620.7, 855.6, 1199.8,
     ],
 }
 
@@ -360,17 +375,23 @@ def _normiert(werte: list[float]) -> list[float]:
 
 
 #: Einspeisekurven je Bauform: Anteil der Jahreserzeugung je Monat
-#: (Januar bis Dezember), Summe 1. Normiert aus den PVGIS-Monatsertraegen
+#: (Januar bis Dezember), Summe 1. Normiert aus den Monatsertraegen
 #: darueber.
 #:
-#: Der Tracker verschiebt Erzeugung in die langen Tage: Sein
-#: Nachfuehrgewinn liegt im Juli bei 28,6 %, im Dezember nur bei 22,0 %.
-#: Seine Kurve ist deshalb etwas sommerlastiger als die der
-#: Pultaufstaenderung - fuer die Monatsrechnung wesentlich, weil die
-#: Sommermonate die niedrigeren Marktwerte tragen.
+#: Der Tracker ist etwas sommerlastiger als das Pult - fuer die
+#: Monatsrechnung wesentlich, weil die Sommermonate die niedrigeren
+#: Marktwerte tragen. Der groessere Unterschied liegt aber im TAGESGANG,
+#: den diese Kurve gar nicht abbildet: Aus denselben Stundenreihen
+#: gerechnet hat das Pult einen scharfen Mittagspeak (13,4 % der
+#: Jahreserzeugung um 11 und um 12 Uhr), der Tracker ein Plateau von
+#: 9 bis 14 Uhr bei rund 10 % und deutlich mehr Ertrag frueh und spaet
+#: (6 Uhr: 2,7 gegen 0,9 %; 17 Uhr: 4,9 gegen 2,3 %). Deshalb weist
+#: Aurora dem Tracker einen hoeheren Marktwert zu - er trifft die
+#: teureren Randstunden. In die Monatsrechnung geht das ueber die
+#: Marktwertkurve des Szenarios ein, nicht ueber diese Anteile.
 EINSPEISEKURVEN_JE_BAUFORM: dict[str, list[float]] = {
     bauform: _normiert(werte)
-    for bauform, werte in PVGIS_MONATSERTRAG_KWH_KWP.items()
+    for bauform, werte in MONATSERTRAG_KWH_JE_BAUFORM.items()
 }
 
 #: Bauform der Standardkurve - Pult, wie auch beim Aurora-Import
@@ -381,6 +402,7 @@ EINSPEISEKURVE_STANDARD_BAUFORM = "Pult"
 EINSPEISEKURVE_STANDARD_PCT = list(
     EINSPEISEKURVEN_JE_BAUFORM[EINSPEISEKURVE_STANDARD_BAUFORM]
 )
+
 
 class Projektannahmen(BaseModel):
     """Abweichungen dieses Projekts von den globalen Annahmen.
@@ -1117,20 +1139,24 @@ class EffectiveAssumptions(BaseModel):
     # ausserdem im Anlaufjahr, auch in der Jahresaufloesung (siehe
     # engine/revenue.py::_scheiben).
     #
-    # Sie tragen NICHT dieselbe Aussage wie die Jahreskurven, und der
-    # Unterschied ist wesentlich: Beide sind Capture Prices, aber der
-    # JAHRESwert ist mit dem Erzeugungsprofil des Marktgebiets gewichtet
-    # (Aurora rechnet ihn stundenscharf fuer den deutschen Anlagenpark),
-    # waehrend die Monatsreihe erst hier mit der Einspeisekurve DIESER
-    # Anlage gewichtet wird.
+    # Jahres- und Monatsreihe sind beide Capture Prices desselben
+    # Szenarios; der Jahreswert traegt bereits ein Erzeugungsprofil, die
+    # Monatsreihe wird erst hier mit der Einspeisekurve gewichtet.
     #
     # Nachgerechnet: Aus den Monatsreihen laesst sich der Jahreswert mit
     # EINEM Gewichtsvektor ueber alle 34 Jahre auf 0,004 ct genau
-    # rekonstruieren - er impliziert ein Juli-zu-Dezember-Verhaeltnis von
-    # rund 10:1. Die PVGIS-Kurve des oesterreichischen Standorts liegt bei
-    # 2:1. Ein Standort mit ertragreicherem Winter erloest deshalb mehr
-    # als der Marktdurchschnitt; die Monatsrechnung bildet genau das ab,
-    # die Jahresrechnung unterstellt ihm das fremde Profil.
+    # rekonstruieren. Beide beschreiben also dasselbe, und die
+    # Gegenprobe ist damit ein Test der Kurve: Gewichtet man die
+    # Monatswerte mit der hinterlegten Einspeisekurve, muss ungefaehr
+    # der Jahreswert herauskommen. Mit den Kurven aus den
+    # RatedPower-Stundenreihen trifft das zu (2030, Pult: 4,239 gegen
+    # 4,195 ct/kWh, +1,1 %); mit der frueheren PVGIS-Kurve nicht
+    # (4,860 ct/kWh, +15,8 %) - siehe MONATSERTRAG_KWH_JE_BAUFORM.
+    #
+    # Eine frueher hier notierte Erklaerung, der Jahreswert trage das
+    # Profil des deutschen Anlagenparks (Juli zu Dezember rund 10:1),
+    # war falsch: Der dafuer geschaetzte Gewichtsvektor war aus den
+    # Daten nicht identifizierbar. Die Abweichung lag an der Kurve.
     zeitaufloesung: Zeitaufloesung = Zeitaufloesung.JAHR
     einspeisekurve_pct_je_monat: list[float] = Field(
         default_factory=lambda: list(EINSPEISEKURVE_STANDARD_PCT)

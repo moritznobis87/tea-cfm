@@ -8,14 +8,17 @@ Drei Fragen beantwortet dieses Modul, und sie sind bewusst getrennt:
    Monatsrechnung trifft die Erzeugung DIESER Anlage auf den Preis des
    jeweiligen Monats.
 
-   Beide Kurven eines Szenarios sind Capture Prices, aber mit
-   verschiedenen Mengen gewichtet: Der Jahreswert stammt aus dem
-   Erzeugungsprofil des MARKTGEBIETS (Aurora rechnet ihn stundenscharf
-   fuer den deutschen Anlagenpark), die Monatsreihe wird erst hier mit
-   der Einspeisekurve dieser Anlage gewichtet. Ein Standort mit
-   ertragreicherem Winter erloest deshalb mehr als der
-   Marktdurchschnitt - die Monatsrechnung bildet das ab, die
-   Jahresrechnung unterstellt ihm das fremde Profil.
+   Beide Kurven eines Szenarios sind Capture Prices und beschreiben
+   dasselbe: Aus den Monatsreihen laesst sich der Jahreswert mit EINEM
+   Gewichtsvektor ueber alle Szenariojahre auf 0,004 ct genau
+   rekonstruieren. Die Monatsrechnung ist trotzdem genauer, weil sie
+   den Preisverlauf innerhalb des Jahres sieht - entscheidend ueberall
+   dort, wo der Marktwert abgeschnitten wird (zweiseitiger CfD,
+   Abschoepfung, negative Stunden).
+
+   Damit sie das leistet, muss die Einspeisekurve stimmen: Kurve mal
+   Monatswerte muss ungefaehr den Jahreswert ergeben. Die Gegenprobe
+   steht in tests/test_einspeisekurve.py (TestGegenprobeMarktwert).
 
 2. AN WEN wird verkauft? - Merchant zum Marktwert, PPA zum
    Vertragspreis, oder ein Teil von beidem (hybrid, siehe PVProject.ppa_*).

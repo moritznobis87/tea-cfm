@@ -718,8 +718,8 @@ $$ E_{t,j} = E^{\mathrm{basis}} \cdot \phi_t \cdot (1-\sigma) \cdot \hat{\theta}
 Dabei ist $j_0$ der Inbetriebnahmemonat. Ein taggenauer Bruchteil
 kommt hier nicht vor: Es zählen genau die Monate ab Inbetriebnahme mit
 ihrem tatsächlichen Ertragsanteil. Für eine im Dezember angeschlossene
-Anlage sind das 5,2 % der Jahresmenge statt der 8,5 %, die der Kalender
-nahelegt; bei Inbetriebnahme im April sind es 76,5 % statt 75,3 %.
+Anlage sind das 3,9 % der Jahresmenge statt der 8,5 %, die der Kalender
+nahelegt; bei Inbetriebnahme im April sind es 86,0 % statt 75,3 %.
 Welche Richtung die Abweichung hat, hängt an der Kurve – dass der
 Tagesanteil die falsche Frage beantwortet, hängt nicht davon ab. Für alle weiteren Jahre gilt
 
@@ -734,37 +734,83 @@ Schritt 3 (Abschnitt 7.9).
 
 Die Kurve beschreibt die **Form** des Erzeugungsjahres, nicht seine Höhe;
 die Jahresmenge bleibt das Produkt aus Leistung und
-Vollbenutzungsstunden. Hinterlegt sind zwei Kurven, abgeleitet aus
-PVGIS-Monatserträgen einer 1-kWp-Anlage – je einmal für die
-Pultaufständerung und den Tracker, normiert auf
-$\sum_j \theta_j = 1$. Weil nur das Verhältnis der Monatswerte eingeht,
-ist die Einheit der Ausgangsreihe gleichgültig.
+Vollbenutzungsstunden. Hinterlegt sind zwei Kurven, gebildet aus den
+**Stundenzeitreihen zweier Projektauslegungen aus RatedPower** – je
+einmal für die Pultaufständerung und den Tracker. Die 8.760 Stundenwerte
+je Reihe wurden zu Monatssummen verdichtet und auf
+$\sum_j \theta_j = 1$ normiert. Weil nur das Verhältnis der Monatswerte
+eingeht, ist die Einheit der Ausgangsreihe gleichgültig.
 
-| Monat | Pult (kWh/kWp) | Pult (%) | Tracker (kWh/kWp) | Tracker (%) |
+| Monat | Pult (kWh) | Pult (%) | Tracker (kWh) | Tracker (%) |
 | --- | ---: | ---: | ---: | ---: |
-| Januar | 69,69 | 6,07 | 85,42 | 5,98 |
-| Februar | 87,20 | 7,59 | 108,20 | 7,57 |
-| März | 112,98 | 9,84 | 139,14 | 9,73 |
-| April | 113,01 | 9,84 | 141,25 | 9,88 |
-| Mai | 111,01 | 9,67 | 137,08 | 9,59 |
-| Juni | 113,67 | 9,90 | 144,45 | 10,11 |
-| Juli | 122,11 | 10,63 | 157,08 | 10,99 |
-| August | 110,76 | 9,64 | 139,65 | 9,77 |
-| September | 96,59 | 8,41 | 118,34 | 8,28 |
-| Oktober | 88,06 | 7,67 | 108,10 | 7,56 |
-| November | 63,89 | 5,56 | 78,07 | 5,46 |
-| Dezember | 59,50 | 5,18 | 72,57 | 5,08 |
-| **Jahr** | **1.148,47** | 100 | **1.429,35** | 100 |
+| Januar | 1.272,8 | 2,16 | 635,7 | 1,96 |
+| Februar | 2.693,0 | 4,58 | 1.431,3 | 4,42 |
+| März | 4.264,6 | 7,25 | 2.246,0 | 6,93 |
+| April | 8.021,2 | 13,63 | 4.257,8 | 13,14 |
+| Mai | 7.076,0 | 12,02 | 4.074,2 | 12,58 |
+| Juni | 7.041,9 | 11,97 | 4.165,7 | 12,86 |
+| Juli | 7.384,2 | 12,55 | 4.243,7 | 13,10 |
+| August | 8.187,8 | 13,91 | 4.466,7 | 13,79 |
+| September | 6.041,5 | 10,27 | 3.201,8 | 9,88 |
+| Oktober | 2.898,2 | 4,93 | 1.620,7 | 5,00 |
+| November | 1.675,0 | 2,85 | 855,6 | 2,64 |
+| Dezember | 2.289,0 | 3,89 | 1.199,8 | 3,70 |
+| **Jahr** | **58.845,2** | 100 | **32.399,0** | 100 |
 
-Die Nachführung bringt 24,5 % mehr Jahresertrag, verteilt über das Jahr
-aber ungleich: im Juli 28,6 %, im Dezember 22,0 %. Deshalb ist die
-Tracker-Kurve etwas sommerlastiger – für die Monatsrechnung wesentlich,
-weil gerade die Sommermonate die niedrigeren Marktwerte tragen.
+**Die kWh-Spalten sind nicht miteinander vergleichbar.** Die beiden
+Reihen stammen aus verschieden großen Auslegungen (Spitzenleistung 39,0
+gegenüber 16,2 kW); aus dem Verhältnis der Jahressummen lässt sich
+deshalb kein Nachführgewinn ablesen. Vergleichbar sind allein die
+Prozentspalten, und dort zeigt sich der erwartete Unterschied: Der
+Tracker verlagert Ertrag in den Sommer (Mai–August 52,3 % gegenüber
+50,5 %) und aus dem Winter heraus (November–Februar 12,7 % gegenüber
+13,5 %). Für die Monatsrechnung ist gerade das wesentlich, weil die
+Sommermonate die niedrigeren Marktwerte tragen.
 
-Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` in
-`engine/models.py`, die Normierung geschieht dort beim Laden;
-`tests/test_einspeisekurve.py` prüft Rohwerte, Normierung und
-Umschalter.
+Der größere Unterschied zwischen den Bauformen liegt allerdings im
+**Tagesgang**, den diese Kurve nicht abbildet. Aus denselben
+Stundenreihen gerechnet:
+
+| Stunde | 6 | 9 | 11 | 12 | 14 | 17 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Pult | 0,9 % | 9,9 % | 13,4 % | 13,4 % | 11,0 % | 2,3 % |
+| Tracker | 2,7 % | 9,9 % | 10,2 % | 10,1 % | 10,0 % | 4,9 % |
+
+Das Pult hat einen scharfen Mittagspeak, der Tracker ein Plateau von
+9 bis 14 Uhr und deutlich mehr Ertrag früh und spät – er trifft die
+teureren Randstunden. In die Rechnung geht das über die Marktwertkurve
+des Szenarios ein (Aurora liefert je Bauform eine eigene), nicht über
+die Monatsanteile.
+
+**Warum die Stundenreihen und nicht PVGIS.** Bis Version 5.20 lagen hier
+PVGIS-Monatserträge einer 1-kWp-Anlage. Deren Jahresform ist deutlich
+flacher – 24,4 % der Erzeugung fielen auf November bis Februar statt der
+13,5 % der Stundenreihe. Die Gegenprobe entscheidet: Gewichtet man die
+Monatsmarktwerte eines Preisszenarios mit der Kurve, muss näherungsweise
+der Jahresmarktwert desselben Szenarios herauskommen, denn beide sind
+Capture Prices derselben Anlage. Für 2030 (Pult) liegt der
+Szenario-Jahreswert bei 4,195 ct/kWh; die Stundenreihe rekonstruiert
+4,239 ct/kWh (+1,1 %), die PVGIS-Kurve 4,860 ct/kWh (+15,8 %). Die
+PVGIS-Abfrage traf offenbar eine andere Konfiguration als die
+tatsächliche Auslegung. Über alle Jahre der aktuellen Aurora-Stände
+bleibt die Stundenreihen-Kurve zwischen −2 % und +4 %, die PVGIS-Kurve
+lag bei +12 % bis +22 %. Der Test `TestGegenprobeMarktwert` in
+`tests/test_einspeisekurve.py` prüft das bei jedem Lauf mit.
+
+Eine Ausnahme bestätigt die Regel: Im Ausgabestand Q1/25 fehlt Auroras
+Erzeugungsspalte, der Importer bildet den Jahreswert dort als
+*ungewichtetes* Mittel der zwölf Monate. Das ist kein Capture Price,
+und keine Erzeugungskurve kann ihn treffen – die Rekonstruktion liegt
+18 % darunter, zu Recht. Ältere Stände ohne Erzeugungsspalte taugen
+deshalb nicht als Maßstab für die Kurve.
+
+Die Monatssummen stehen als `MONATSERTRAG_KWH_JE_BAUFORM` in
+`engine/models.py`, die Normierung geschieht dort beim Laden. Die
+Stundenreihen selbst liegen als `data/lastgang/pult.csv` und
+`data/lastgang/tracker.csv`; `engine/io_lastgang.py` leitet aus ihnen
+eine Kurve ab, `tests/test_lastgang.py` und
+`tests/test_einspeisekurve.py` prüfen Rohwerte, Normierung, Umschalter
+und die Gegenprobe.
 
 **Welche Kurve gilt.** Die Bauform ist eine Eigenschaft der *Anlage* und
 steht deshalb im Projekt (`PVProject.bauform`, Werte `Pult` und

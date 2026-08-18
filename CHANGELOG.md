@@ -1,5 +1,55 @@
 # Changelog
 
+## v5.21 – Einspeisekurven aus den Stundenreihen (2026-08)
+
+**Die Monatsanteile der Erzeugung kommen wieder aus den
+Stundenzeitreihen der RatedPower-Auslegungen** (`data/lastgang/pult.csv`
+und `tracker.csv`), nicht aus einer PVGIS-Abfrage. Der Unterschied ist
+groß: Die PVGIS-Kurve wies November bis Februar 24,4 % der
+Jahreserzeugung zu, die Stundenreihe 13,5 %.
+
+**Woran sich das entscheiden lässt.** Monats- und Jahresmarktwerte eines
+Szenarios sind beide Capture Prices derselben Anlage. Gewichtet man die
+zwölf Monatswerte mit der Einspeisekurve, muss deshalb näherungsweise der
+Jahreswert herauskommen — und das ist ein Test der Kurve. Für 2030
+(Pult) liegt der Szenario-Jahreswert bei 4,195 ct/kWh:
+
+| Kurve | rekonstruierter Jahreswert | Abweichung |
+| --- | ---: | ---: |
+| Stundenreihe (jetzt) | 4,239 ct/kWh | +1,1 % |
+| PVGIS (v5.19–v5.20) | 4,860 ct/kWh | +15,8 % |
+
+Über alle Jahre der aktuellen Aurora-Stände bleibt die neue Kurve
+zwischen −2 % und +4 %, die PVGIS-Kurve lag bei +12 % bis +22 %. Die
+Gegenprobe läuft als Test mit (`TestGegenprobeMarktwert`). Der Wechsel
+auf PVGIS war damit ein Rückschritt — die Abfrage traf offenbar eine
+andere Konfiguration als die tatsächliche Auslegung.
+
+Ausgenommen sind alte Stände ohne Auroras Erzeugungsspalte (Q1/25): Dort
+bildet der Importer den Jahreswert als *ungewichtetes* Monatsmittel, das
+per Konstruktion kein Capture Price ist und von keiner Erzeugungskurve
+getroffen werden kann.
+
+**Zweite Korrektur der Erklärung aus v5.19.** Dort stand zunächst, die
+Monatsauflösung überschätze den Erlös, weil die Monatsreihen die
+Intraday-Kannibalisierung nicht erfassten; v5.20 ersetzte das durch die
+Behauptung, der Jahreswert trage das Erzeugungsprofil des deutschen
+Anlagenparks (Juli zu Dezember rund 10:1). Auch das war falsch: Der dafür
+geschätzte Gewichtsvektor war aus den Daten nicht identifizierbar, die
+Rekonstruktion gelingt mit vielen sehr verschiedenen Profilen gleich
+gut. Die 16 % lagen an der Einspeisekurve. Mit den Stundenreihen sind sie
+auf 1 % zusammengeschrumpft. Modulkommentare, Rechenmodell,
+Architekturdoku und der Hinweistext zur Zeitauflösung sind entsprechend
+berichtigt.
+
+**Kein Nachführgewinn mehr aus der Tabelle.** Die beiden Stundenreihen
+stammen aus verschieden großen Auslegungen (39,0 gegenüber 16,2 kW
+Spitzenleistung); der frühere Satz „die Nachführung bringt 24,5 % mehr
+Jahresertrag" ließ sich daraus nicht belegen und ist entfallen.
+Vergleichbar sind allein die Anteile: Der Tracker verlagert Ertrag in den
+Sommer (Mai–August 52,3 % gegenüber 50,5 %) und aus dem Winter heraus
+(November–Februar 12,7 % gegenüber 13,5 %).
+
 ## v5.20 – Laufzeit und Abschreibung taggenau (2026-08)
 
 **Die Betriebsdauer zählt jetzt Monate, nicht Kalenderjahre.** 30 Jahre

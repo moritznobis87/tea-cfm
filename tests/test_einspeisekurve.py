@@ -1,12 +1,18 @@
 """
 Einspeisekurven je Bauform - Herkunft, Normierung und Umschalter.
 
-Die zwoelf Monatsanteile stammen aus PVGIS: Monatsertrag einer
-1-kWp-Anlage, je einmal fuer die Pultaufstaenderung und den Tracker
-(engine/models.PVGIS_MONATSERTRAG_KWH_KWP). Die Rohwerte stehen im
+Die zwoelf Monatsanteile stammen aus den Stundenreihen unter
+data/lastgang/ - Auslegungssimulationen aus RatedPower fuer ein eigenes
+Projekt, je einmal fest aufgestaendert und einachsig nachgefuehrt
+(engine/models.MONATSERTRAG_KWH_JE_BAUFORM). Die Rohwerte stehen im
 Modell, die Kurve entsteht durch Normierung - beides wird hier
 geprueft, weil eine still verrutschte Kurve die Monatsrechnung
 verfaelscht, ohne irgendwo aufzufallen.
+
+Genau das ist einmal passiert: Bis v5.20 standen hier PVGIS-Werte mit
+einem Winteranteil von 24,4 % statt 13,5 %. Aufgefallen ist es erst
+ueber die Gegenprobe gegen die Marktpreisszenarien - siehe
+TestGegenprobeMarktwert.
 
 Am Ende steht das Praemienmodell des Laenderschalters: Oesterreich
 rechnet mit dem Toleranzband des EAG, Deutschland mit dem einseitigen
@@ -23,7 +29,7 @@ from engine.models import (
     EINSPEISEKURVE_STANDARD_BAUFORM,
     EINSPEISEKURVE_STANDARD_PCT,
     EINSPEISEKURVEN_JE_BAUFORM,
-    PVGIS_MONATSERTRAG_KWH_KWP,
+    MONATSERTRAG_KWH_JE_BAUFORM,
     GlobalAssumptions,
 )
 
@@ -32,40 +38,104 @@ _GA_PFAD = _ROOT / "data" / "global_assumptions.yaml"
 
 
 class TestRohwerte:
-    """Die PVGIS-Ertraege sind die Quelle - sie muessen stimmen, alles
-    Weitere folgt daraus."""
+    """Die Monatssummen der Stundenreihen sind die Quelle - sie muessen
+    stimmen, alles Weitere folgt daraus."""
 
     @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
     def test_zwoelf_monatswerte(self, bauform):
-        """PVGIS haengt an die zwoelf Monate eine Mittelwertzeile an -
-        wird sie mitgelesen, waere ein dreizehnter Monat im Modell."""
-        assert len(PVGIS_MONATSERTRAG_KWH_KWP[bauform]) == 12
-        assert all(w > 0 for w in PVGIS_MONATSERTRAG_KWH_KWP[bauform])
+        assert len(MONATSERTRAG_KWH_JE_BAUFORM[bauform]) == 12
+        assert all(w > 0 for w in MONATSERTRAG_KWH_JE_BAUFORM[bauform])
 
-    def test_jahresertraege(self):
-        pult = sum(PVGIS_MONATSERTRAG_KWH_KWP["Pult"])
-        tracker = sum(PVGIS_MONATSERTRAG_KWH_KWP["Tracker"])
-        assert pult == pytest.approx(1148.47, abs=0.01)
-        assert tracker == pytest.approx(1429.35, abs=0.01)
+    @pytest.mark.parametrize("bauform,datei", [("Pult", "pult"), ("Tracker", "tracker")])
+    def test_rohwerte_stammen_aus_den_stundenreihen(self, bauform, datei):
+        """Die Gegenprobe an der Quelle: Die Monatssummen im Modell
+        muessen sich aus den 8.760 Stundenwerten nachrechnen lassen."""
+        from engine.io_lastgang import lies_stundenreihe
 
-    def test_nachfuehrgewinn(self):
-        """Rund ein Viertel mehr Ertrag - die Groessenordnung einer
-        einachsigen Nachfuehrung."""
-        pult = sum(PVGIS_MONATSERTRAG_KWH_KWP["Pult"])
-        tracker = sum(PVGIS_MONATSERTRAG_KWH_KWP["Tracker"])
-        assert 0.15 < tracker / pult - 1 < 0.35
+        stunden_je_monat = [744, 672, 744, 720, 744, 720, 744, 744, 720, 744, 720, 744]
+        pfad = _ROOT / "data" / "lastgang" / f"{datei}.csv"
+        werte = lies_stundenreihe(pfad.read_bytes(), pfad.name)
+        assert len(werte) == 8760
 
-    def test_nachfuehrgewinn_ist_im_sommer_groesser(self):
-        """Lange Tage, weiter Azimutschwenk: Im Juli traegt die
-        Nachfuehrung mehr als im Dezember. Waere es umgekehrt, waeren
-        die beiden Reihen vermutlich vertauscht."""
-        pult = PVGIS_MONATSERTRAG_KWH_KWP["Pult"]
-        tracker = PVGIS_MONATSERTRAG_KWH_KWP["Tracker"]
-        juli = tracker[6] / pult[6]
-        dezember = tracker[11] / pult[11]
-        assert juli > dezember
-        # In jedem Monat gewinnt die Nachfuehrung.
-        assert all(t > p for t, p in zip(tracker, pult, strict=True))
+        grenze = 0
+        summen = []
+        for stunden in stunden_je_monat:
+            summen.append(sum(werte[grenze:grenze + stunden]))
+            grenze += stunden
+        assert MONATSERTRAG_KWH_JE_BAUFORM[bauform] == pytest.approx(summen, abs=0.1)
+
+    def test_hoehen_sind_nicht_vergleichbar(self):
+        """Die beiden Reihen stammen aus verschieden grossen
+        Auslegungen. Ein Nachfuehrgewinn laesst sich daraus NICHT
+        ableiten - wer es doch versucht, bekommt hier einen Hinweis."""
+        pult = sum(MONATSERTRAG_KWH_JE_BAUFORM["Pult"])
+        tracker = sum(MONATSERTRAG_KWH_JE_BAUFORM["Tracker"])
+        assert tracker < pult, (
+            "Die Tracker-Reihe ist die kleinere Anlage - fuer die Kurve "
+            "zaehlt nur ihre Form"
+        )
+
+
+class TestGegenprobeMarktwert:
+    """Der Test, der den PVGIS-Fehler gefunden haette.
+
+    Ein Marktpreisszenario traegt zwei Angaben, die dieselbe Groesse
+    beschreiben: einen Marktwert je Kalenderjahr und zwoelf Monatswerte.
+    Der Jahreswert ist der mit dem Erzeugungsprofil gewichtete
+    Durchschnitt der Monatswerte. Wendet man also die Einspeisekurve auf
+    die Monatsreihe an, muss der Jahreswert herauskommen.
+
+    Passiert das nicht, stimmt eine der beiden Angaben nicht - oder die
+    Kurve. Mit der PVGIS-Kurve lag die Rekonstruktion ueber alle
+    Aurora-Szenarien 12 bis 22 % ueber dem Jahreswert; mit den
+    Stundenreihen sind es -2 bis +4 %.
+
+    Die Toleranz ist bewusst weit: Aurora rechnet stundenscharf, unsere
+    Kurve kennt nur zwoelf Monatssummen, und die simulierte Anlage ist
+    nicht dieselbe wie das jeweilige Projekt. Ein Rest bleibt also zu
+    Recht. Der Test soll grobe Widersprueche fangen, nicht Genauigkeit
+    erzwingen.
+
+    Geprueft wird nur der aktuelle Ausgabestand. Aeltere Szenarien
+    taugen nicht als Massstab: In Aurora Q1/25 fehlt die
+    Erzeugungsspalte, der Importer bildet den Jahreswert dort als
+    UNgewichtetes Mittel der zwoelf Monate (io_aurora.py, gewicht = 1) -
+    eine Zahl, die per Konstruktion kein Capture Price ist und die keine
+    Erzeugungskurve treffen kann. Die Rekonstruktion liegt dort 18 %
+    darunter, und das ist richtig so.
+    """
+
+    TOLERANZ = 0.06
+
+    @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
+    def test_kurve_rekonstruiert_den_jahresmarktwert(self, bauform):
+        from engine.io_aurora import szenario_fuer
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        ga = load_global_assumptions_yaml(_GA_PFAD)
+        szenario = szenario_fuer(ga, "Aurora Q3/26 · Central", bauform)
+        kurve = EINSPEISEKURVEN_JE_BAUFORM[bauform]
+
+        gemeinsam = sorted(
+            set(szenario.marktwert_solar_ct_kwh_je_monat)
+            & set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
+        )
+        assert gemeinsam, "Szenario ohne Monatsreihen - Gegenprobe unmoeglich"
+
+        abweichungen = []
+        for jahr in gemeinsam:
+            monate = szenario.marktwert_solar_ct_kwh_je_monat[jahr]
+            jahreswert = szenario.marktwert_solar_ct_kwh_je_kalenderjahr[jahr]
+            rekonstruiert = sum(m * k for m, k in zip(monate, kurve, strict=True))
+            abweichungen.append(rekonstruiert / jahreswert - 1)
+
+        mittel = sum(abweichungen) / len(abweichungen)
+        assert abs(mittel) < self.TOLERANZ, (
+            f"{bauform}: Die Einspeisekurve ergibt aus den Monatsmarktwerten "
+            f"einen Jahresmarktwert {mittel:+.1%} neben dem Jahreswert des "
+            f"Szenarios. Entweder passt die Kurve nicht zum Standort, oder "
+            f"Monats- und Jahresreihe des Szenarios widersprechen sich."
+        )
 
 
 class TestKurven:
@@ -78,7 +148,7 @@ class TestKurven:
 
     @pytest.mark.parametrize("bauform", ["Pult", "Tracker"])
     def test_kurve_entspricht_den_rohwerten(self, bauform):
-        roh = PVGIS_MONATSERTRAG_KWH_KWP[bauform]
+        roh = MONATSERTRAG_KWH_JE_BAUFORM[bauform]
         kurve = EINSPEISEKURVEN_JE_BAUFORM[bauform]
         erwartet = [w / sum(roh) for w in roh]
         assert kurve == pytest.approx(erwartet)
@@ -87,15 +157,26 @@ class TestKurven:
         assert EINSPEISEKURVE_STANDARD_BAUFORM == "Pult"
         assert EINSPEISEKURVE_STANDARD_PCT == EINSPEISEKURVEN_JE_BAUFORM["Pult"]
 
-    def test_juli_ist_der_stärkste_monat(self):
+    def test_sommer_traegt_die_erzeugung(self):
+        """April bis August tragen die Haelfte, Januar ist der
+        schwaechste Monat - die Signatur einer mitteleuropaeischen
+        Freiflaechenanlage."""
         for kurve in EINSPEISEKURVEN_JE_BAUFORM.values():
-            assert kurve.index(max(kurve)) == 6
-            assert kurve.index(min(kurve)) == 11
+            assert sum(kurve[3:8]) > 0.55
+            assert kurve.index(min(kurve)) == 0
+
+    def test_winteranteil_ist_plausibel(self):
+        """Der Wert, an dem die PVGIS-Kurve gescheitert ist: Sie wies
+        dem Winter 24,4 % zu. Fuer eine mitteleuropaeische
+        Freiflaechenanlage sind 10 bis 16 % zu erwarten."""
+        for bauform, kurve in EINSPEISEKURVEN_JE_BAUFORM.items():
+            winter = kurve[10] + kurve[11] + kurve[0] + kurve[1]
+            assert 0.10 < winter < 0.16, f"{bauform}: Winteranteil {winter:.1%}"
 
     def test_tracker_ist_sommerlastiger(self):
-        """Weil der Nachfuehrgewinn im Sommer groesser ist, verschiebt
-        sich die Kurve dorthin - sonst waere die Unterscheidung der
-        Bauformen fuer die Monatsrechnung ohne Wirkung."""
+        """Der Tracker verschiebt Erzeugung in die langen Tage - sonst
+        waere die Unterscheidung der Bauformen fuer die Monatsrechnung
+        ohne Wirkung."""
         pult = EINSPEISEKURVEN_JE_BAUFORM["Pult"]
         tracker = EINSPEISEKURVEN_JE_BAUFORM["Tracker"]
         assert tracker != pult
