@@ -742,7 +742,7 @@ aurora_mappe_erfolg: "{anzahl} scenarios saved ({technologie}, {von}–{bis}): {
 annahmen_dv_modus_grosshandel: "Share of wholesale price (%)"
 
 # --- Inherited fields: default from global assumptions, overridable ---
-erbfeld_vorgabe: "Default ({wert})"
+erbfeld_vorgabe: "Default: {wert}"
 erbfeld_platzhalter: "Default: {wert}"
 erbfeld_alles_vorgabe: "as per default"
 erbfeld_abweichungen: "{anzahl} overridden · {felder}"
@@ -820,3 +820,5 @@ annahmen_vorbelegung_ek_label: "Equity share (%)"
 annahmen_vorbelegung_fk_label: "Debt interest rate (%)"
 annahmen_vorbelegung_typ_label: "Plant type"
 annahmen_vorbelegung_epc_label: "EPC (€/kWp)"
+formular_land_knopf: "Regime: {land} …"
+formular_land_gemischt: "mixed"

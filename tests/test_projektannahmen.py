@@ -8,6 +8,7 @@ einziges Projekt mehr.
 
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
 
 import pytest
@@ -246,6 +247,29 @@ class TestParameterspalte:
         )
         assert offen == set()
 
+    def test_wenige_optionen_stehen_als_radio(self):
+        """Keiner dieser Parameter hat mehr als vier Optionen. Ein
+        Dropdown verbaergen bei so wenigen genau das, worum es geht -
+        die Alternative."""
+        from engine.models import Projektannahmen as _PA
+
+        aufzaehlungen = [
+            feld for feld, info in _PA.model_fields.items()
+            if isinstance(info.annotation, type) is False
+            and hasattr(info.annotation, "__args__")
+            and any(isinstance(a, type) and issubclass(a, Enum)
+                    for a in info.annotation.__args__)
+        ]
+        assert aufzaehlungen, "keine Aufzaehlungsfelder gefunden"
+        for feld in aufzaehlungen:
+            typ = next(
+                a for a in _PA.model_fields[feld].annotation.__args__
+                if isinstance(a, type) and issubclass(a, Enum)
+            )
+            assert len(list(typ)) + 1 <= 4, (
+                f"{feld}: {len(list(typ)) + 1} Optionen - als Radio zu viele"
+            )
+
     def test_ohne_abweichung_steht_nach_vorgabe(self, spalte):
         at, _ = spalte
         assert sum(c.value == "nach Vorgabe" for c in at.caption) >= 2
@@ -277,11 +301,13 @@ class TestParameterspalte:
         at.run()
         assert not at.exception
         gewaehlt = {
-            s.key.removeprefix(f"{form_key}_abw_"): s.value
-            for s in at.get("selectbox") if s.key and "_abw_" in s.key
+            r.key.removeprefix(f"{form_key}_abw_"): r.value
+            for r in at.get("radio") if r.key and "_abw_" in r.key
         }
         assert gewaehlt["zinsmethode"] == "Deutschland (30/360)"
         assert gewaehlt["tax_modus"] == "Gewerbesteuer (DE)"
+        assert gewaehlt["praemien_modell"] == "Einseitiger CfD (EEG)"
+        assert gewaehlt["negative_stunden_regel"] == "1 Stunde (EEG)"
 
     def test_erbfelder_haengen_am_entwurf(self, spalte):
         """`verwirf_entwurf` loescht alle Schluessel mit dem Praefix der

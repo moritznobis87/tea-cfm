@@ -1,5 +1,25 @@
 # Changelog
 
+## v5.18 – Zwei Nachbesserungen an der Bedienung (2026-08)
+
+- **Der Länderschalter tritt zurück.** Er stand als zwei Knöpfe in
+  voller Breite ganz oben in der Parameterspalte — noch vor der
+  Leistung. Das ist zu viel Gewicht für eine Einrichtungsaufgabe, die
+  man je Projekt einmal erledigt. Jetzt ist es ein Popover am Fuß der
+  Spalte, das zusätzlich **anzeigt**, welches Regelwerk gerade gilt:
+  „Regelwerk: Österreich …", „Regelwerk: gemischt …". Diese Auskunft
+  gaben die beiden Knöpfe nie.
+- **Auswahlfelder sind Radios statt Dropdowns.** Keiner der
+  überschreibbaren Parameter hat mehr als vier Optionen (drei
+  Enum-Werte plus die Vorgabe). Ein Dropdown verbirgt bei so wenigen
+  genau das, worum es geht — die Alternative. Betroffen sind
+  Tilgungsart, Zinsmethode, Steuermodell, Prämienmodell,
+  Negativstundenregel und -verhalten sowie die Bemessung der
+  DV-Kosten.
+- **Keine verschachtelten Klammern mehr**: „Vorgabe: Österreich
+  (act/365)" statt „Vorgabe (Österreich (act/365))". Damit liest sich
+  die Vorgabe-Option wie der Platzhalter der Zahlenfelder.
+
 ## v5.17 – Globale Annahmen sind Vorgaben, keine Festlegungen (2026-08)
 
 Bisher ließ sich nur global entscheiden, ob **alle** Projekte ein

@@ -742,7 +742,7 @@ aurora_mappe_erfolg: "{anzahl} scénarios enregistrés ({technologie}, {von}–{
 annahmen_dv_modus_grosshandel: "Part du prix de gros (%)"
 
 # --- Champs hérités : valeur par défaut globale, modifiable dans le projet ---
-erbfeld_vorgabe: "Par défaut ({wert})"
+erbfeld_vorgabe: "Par défaut : {wert}"
 erbfeld_platzhalter: "Par défaut : {wert}"
 erbfeld_alles_vorgabe: "selon les valeurs par défaut"
 erbfeld_abweichungen: "{anzahl} modifiés · {felder}"
@@ -820,3 +820,5 @@ annahmen_vorbelegung_ek_label: "Part de fonds propres (%)"
 annahmen_vorbelegung_fk_label: "Taux d'intérêt de la dette (%)"
 annahmen_vorbelegung_typ_label: "Type d'installation"
 annahmen_vorbelegung_epc_label: "EPC (€/kWc)"
+formular_land_knopf: "Cadre réglementaire : {land} …"
+formular_land_gemischt: "mixte"
