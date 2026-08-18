@@ -742,7 +742,6 @@ aurora_mappe_erfolg: "{anzahl} escenarios guardados ({technologie}, {von}–{bis
 annahmen_dv_modus_grosshandel: "Porcentaje del precio mayorista (%)"
 
 # --- Campos heredados: valor por defecto global, modificable en el proyecto ---
-erbfeld_vorgabe: "Por defecto: {wert}"
 erbfeld_platzhalter: "Por defecto: {wert}"
 erbfeld_alles_vorgabe: "según valores por defecto"
 erbfeld_abweichungen: "{anzahl} modificados · {felder}"

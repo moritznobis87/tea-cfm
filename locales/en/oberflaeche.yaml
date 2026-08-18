@@ -742,7 +742,6 @@ aurora_mappe_erfolg: "{anzahl} scenarios saved ({technologie}, {von}–{bis}): {
 annahmen_dv_modus_grosshandel: "Share of wholesale price (%)"
 
 # --- Inherited fields: default from global assumptions, overridable ---
-erbfeld_vorgabe: "Default: {wert}"
 erbfeld_platzhalter: "Default: {wert}"
 erbfeld_alles_vorgabe: "as per default"
 erbfeld_abweichungen: "{anzahl} overridden · {felder}"

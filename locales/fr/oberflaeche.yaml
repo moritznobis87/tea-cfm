@@ -742,7 +742,6 @@ aurora_mappe_erfolg: "{anzahl} scénarios enregistrés ({technologie}, {von}–{
 annahmen_dv_modus_grosshandel: "Part du prix de gros (%)"
 
 # --- Champs hérités : valeur par défaut globale, modifiable dans le projet ---
-erbfeld_vorgabe: "Par défaut : {wert}"
 erbfeld_platzhalter: "Par défaut : {wert}"
 erbfeld_alles_vorgabe: "selon les valeurs par défaut"
 erbfeld_abweichungen: "{anzahl} modifiés · {felder}"
