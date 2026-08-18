@@ -586,21 +586,37 @@ Eingangsstruktur sämtlicher nachgelagerter Rechenmodule.
 
 ## 5.1 Perioden
 
-Betriebsjahr $t$ läuft von $\mathrm{start}_t$ bis
-$\mathrm{ende}_t$ mit
+Die Achse läuft vom Inbetriebnahmedatum bis zum Tag vor dem $N$-ten
+Jahrestag – also über **exakt $N$ mal zwölf Monate**. Eine Betriebsdauer
+von 30 Jahren meint 30 Jahre ab Netzanschluss, nicht 30 Kalenderjahre.
 
-$$ \mathrm{ende}_t = 31.12.(y_0 + t - 1), \qquad \mathrm{start}_1 = \text{Inbetriebnahmedatum}, \qquad \mathrm{start}_{t+1} = 1.1.(y_0 + t) $$
+$$ \mathrm{ende}_t = \min\left(31.12.(y_0 + t - 1),\ \text{Inbetriebnahme} + N\ \text{Jahre} - 1\ \text{Tag}\right) $$
 
-Jede Periode außer der ersten ist damit ein volles Kalenderjahr. Die
-erste Periode reicht vom Inbetriebnahmedatum bis zum Jahresende und ist
-bei unterjähriger Inbetriebnahme kürzer.
+$$ \mathrm{start}_1 = \text{Inbetriebnahmedatum}, \qquad \mathrm{start}_{t+1} = 1.1.(y_0 + t) $$
+
+Die Zahl der Perioden ist damit
+
+$$ T = N + \mathbf{1}_{[\,m_0 > 1\,]} $$
+
+Bei Inbetriebnahme im Januar sind das $N$ volle Kalenderjahre. Sonst gibt
+es ein Kalenderjahr mehr: Die erste Periode reicht vom
+Inbetriebnahmedatum bis zum Jahresende, die letzte vom Jahresbeginn bis
+zum Tag vor dem Jahrestag – **beide zusammen ergeben ein volles Jahr**.
+
+> **Korrektur gegenüber Version 5.19.** Zuvor endete die Achse nach $N$
+> Kalenderjahren. Ein im Dezember 2027 angeschlossenes Projekt lief damit
+> vom 1.12.2027 bis 31.12.2056, also 29,1 statt 30 Jahre – der Rumpfmonat
+> am Anfang wurde am Ende nie ausgeglichen. Projekte mit unterjährigem
+> Netzanschluss waren dadurch systematisch benachteiligt.
 
 ## 5.2 Anteilsfaktor der Produktion
 
 $$ \pi_t = \min\left(\frac{\mathrm{Tage}(\mathrm{start}_t,\ \mathrm{ende}_t) + 1}{365},\ 1\right) $$
 
 Der Faktor ist für alle vollen Kalenderjahre gleich 1 (auch in
-Schaltjahren, wegen der Kappung bei 1) und nur im Anlaufjahr kleiner. Er
+Schaltjahren, wegen der Kappung bei 1) und nur im Anlauf- und im
+Schlussjahr kleiner; über die gesamte Achse summiert er sich auf exakt
+$N$. Er
 skaliert die **zeitabhängigen Betriebskosten** des ersten Jahres:
 Betriebsführung, Versicherung, Pacht und Mindestpacht laufen ab
 Inbetriebnahme, nicht ab Jahresbeginn.
@@ -611,9 +627,9 @@ auseinander, sobald die Inbetriebnahme nicht auf den 1. Januar fällt: Im
 Dezember sind 8,5 % des Jahres vergangen, aber nur rund 5 % der
 Jahreserzeugung angefallen.
 
-> **Annahme.** Betriebsperioden sind Kalenderjahre. Der Sonderfall
-> „Vertragsende am Jahrestag der Inbetriebnahme statt am Jahresende“ ist
-> nicht abgebildet (siehe Kapitel 17).
+> **Annahme.** Betriebsperioden sind Kalenderjahre – Erlös-, Kosten- und
+> Steuerrechnung folgen dem Geschäftsjahr. Die Gesamtlaufzeit zählt
+> dagegen taggenau ab Inbetriebnahme (Abschnitt 5.1).
 
 ## 5.3 Anteilsfaktor der Zinsen
 
@@ -838,18 +854,39 @@ Werte, danach ausschließlich den Marktwert:
 $$
 \begin{aligned}
 \widetilde{p}_t &= \left(z-m_t\right)^+,\\
-p_t &= \mathbf{1}_{[t\leq F]}\,\widetilde{p}_t,\\
+p_t &= \phi_t\,\widetilde{p}_t,\\
 s_t &= m_t+p_t.
 \end{aligned}
 $$
+
+Dabei ist $\phi_t \in [0,1]$ der geförderte Mengenanteil der Periode.
+Die Förderdauer zählt in **Monaten** ab Inbetriebnahme: $F$ Jahre sind
+$F \cdot 12$ Monate. Mit dem Monatsindex $k(t,j) = (t-1)\cdot 12 + j$
+ist ein Monat gefördert, solange
+
+$$ m_0 \leq k(t,j) \leq m_0 + 12F - 1 $$
+
+Für Monatsscheiben ist $\phi_t$ damit 0 oder 1, für Jahresscheiben der
+mit der Einspeisekurve gewichtete Anteil der geförderten Monate:
+
+$$ \phi_t = \frac{\sum_{j \in \mathcal{M}_t,\ \text{gefördert}} \theta_j}{\sum_{j \in \mathcal{M}_t} \theta_j} $$
+
+wobei $\mathcal{M}_t$ die aktiven Monate der Periode $t$ sind.
+
+> **Korrektur gegenüber Version 5.19.** Zuvor galt schlicht $t \leq F$.
+> Ein im Dezember 2027 angeschlossenes Projekt erhielt damit 19 Jahre und
+> einen Monat Förderung statt 20 Jahren. Jetzt reicht die Förderung bis
+> einschließlich November 2047; das letzte Förderjahr ist ein Rumpfjahr
+> mit $\phi_{21} = 0{,}948$, und Anlauf- und Schlussrumpf ergeben
+> zusammen exakt 20 volle Jahresmengen.
 
 Äquivalent und anschaulicher:
 
 $$
 s_t=
 \begin{cases}
-\max(m_t,z), & t\leq F,\\
-m_t, & t>F.
+\max(m_t,z), & \text{innerhalb der Förderdauer},\\
+m_t, & \text{danach.}
 \end{cases}
 $$
 
@@ -1302,20 +1339,41 @@ korrekterweise nicht ein.
 
 ## 10.2 Abschreibung
 
-$$ A_t = \frac{I}{n_{\mathrm{AfA}}} \cdot \mathbf{1}_{[\,t\, \leq\, n_{\mathrm{AfA}}\,]} $$
-
 Lineare Abschreibung des gesamten Investitionsvolumens über die
-steuerliche Nutzungsdauer. Nach Ablauf der Nutzungsdauer ist das
-Wirtschaftsgut voll abgeschrieben; eine weitere Abschreibung wäre
-unzulässig und ist ausgeschlossen. Im Pauschalmodus gilt $A_t = 0$.
+steuerliche Nutzungsdauer, mit einem **anteiligen Anlaufjahr**:
+
+$$ A_t = \min\left(\frac{I}{n_{\mathrm{AfA}}} \cdot \alpha_t,\ B_t\right),
+\qquad \alpha_t = \alpha^{\mathrm{start}} \cdot \mathbf{1}_{[t=1]} + \mathbf{1}_{[t>1]} $$
+
+Dabei ist $B_t$ der Restbuchwert zu Jahresbeginn ($B_1 = I$,
+$B_{t+1} = B_t - A_t$). Der Anteil $\alpha^{\mathrm{start}}$ des
+Anlaufjahres folgt dem jeweiligen Landesrecht; mit
+$M = 13 - m_0$ als Zahl der Nutzungsmonate im Anlaufjahr gilt
+
+| Steuermodus | $\alpha^{\mathrm{start}}$ | Rechtsgrundlage |
+| --- | --- | --- |
+| Körperschaftsteuer (AT) | $1$ falls $M > 6$, sonst $\tfrac{1}{2}$ | Halbjahresregelung, § 7 Abs. 2 EStG |
+| Gewerbesteuer (DE) | $\tfrac{M}{12}$ | pro rata temporis, § 7 Abs. 1 Satz 4 EStG |
+
+Die Kappung auf $B_t$ ersetzt die frühere Bedingung
+$t \leq n_{\mathrm{AfA}}$: Bei unterjährigem Beginn reicht die
+Abschreibung ein Jahr weiter, ihre **Summe bleibt aber exakt $I$** – der
+im Anlaufjahr nicht genutzte Teil verfällt nicht. Im Pauschalmodus gilt
+$A_t = 0$.
+
+> **Korrektur gegenüber Version 5.19.** Zuvor stand im Anlaufjahr die
+> volle Jahres-AfA. Eine im Dezember 2027 angeschlossene Anlage schrieb
+> ein ganzes Jahr ab, obwohl sie einen Monat lief (93.862 € bei
+> Völkermarkt). Nach österreichischem Recht sind es 46.931 €
+> (Halbjahresregelung), nach deutschem 7.822 €.
 
 ## 10.3 Modusabhängige Parameter
 
 | Modus | $A_t$ | Freibetrag $\Phi$ | Satz $\tau$ | Grenze $\gamma$ |
 | --- | --- | --- | --- | --- |
 | Pauschal auf EBT | 0 | 0 | Eingabewert | Eingabewert |
-| Körperschaftsteuer (AT) | linear über $n_{\mathrm{AfA}}$ | Eingabewert | Eingabewert | Eingabewert (gesetzlich 0,75) |
-| Gewerbesteuer (DE) | linear über $n_{\mathrm{AfA}}$ | 24.500 € | $0{,}035 \cdot H/100$ | 0 |
+| Körperschaftsteuer (AT) | linear, Anlaufjahr nach Halbjahresregel | Eingabewert | Eingabewert | Eingabewert (gesetzlich 0,75) |
+| Gewerbesteuer (DE) | linear, Anlaufjahr monatsgenau | 24.500 € | $0{,}035 \cdot H/100$ | 0 |
 
 Der effektive Gewerbesteuersatz folgt der gesetzlichen Systematik aus
 Steuermesszahl und gemeindlichem Hebesatz $H$:

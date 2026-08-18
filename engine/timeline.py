@@ -2,16 +2,23 @@
 Erzeugt die gemeinsame Zeitachse, auf der alle anderen Engine-Module
 aufsetzen (Energie, Erloese, OPEX, Finanzierung, Steuer).
 
-Bekannte MVP-Vereinfachung: Es wird angenommen, dass jede Betriebsperiode
-ein volles Kalenderjahr (Jan-Dez) ist. Excels Sonderfall "Inbetriebnahme
-mitten im Jahr -> Vertragsende auf den Jahrestag statt Jahresende" (Zeilen
-18/42, abhaengig vom Auktion-Flag) wird hier bewusst noch nicht abgebildet
-und ist ein Kandidat fuer eine spaetere Erweiterung.
+Die Perioden sind KALENDERJAHRE - Erloes-, Kosten- und Steuerrechnung
+folgen dem Geschaeftsjahr. Eine Betriebsdauer von N Jahren meint aber N
+mal zwoelf Monate AB INBETRIEBNAHME, nicht N Kalenderjahre: Bei
+unterjaehriger Inbetriebnahme laeuft die Achse deshalb ueber N+1
+Kalenderjahre, von denen das erste und das letzte sich zu einem vollen
+Jahr ergaenzen (Inbetriebnahme im Dezember: Jahr 1 hat einen Monat, Jahr
+N+1 hat elf).
+
+Frueher endete die Achse nach N Kalenderjahren. Ein im Dezember
+angeschlossenes Projekt verlor dadurch fast ein volles Betriebsjahr
+gegenueber einem im Januar angeschlossenen - der Rumpfmonat am Anfang
+wurde am Ende nie ausgeglichen.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -48,8 +55,23 @@ def erstjahr_zins_pro_rata(inbetriebnahme_datum: date, methode: ZinsMethode) -> 
     return min(tage / 365.0, 1.0)
 
 
+def anzahl_perioden(inbetriebnahme_datum: date, laufzeit_jahre: int) -> int:
+    """Wie viele KALENDERJAHRE eine Laufzeit von `laufzeit_jahre` Jahren
+    beruehrt.
+
+    Bei Inbetriebnahme im Januar sind das genau `laufzeit_jahre`, sonst
+    eines mehr: Das Anlaufjahr ist ein Rumpfjahr, und der fehlende Teil
+    faellt am Ende an.
+    """
+    return laufzeit_jahre + (1 if inbetriebnahme_datum.month > 1 else 0)
+
+
 def build_timeline(inbetriebnahme_datum: date, laufzeit_jahre: int) -> pd.DataFrame:
-    """Baut die Jahres-Zeitachse fuer die Betriebsphase (Jahr 1..N).
+    """Baut die Jahres-Zeitachse fuer die Betriebsphase.
+
+    Die Achse laeuft vom Inbetriebnahmetag bis zum Tag vor dem
+    `laufzeit_jahre`-ten Jahrestag - also ueber exakt `laufzeit_jahre`
+    mal zwoelf Monate, verteilt auf `anzahl_perioden()` Kalenderjahre.
 
     Der Investitionszeitpunkt (Jahr 0, CAPEX-Abfluss) ist bewusst NICHT
     Teil dieser Timeline, sondern wird erst in cashflow.py als separate
@@ -59,10 +81,20 @@ def build_timeline(inbetriebnahme_datum: date, laufzeit_jahre: int) -> pd.DataFr
     if laufzeit_jahre <= 0:
         raise ValueError("laufzeit_jahre muss > 0 sein")
 
+    perioden = anzahl_perioden(inbetriebnahme_datum, laufzeit_jahre)
+    # Letzter Betriebstag: der Tag vor dem Jahrestag der Inbetriebnahme.
+    letzter_tag = date(
+        inbetriebnahme_datum.year + laufzeit_jahre,
+        inbetriebnahme_datum.month,
+        inbetriebnahme_datum.day,
+    ) - timedelta(days=1)
+
     rows = []
     period_start = inbetriebnahme_datum
-    for jahr in range(1, laufzeit_jahre + 1):
-        period_end = date(inbetriebnahme_datum.year + jahr - 1, 12, 31)
+    for jahr in range(1, perioden + 1):
+        period_end = min(
+            date(inbetriebnahme_datum.year + jahr - 1, 12, 31), letzter_tag
+        )
         tage = (period_end - period_start).days + 1
         pro_rata_faktor = min(tage / 365.0, 1.0)
         rows.append(
@@ -71,7 +103,7 @@ def build_timeline(inbetriebnahme_datum: date, laufzeit_jahre: int) -> pd.DataFr
                 "datum_start": period_start,
                 "datum_ende": period_end,
                 "pro_rata_faktor": pro_rata_faktor,
-                "ist_letztes_jahr": jahr == laufzeit_jahre,
+                "ist_letztes_jahr": jahr == perioden,
             }
         )
         period_start = date(period_end.year + 1, 1, 1)
