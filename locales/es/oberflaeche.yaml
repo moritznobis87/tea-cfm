@@ -612,7 +612,7 @@ karte_hilfe_npv: "Margen de contribución (VAN al {ziel}) frente a rentabilidad 
 # --- Zeitaufloesung, Foerdermodell, PPA (v5.4) --------------------------------
 annahmen_modell_titel: "Resolución temporal, modelo de apoyo y PPA"
 annahmen_zeitaufloesung_titel: "**Resolución temporal del cálculo de ingresos**"
-annahmen_zeitaufloesung_hinweis: "La resolución anual enfrenta un volumen anual con un valor de mercado anual. El valor anual de un escenario está ponderado con el perfil de generación del área de mercado, por lo que resulta demasiado bajo para un emplazamiento con mejor producción invernal. La resolución mensual reparte la generación anual según el perfil propio de esta planta. El flujo de caja, la financiación y los impuestos siguen siendo anuales."
+annahmen_zeitaufloesung_hinweis: "La resolución anual enfrenta un volumen anual con un valor de mercado anual y no capta la evolución mensual de los precios. La resolución mensual reparte la generación anual según la curva de generación y valora cada mes con su propio valor de mercado, lo que importa sobre todo en remuneraciones que recortan el valor de mercado (CfD bilateral, detracción). El flujo de caja, la financiación y los impuestos siguen siendo anuales."
 annahmen_zeitaufloesung_label: "Resolución temporal"
 annahmen_zeitaufloesung_hilfe: "Si un año natural no tiene valores mensuales, su valor anual se aplica a los doce meses; el cambio sigue siendo posible con datos incompletos."
 annahmen_aufloesung_jahr: "Valores anuales"

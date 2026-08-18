@@ -191,15 +191,20 @@ Spaltenerkennung arbeitet über Teilbegriffe statt exakter Namen, weil
 sich Aurora-Exporte zwischen Marktgebieten in Kleinigkeiten
 unterscheiden.
 
-**Einspeisekurven je Bauform**: Die zwölf Monatsanteile stammen aus
-PVGIS-Monatserträgen einer 1-kWp-Anlage – je eine Reihe für Pult und
-Tracker. Die Rohwerte stehen als `PVGIS_MONATSERTRAG_KWH_KWP` in
-`engine/models.py` und werden dort beim Laden auf 1 normiert
-(`EINSPEISEKURVEN_JE_BAUFORM`); sie bleiben in ihrer Rohform stehen,
-damit eine wiederholte PVGIS-Abfrage Zahl für Zahl vergleichbar ist.
-`tests/test_einspeisekurve.py` prüft Rohwerte, Normierung und den
-Umschalter. In den globalen Annahmen wird nur zwischen den Bauformen
-umgeschaltet oder von Hand nachgebessert.
+**Einspeisekurven je Bauform**: Die zwölf Monatsanteile stammen aus den
+Stundenzeitreihen zweier RatedPower-Auslegungen – je eine Reihe für Pult
+und Tracker (`data/lastgang/*.csv`, Ableitung in
+`engine/io_lastgang.py`). Die Monatssummen stehen als
+`MONATSERTRAG_KWH_JE_BAUFORM` in `engine/models.py` und werden dort beim
+Laden auf 1 normiert (`EINSPEISEKURVEN_JE_BAUFORM`); sie bleiben in
+Rohform stehen, damit eine neu abgeleitete Reihe Zahl für Zahl
+vergleichbar ist. Bis v5.20 standen hier PVGIS-Werte; deren Jahresform
+war zu flach (Winteranteil 24,4 % statt 13,5 %) und verfehlte die
+Gegenprobe gegen den Jahresmarktwert um 12 bis 22 %.
+`tests/test_einspeisekurve.py` und `tests/test_lastgang.py` prüfen
+Rohwerte, Normierung, Umschalter und Gegenprobe. In den globalen
+Annahmen wird nur zwischen den Bauformen umgeschaltet oder von Hand
+nachgebessert.
 
 **Szenarionamen** folgen dem Schema `Stamm · Bauform ·
 Preisszenario` (`Aurora Q3/26 · Pult · Central`).

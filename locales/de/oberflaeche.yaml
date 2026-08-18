@@ -613,7 +613,7 @@ karte_hilfe_npv: "Deckungsbeitrag (NPV bei {ziel}) gegen EK-Rendite; Blasengrö�
 # --- Zeitaufloesung, Foerdermodell, PPA (v5.4) --------------------------------
 annahmen_modell_titel: "Zeitauflösung, Fördermodell und PPA"
 annahmen_zeitaufloesung_titel: "**Zeitauflösung der Erlösrechnung**"
-annahmen_zeitaufloesung_hinweis: "Jahresauflösung rechnet eine Jahresmenge gegen einen Jahresmarktwert. Der Jahresmarktwert eines Szenarios ist mit dem Erzeugungsprofil des Marktgebiets gewichtet — für einen Standort mit ertragreicherem Winter ist er deshalb zu niedrig. Die Monatsauflösung verteilt die Jahreserzeugung über die Einspeisekurve dieser Anlage auf zwölf Monate und trifft damit ihr eigenes Profil. Cashflow, Finanzierung und Steuer bleiben jährlich."
+annahmen_zeitaufloesung_hinweis: "Jahresauflösung rechnet eine Jahresmenge gegen einen Jahresmarktwert und trifft damit den Monatsverlauf der Preise nicht. Die Monatsauflösung verteilt die Jahreserzeugung über die Einspeisekurve auf zwölf Monate und rechnet jeden Monat gegen seinen eigenen Marktwert — besonders wichtig für Vergütungsformen, die den Marktwert abschneiden (zweiseitiger CfD, Abschöpfung). Cashflow, Finanzierung und Steuer bleiben jährlich."
 annahmen_zeitaufloesung_label: "Zeitauflösung"
 annahmen_zeitaufloesung_hilfe: "Liegen für ein Kalenderjahr keine Monatswerte vor, gilt dessen Jahreswert für alle zwölf Monate — die Umschaltung bleibt also auch mit unvollständigen Daten rechenbar."
 annahmen_aufloesung_jahr: "Jahreswerte"
