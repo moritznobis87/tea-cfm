@@ -841,3 +841,7 @@ annahmen_profil_monat_fussnote: "Estas doce cuotas entran en el cálculo. Si una
 annahmen_profil_tag_fussnote: "Sumas diarias en lugar de valores horarios — de lo contrario la curva caería a cero cada noche. La diferencia entre el mejor y el peor día de un mes supera la diferencia entre dos meses; la curva mensual la borra."
 annahmen_profil_stunde_fussnote: "La serie bruta, un diente por día. Estos valores no se calculan hoy — están listos por si el modelo pasa alguna vez a resolución horaria."
 annahmen_profil_tagesgang_fussnote: "La única vista que muestra algo que la curva mensual no contiene: el montaje fijo sube hacia un pico de mediodía marcado, el seguidor mantiene una meseta y aporta más temprano y tarde. De ahí viene su mayor valor de mercado — las horas de borde son las más caras. Entra en el modelo por la curva de valor de mercado del escenario, no por las cuotas mensuales."
+
+# Rueckverguetung an den Foerdergeber (Reiter Erloese)
+projekt_rueckzahlung_summe: "**Reintegro al organismo financiador: {betrag}** durante toda la vida útil — {anteil} de los ingresos. Años de explotación afectados: {jahre}. Se activa cuando el valor de mercado de referencia supera el valor aplicable en más de la banda de tolerancia; un PPA no protege, porque se mide sobre el valor de referencia y no sobre el precio obtenido."
+projekt_rueckzahlung_keine: "Sin reintegro al organismo financiador: en este escenario de precios el valor de mercado de referencia nunca alcanza el umbral de sobrefinanciación de {grenze}."

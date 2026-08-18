@@ -841,3 +841,7 @@ annahmen_profil_monat_fussnote: "These twelve shares enter the calculation. If a
 annahmen_profil_tag_fussnote: "Daily sums rather than hourly values — otherwise the curve would drop to zero every night. The spread between the best and the worst day of a month exceeds the spread between two months; the monthly curve smooths that away."
 annahmen_profil_stunde_fussnote: "The raw series, one tooth per day. These values are not used in the calculation today — they are ready in case the model ever moves to hourly resolution."
 annahmen_profil_tagesgang_fussnote: "The only view showing something the monthly curve does not contain: the fixed-tilt array runs up to a sharp midday peak, the tracker holds a plateau and carries more early and late. That is where its higher capture price comes from — the edge hours are the expensive ones. It enters the model through the scenario's capture price curve, not through the monthly shares."
+
+# Rueckverguetung an den Foerdergeber (Reiter Erloese)
+projekt_rueckzahlung_summe: "**Repayment to the funding body: {betrag}** across the full term — {anteil} of revenue. Affected are operating years {jahre}. It is triggered when the reference capture price exceeds the applicable value by more than the tolerance band; a PPA offers no protection, because it is measured against the reference capture price and not the price achieved."
+projekt_rueckzahlung_keine: "No repayment to the funding body: in this price scenario the reference capture price never reaches the over-funding threshold of {grenze}."

@@ -1,5 +1,28 @@
 # Changelog
 
+## v5.23 – Rückvergütung an den Fördergeber sichtbar (2026-08)
+
+**Die Rückzahlung bleibt in der Erlösgrafik stehen, auch wenn sie null
+ist.** Den roten Balken unter der Nulllinie gab es schon; er erschien
+aber nur, wenn tatsächlich Geld zurückfloss. In den ausgelieferten
+Projekten ist das bei 16 von 17 nicht der Fall — der Balken fehlte also
+samt Legendeneintrag, und „die Überförderungsgrenze wird nie erreicht"
+war nicht von „das Tool zeigt es nicht" zu unterscheiden. Sieht das
+Fördermodell eine Rückzahlung vor (EAG-Toleranzband oder zweiseitiger
+CfD), gehört die Kategorie jetzt ins Bild. Beim einseitigen CfD des EEG
+bleibt sie weg — dort existiert sie nicht.
+
+**Neue Summenbox unter der Grafik.** Sie nennt, was über die
+Gesamtlaufzeit an den Fördergeber zurückgeht: gelb mit Betrag, Anteil an
+den Erlösen und den betroffenen Betriebsjahren, sobald etwas zurückgeht;
+sonst neutral mit der Überförderungsgrenze, die nicht erreicht wurde.
+
+Die Box weist auf eine Eigenschaft der Regelung hin, die leicht übersehen
+wird: **Ein PPA schützt nicht vor der Rückzahlung.** Sie bemisst sich am
+Referenzmarktwert, nicht am tatsächlich erzielten Preis — wer bei 4 ct
+verkauft hat, während der Referenzmarktwert bei 9 ct stand, zahlt auf die
+9 ct zurück.
+
 ## v5.22 – Rubrik „Erzeugungsprofil" (2026-08)
 
 **Neu in den globalen Annahmen: dieselbe Erzeugung in vier

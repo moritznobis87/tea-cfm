@@ -460,15 +460,24 @@ def verguetung_chart(
     return fig
 
 
-def revenue_split_chart(df: pd.DataFrame) -> go.Figure:
+def revenue_split_chart(
+    df: pd.DataFrame, mit_rueckzahlung: bool = False
+) -> go.Figure:
     """Erlöse nach Herkunft: Merchant, PPA, Marktprämie - und, falls das
-    Fördermodell eine vorsieht, die Rückzahlung als Balken unter der
-    Nulllinie.
+    Fördermodell eine vorsieht, die Rückzahlung als roter Balken unter
+    der Nulllinie.
 
     Zeigt, wie lange das Projekt am Fördertropf hängt und wann der Markt
-    trägt. PPA und Rückzahlung erscheinen nur, wenn es sie gibt: Eine
-    Legende mit zwei dauerhaft leeren Einträgen behauptet eine Struktur,
-    die das Projekt nicht hat."""
+    trägt. Ein PPA erscheint nur, wenn es einen gibt: Eine Legende mit
+    einem dauerhaft leeren Eintrag behauptet eine Struktur, die das
+    Projekt nicht hat.
+
+    Für die Rückzahlung gilt das ausdrücklich NICHT: Sieht das
+    Fördermodell eine vor (`mit_rueckzahlung`), gehört sie in Legende
+    und Achse, auch wenn sie in diesem Preisszenario null bleibt. Dass
+    die Überförderungsgrenze nicht erreicht wird, ist ein Ergebnis -
+    und ohne die Kategorie wäre es von "die Grafik zeigt es nicht" nicht
+    zu unterscheiden."""
     betrieb = df[df["jahr"] >= 1]
     fig = go.Figure()
 
@@ -495,7 +504,7 @@ def revenue_split_chart(df: pd.DataFrame) -> go.Figure:
         marker_color=Colors.INK_SOFT,
         hovertemplate=_EUR_HOVER + f"<extra>{txt('diagramme.serie_marktpraemie')}</extra>",
     )
-    if _hat("rueckzahlung_eur"):
+    if mit_rueckzahlung or _hat("rueckzahlung_eur"):
         fig.add_bar(
             x=betrieb["jahr"], y=-betrieb["rueckzahlung_eur"],
             name=txt("diagramme.serie_rueckzahlung"), marker_color=Colors.NEGATIVE,
