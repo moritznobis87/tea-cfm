@@ -111,3 +111,7 @@ achse_stunde_im_jahr: "Hora del año"
 achse_stunde_des_tages: "Hora del día"
 achse_anteil_jahreserzeugung: "Cuota de la generación anual"
 achse_anteil_tageserzeugung: "Cuota de la generación diaria"
+
+# Erloesmix (Vermarktungsdialog)
+serie_ppa: "PPA"
+serie_merchant: "Mercado"

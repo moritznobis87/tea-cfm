@@ -454,6 +454,141 @@ def _baue_css() -> str:
             letter-spacing: 0.01em;
         }}
 
+        /* --- Project Inspector -------------------------------------------------
+           Links wird analysiert, rechts gesteuert. Der Inspector soll
+           LESBAR sein, ohne dass man ihn bedient: Jede Themenkarte traegt
+           Titel, Kurzfassung und Aenderungsstand, der Bearbeiten-Knopf
+           sitzt als kleines Zeichen rechts oben darin. */
+        .inspector-gruppe {{
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: {Colors.MUTED};
+            margin: 14px 0 6px 0;
+        }}
+
+        /* Quick Adjust: kompakte Eingabekarten im 2x2-Gitter. Es sind
+           echte Streamlit-Felder - nur ihr Rahmen ist anders. */
+        .st-key-quickbox_ [data-testid="stNumberInput"] input {{
+            font-size: 1.02rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: {Colors.INK};
+        }}
+        div[class*="st-key-quickbox_"] label p {{
+            font-size: 0.72rem !important;
+            color: {Colors.MUTED};
+            font-weight: 500;
+        }}
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInput"] > div {{
+            border-radius: 10px;
+            border-color: {Colors.LINE};
+        }}
+
+        /* Themenkarten. Der Bearbeiten-Knopf liegt absolut rechts oben in
+           der Karte - so bleibt die Karte Text und nicht Knopfleiste. */
+        div[class*="st-key-card_"] {{
+            position: relative;
+            border: 1px solid {Colors.LINE};
+            border-radius: 11px;
+            background: {Colors.PAPER};
+            padding: 9px 12px;
+            margin-bottom: 7px;
+            transition: border-color 0.12s ease, box-shadow 0.12s ease;
+        }}
+        div[class*="st-key-card_"]:hover {{
+            border-color: {Colors.BRAND};
+            box-shadow: 0 1px 6px rgba(20, 48, 79, 0.07);
+        }}
+        .inspector-karte-kopf {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 1px;
+        }}
+        .inspector-karte-titel {{
+            font-size: 0.86rem;
+            font-weight: 650;
+            color: {Colors.INK};
+            line-height: 1.25;
+        }}
+        .inspector-karte-zeile {{
+            font-size: 0.76rem;
+            color: {Colors.MUTED};
+            line-height: 1.35;
+            font-variant-numeric: tabular-nums;
+            /* Eine Zeile, notfalls gekuerzt: Die Karten sollen gleich
+               hoch bleiben, sonst franst die Spalte aus. */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 74px;
+        }}
+        .inspector-marke {{
+            background: {Colors.BRAND};
+            color: {Colors.PAPER};
+            border-radius: 9px;
+            padding: 0 6px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            line-height: 1.5;
+        }}
+        /* Der Trigger: dezent, bis die Karte beruehrt wird. */
+        div[class*="st-key-card_"] [data-testid="stPopover"],
+        div[class*="st-key-card_"] [data-testid="stButton"] {{
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            margin: 0;
+        }}
+        div[class*="st-key-card_"] button {{
+            border: none !important;
+            background: transparent !important;
+            color: {Colors.MUTED} !important;
+            font-size: 0.74rem !important;
+            padding: 2px 6px !important;
+            min-height: 0 !important;
+        }}
+        div[class*="st-key-card_"]:hover button {{
+            color: {Colors.BRAND} !important;
+        }}
+
+        /* --- Live Impact im Dialog --------------------------------------------- */
+        .impact-kachel {{
+            border: 1px solid {Colors.LINE};
+            border-radius: 12px;
+            background: {Colors.WASH};
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }}
+        .impact-titel {{
+            font-size: 0.72rem;
+            color: {Colors.MUTED};
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }}
+        .impact-wert {{
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: {Colors.INK};
+            font-variant-numeric: tabular-nums;
+            line-height: 1.15;
+        }}
+        .impact-delta {{
+            font-size: 0.85rem;
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+        }}
+        .impact-auf {{ color: {Colors.POSITIVE}; }}
+        .impact-ab {{ color: {Colors.NEGATIVE}; }}
+        .impact-neutral {{ color: {Colors.MUTED}; }}
+        .impact-fuss {{
+            font-size: 0.7rem;
+            color: {Colors.MUTED};
+            margin-top: 1px;
+        }}
+
         /* --- Kontextzeile ------------------------------------------------------ */
         /* Marktsystem, Szenario und Diskontsatz gelten app-weit. Sie stehen
            hier sichtbar, statt als kleines Eingabefeld irgendwo auf der

@@ -26,6 +26,7 @@ import html
 import streamlit as st
 
 from app import router, services
+from app.components import project_dialogs
 from app.components.kpi import Kennzahl, render_kennzahlen
 from app.components.project_form import render_parameter_spalte, verwirf_entwurf
 from app.config import STATE_DELETE_CANDIDATE, monate_kurz
@@ -37,7 +38,6 @@ from app.formatting import (
     fmt_pct,
 )
 from app.theme import Colors
-from app.views.vergleich import render_vergleich
 from app.views.project_detail import (
     render_assumptions_tab,
     render_cashflow_tab,
@@ -48,6 +48,7 @@ from app.views.project_detail import (
     render_scenario_tab,
     render_sensitivity_tab,
 )
+from app.views.vergleich import render_vergleich
 from engine import AnlagenTyp, MarktSystem, PVProject
 from engine.kpis import npv_at
 from texte import txt
@@ -277,6 +278,23 @@ def render_project_page() -> None:
     # Faellt die Maske aus (z.B. leerer Name), bleibt der gespeicherte
     # Stand die Rechengrundlage - die Seite soll nicht leer werden.
     aktiv = entwurf or gespeichert
+
+    # Dialoge werden HIER geoeffnet und nicht in der Maske: st.dialog
+    # darf nicht in einem Popover stehen, und der Dialog braucht den
+    # fertigen Entwurf, den die Maske erst am Ende zurueckgibt.
+    offener_dialog = st.session_state.pop(f"{form_key}__dialog", None)
+    if offener_dialog == "vermarktung":
+        # Beim OEFFNEN leeren, nicht beim Schliessen: Nur so startet der
+        # Dialog garantiert aus dem aktuellen Entwurf - auch dann, wenn
+        # er beim letzten Mal ueber das Kreuz verlassen wurde.
+        project_dialogs.dialog_state_setzen(form_key, aktiv)
+        st.session_state[f"{form_key}__dialog_offen"] = True
+    # Die Marke bleibt gesetzt, solange der Dialog offen ist: Jede
+    # Eingabe auf der Seite loest einen vollen Durchlauf aus, und ohne
+    # die Marke waere der Dialog danach zu. Geloescht wird sie von den
+    # Knoepfen im Dialog und vom Kreuz (on_dismiss).
+    if st.session_state.get(f"{form_key}__dialog_offen"):
+        project_dialogs.render_vermarktung_dialog(aktiv, gespeichert, form_key)
     result = services.get_valuation_fuer(aktiv)
     geaendert = _geaenderte_felder(aktiv, gespeichert) if entwurf else []
     aenderungen = len(geaendert)
