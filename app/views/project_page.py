@@ -26,6 +26,7 @@ import html
 import streamlit as st
 
 from app import router, services
+from app.components import project_dialogs
 from app.components.kpi import Kennzahl, render_kennzahlen
 from app.components.project_form import render_parameter_spalte, verwirf_entwurf
 from app.config import STATE_DELETE_CANDIDATE, monate_kurz
@@ -37,7 +38,6 @@ from app.formatting import (
     fmt_pct,
 )
 from app.theme import Colors
-from app.views.vergleich import render_vergleich
 from app.views.project_detail import (
     render_assumptions_tab,
     render_cashflow_tab,
@@ -48,6 +48,7 @@ from app.views.project_detail import (
     render_scenario_tab,
     render_sensitivity_tab,
 )
+from app.views.vergleich import render_vergleich
 from engine import AnlagenTyp, MarktSystem, PVProject
 from engine.kpis import npv_at
 from texte import txt
@@ -256,14 +257,17 @@ def render_project_page() -> None:
         col_ergebnis = st.container()
         entwurf = None
     else:
-        col_ergebnis, col_parameter = st.columns([0.745, 0.255], gap="medium")
+        # Etwas breiter als frueher (0,255): Seit die Themenkarten Titel
+        # UND Kurzfassung tragen, entscheidet die Spaltenbreite darueber,
+        # wie viele Angaben lesbar bleiben. Ein knappes Drittel ist die
+        # Grenze, ab der die Ergebnisgrafiken links zu schmal werden.
+        col_ergebnis, col_parameter = st.columns([0.70, 0.30], gap="medium")
 
         with col_parameter, st.container(key="parameterbox"):
-            st.markdown(
-                f'<div class="parameter-kopf">'
-                f'{html.escape(txt("oberflaeche.parameter_titel"))}</div>',
-                unsafe_allow_html=True,
-            )
+            # Kopf UND Speicherleiste entstehen zusammen in
+            # _speicherleiste: Die Aenderungsmarke gehoert in dieselbe
+            # Zeile wie der Titel, ihre Zahl steht aber erst fest, wenn
+            # die Felder aufgebaut sind. Deshalb hier nur der Platz.
             # Die Speicherleiste steht OBEN, gleich unter der
             # Kopfzeile: Sie braucht die Zahl der Aenderungen, die erst
             # nach dem Aufbau der Felder feststeht - deshalb hier nur
@@ -277,6 +281,23 @@ def render_project_page() -> None:
     # Faellt die Maske aus (z.B. leerer Name), bleibt der gespeicherte
     # Stand die Rechengrundlage - die Seite soll nicht leer werden.
     aktiv = entwurf or gespeichert
+
+    # Dialoge werden HIER geoeffnet und nicht in der Maske: st.dialog
+    # darf nicht in einem Popover stehen, und der Dialog braucht den
+    # fertigen Entwurf, den die Maske erst am Ende zurueckgibt.
+    offener_dialog = st.session_state.pop(f"{form_key}__dialog", None)
+    if offener_dialog == "vermarktung":
+        # Beim OEFFNEN leeren, nicht beim Schliessen: Nur so startet der
+        # Dialog garantiert aus dem aktuellen Entwurf - auch dann, wenn
+        # er beim letzten Mal ueber das Kreuz verlassen wurde.
+        project_dialogs.dialog_state_setzen(form_key, aktiv)
+        st.session_state[f"{form_key}__dialog_offen"] = True
+    # Die Marke bleibt gesetzt, solange der Dialog offen ist: Jede
+    # Eingabe auf der Seite loest einen vollen Durchlauf aus, und ohne
+    # die Marke waere der Dialog danach zu. Geloescht wird sie von den
+    # Knoepfen im Dialog und vom Kreuz (on_dismiss).
+    if st.session_state.get(f"{form_key}__dialog_offen"):
+        project_dialogs.render_vermarktung_dialog(aktiv, gespeichert, form_key)
     result = services.get_valuation_fuer(aktiv)
     geaendert = _geaenderte_felder(aktiv, gespeichert) if entwurf else []
     aenderungen = len(geaendert)
@@ -483,36 +504,45 @@ def _speicherleiste(entwurf: PVProject, gespeichert: PVProject, pfad,
     """Kopfzeile der Parameterspalte: Aenderungen benennen, sichern oder
     verwerfen. Ohne offene Aenderungen bleibt sie unauffaellig."""
     aenderungen = len(geaendert)
-    # Statuszeile ueber statt neben den Knoepfen: In der schmalen Spalte
-    # blieb sonst so wenig Platz, dass "Speichern" und "Verwerfen" in den
-    # Knoepfen umbrachen.
-    if aenderungen:
-        st.markdown(
-            f":orange[{txt('oberflaeche.parameter_aenderungen', anzahl=aenderungen)}]"
-        )
-        # WELCHE Felder offen sind, beantwortet die Zahl allein nicht -
-        # bei ueber vierzig Feldern ist das die eigentliche Frage.
-        st.caption(", ".join(geaendert))
-    else:
-        st.caption(txt("oberflaeche.parameter_keine_aenderungen"))
-
+    # Der Zaehler sitzt als Marke IM Kopf (siehe _inspector_kopf), nicht
+    # als eigene Zeile darueber: Zwei Textzeilen ueber den Knoepfen
+    # kosteten in der schmalen Spalte mehr Hoehe als der ganze
+    # Quick-Adjust-Block darunter.
+    #
+    # WELCHE Felder offen sind, steht als Tooltip an den Knoepfen - bei
+    # ueber vierzig Feldern ist das die eigentliche Frage, aber sie
+    # gehoert nicht dauerhaft ins Bild.
+    hinweis = (
+        ", ".join(geaendert) if aenderungen
+        else txt("oberflaeche.parameter_keine_aenderungen")
+    )
+    marke = (
+        f'<span class="parameter-marke">'
+        f'{txt("oberflaeche.parameter_offen", anzahl=aenderungen)}</span>'
+        if aenderungen else ""
+    )
+    st.markdown(
+        f'<div class="parameter-kopf">'
+        f'<span>{html.escape(txt("oberflaeche.parameter_titel"))}</span>'
+        f"{marke}</div>",
+        unsafe_allow_html=True,
+    )
     col_verwerfen, col_speichern = st.columns(2, vertical_alignment="center")
     if col_verwerfen.button(
         txt("oberflaeche.btn_verwerfen"), key=f"{form_key}__verwerfen",
-        width="stretch", disabled=not aenderungen,
+        width="stretch", disabled=not aenderungen, help=hinweis,
     ):
         verwirf_entwurf(form_key)
         st.rerun()
 
     if col_speichern.button(
         txt("oberflaeche.btn_speichern_kurz"), key=f"{form_key}__speichern",
-        type="primary", width="stretch", disabled=not aenderungen,
+        type="primary", width="stretch", disabled=not aenderungen, help=hinweis,
     ):
         services.save_project(entwurf, pfad)
         st.session_state.pop(f"pdf_bericht_{gespeichert.id}", None)
         st.success(txt("oberflaeche.projekt_aktualisiert"))
         st.rerun()
-    st.divider()
 
 
 def _pdf_knopf(projekt_id: str, project: PVProject, npv_satz_pct: float,

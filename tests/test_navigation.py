@@ -103,8 +103,11 @@ class TestParameterspalte:
         """Rundungen zwischen Anzeige (€/kWp) und Modell duerfen keine
         Aenderungen vortaeuschen."""
         at, form_key = self._projektseite(at)
+        # Der Zustand steht am Verwerfen-Knopf: Die frueher gepruefte
+        # Statuszeile kostete in der schmalen Spalte eine eigene Zeile.
         assert any(
-            "keine offenen Änderungen" in c.value for c in at.caption
+            "keine offenen Änderungen" in (b.help or "")
+            for b in at.button if b.key and b.key.endswith("__verwerfen")
         )
         gesperrt = {
             b.key: b.disabled for b in at.button if b.key and "__" in b.key
@@ -123,8 +126,11 @@ class TestParameterspalte:
         assert not at.exception
 
         assert _leitwert(at) != vorher, "Equity IRR folgt der Eingabe nicht"
-        assert any(":orange[" in m.value and "Änderung" in m.value
-                   for m in at.markdown)
+        # Der offene Stand steht als Marke im Kopf der Parameterspalte -
+        # frueher war es eine eingefaerbte Statuszeile darunter, die in
+        # der schmalen Spalte eine eigene Zeile kostete.
+        assert any('<div class="parameter-kopf"' in m.value
+                   and "parameter-marke" in m.value for m in at.markdown)
         assert any("ungespeicherte Änderung" in m.value for m in at.markdown)
         gesperrt = {
             b.key: b.disabled for b in at.button if b.key and "__" in b.key
@@ -199,12 +205,13 @@ class TestBetriebskostenblock:
         pruefte. Beide liegen jetzt im selben Popover wie die Pacht.
         """
         at, form_key = self._spalte(at)
-        knopf = [p for p in at.get("popover")
-                 if "Pacht und Abgaben" in p.proto.popover.label]
-        assert knopf, "Popover 'Pacht und Abgaben' fehlt"
-        werte = {n.key for n in knopf[0].get("number_input") if n.key}
+        # Seit dem Inspector-Umbau steht der Themenname in der Karte, der
+        # Oeffnen-Knopf heisst nur noch "Bearbeiten" - geprueft wird
+        # deshalb an den Feldern, die zusammen in einem Block liegen.
+        karten = [m.value for m in at.markdown if "inspector-karte" in m.value]
+        assert any("Pacht und Abgaben" in k for k in karten), "Karte fehlt"
+        werte = {n.key for n in at.get("number_input") if n.key}
         assert f"{form_key}_gemeindeabgabe" in werte
-        # Im selben Popover wie der Pachtwert - ein Block, eine Rubrik.
         assert werte & {f"{form_key}_pacht_ha", f"{form_key}_pacht_kwp",
                         f"{form_key}_pacht_umsatz_pct"}
 
@@ -241,7 +248,10 @@ class TestBetriebskostenblock:
         zurueckgerechnet; auf ganze Euro gerundet wich der €/kWp-Wert so
         weit ab, dass die Seite eine Aenderung meldete."""
         at, _ = self._spalte(at)
-        assert any("keine offenen Änderungen" in c.value for c in at.caption)
+        assert any(
+            "keine offenen Änderungen" in (b.help or "")
+            for b in at.button if b.key and b.key.endswith("__verwerfen")
+        )
 
 
 class TestVierAnsichten:

@@ -1485,3 +1485,45 @@ def tagesgang_chart(
         hovermode="x unified",
     )
     return fig
+
+
+def erloesmix_balken(anteile: dict[str, float]) -> go.Figure:
+    """Erlösmix über die Vertragslaufzeit als ein liegender Stapel.
+
+    Die drei Ströme kommen aus dem Cashflow und überschneiden sich nicht:
+    PPA und Merchant teilen den Markterlös, die Marktprämie kommt von der
+    Förderstelle obendrauf (engine/revenue.py). Bewusst NICHT der
+    nominelle PPA-Anteil: Der sagt, welcher Teil der MENGE unter Vertrag
+    steht - was davon als Erlös ankommt, hängt am Preis.
+
+    Ein Balken statt eines Kreises: Der Vergleich zweier Einstellungen
+    geht über Längen, nicht über Winkel.
+    """
+    gesamt = sum(anteile.values())
+    reihen = [
+        ("ppa", txt("diagramme.serie_ppa"), Colors.SERIES[1]),
+        ("merchant", txt("diagramme.serie_merchant"), Colors.SERIES[0]),
+        ("praemie", txt("diagramme.serie_marktpraemie"), Colors.SOFT),
+    ]
+    fig = go.Figure()
+    for schluessel, name, farbe in reihen:
+        wert = anteile.get(schluessel, 0.0)
+        anteil = wert / gesamt if gesamt else 0.0
+        fig.add_bar(
+            x=[anteil * 100], y=[""], orientation="h", name=name,
+            marker=dict(color=farbe, line=dict(color=Colors.PAPER, width=2)),
+            hovertemplate=(
+                f"{name}<br>%{{x:,.1f}} % · {fmt_number(wert / 1e6, 2)} Mio. €"
+                "<extra></extra>"
+            ),
+        )
+    fig.update_layout(
+        barmode="stack", height=112,
+        margin=dict(t=4, b=4, l=0, r=0),
+        xaxis=dict(range=[0, 100], visible=False),
+        yaxis=dict(visible=False),
+        legend=dict(orientation="h", yanchor="top", y=-0.15, x=0,
+                    font=dict(size=11)),
+        showlegend=True,
+    )
+    return fig

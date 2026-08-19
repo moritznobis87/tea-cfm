@@ -111,3 +111,7 @@ achse_stunde_im_jahr: "Heure de l'année"
 achse_stunde_des_tages: "Heure de la journée"
 achse_anteil_jahreserzeugung: "Part de la production annuelle"
 achse_anteil_tageserzeugung: "Part de la production journalière"
+
+# Erloesmix (Vermarktungsdialog)
+serie_ppa: "PPA"
+serie_merchant: "Marché"

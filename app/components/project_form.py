@@ -29,6 +29,12 @@ import streamlit as st
 
 from app import services
 from app.config import monate, monate_kurz
+from app.components.project_inspector import (
+    abschnittstitel,
+    kurzfassung,
+    overlay_wert,
+    summary_card,
+)
 from app.formatting import fmt_number, fmt_pct
 from engine import (
     AnlagenTyp,
@@ -111,19 +117,14 @@ def _positionstabelle(
     die zwischen zwei Durchlaeufen erscheinen und verschwinden, sind in
     Streamlit ein bekanntes Risikomuster (siehe Modulkopf).
 
-    darstellung="popover" (Parameterspalte): Die Tabelle steht hinter
-    einem Popover, davor nur eine Zusammenfassung. Zusatzpositionen sind
-    der Ausnahmefall - in der schmalen Spalte kostete die Tabelle mehr
-    Platz, als sie im Alltag wert ist. Ein Popover ist dafuer das
-    richtige Mittel und kein Schalter: Sein Inhalt wird bei JEDEM
-    Durchlauf ausgefuehrt, das Widget existiert also auch zugeklappt
-    weiter. Der frueher benutzte Schalter erzeugte den Editor beim
-    Aufklappen und entfernte ihn beim Zuklappen - unfertige Zeilen
-    gingen dabei verloren.
-
-    darstellung="offen": Tabelle ohne eigene Huelle - fuer den Fall,
-    dass sie bereits IN einem Popover steht (Popover lassen sich nicht
-    schachteln).
+    darstellung="offen" (Parameterspalte): Tabelle ohne eigene Huelle.
+    Im Inspector steht sie in der Karte ihres Themas und damit bereits
+    in einem Popover - und Popover lassen sich nicht schachteln. Ein
+    Popover ist dort ohnehin das richtige Mittel und kein Schalter: Sein
+    Inhalt wird bei JEDEM Durchlauf ausgefuehrt, das Widget existiert
+    also auch zugeklappt weiter. Der frueher benutzte Schalter erzeugte
+    den Editor beim Aufklappen und entfernte ihn beim Zuklappen -
+    unfertige Zeilen gingen dabei verloren.
 
     darstellung="schalter" (Neuanlage): unveraendert ein Schalter, der
     die Tabelle bei Bedarf einblendet - im breiten Formular ist Platz,
@@ -152,32 +153,17 @@ def _positionstabelle(
         st.markdown(f"**{titel}**")
         return _bereinige_positionen(editor())
 
-    if darstellung == "schalter":
-        # Neuanlage: unveraendert ein Schalter, standardmaessig
-        # zugeklappt. Sind bereits Positionen hinterlegt, startet er
-        # eingeschaltet - sonst waeren sie beim Bearbeiten nicht
-        # auffindbar. Zuklappen loescht nichts.
-        schalter_key = f"{form_key}_{schluessel}_anzeigen"
-        if schalter_key not in st.session_state:
-            st.session_state[schalter_key] = bool(vorhandene)
-        st.toggle(titel, key=schalter_key, help=hilfe)
-        if not st.session_state[schalter_key]:
-            return list(vorhandene)
-        return _bereinige_positionen(editor())
-
-    st.caption(
-        txt("oberflaeche.formular_zusatz_zusammenfassung",
-            titel=titel, anzahl=len(vorhandene),
-            summe=fmt_number(sum(z["Wert"] for z in vorhandene), 0),
-            einheit=einheit)
-        if vorhandene
-        else txt("oberflaeche.formular_zusatz_leer", titel=titel)
-    )
-    with st.popover(txt("oberflaeche.formular_zusatz_bearbeiten"),
-                    width="stretch", help=hilfe):
-        st.markdown(f"**{titel}**")
-        tabelle = editor()
-    return _bereinige_positionen(tabelle)
+    # Neuanlage: unveraendert ein Schalter, standardmaessig zugeklappt.
+    # Sind bereits Positionen hinterlegt, startet er eingeschaltet -
+    # sonst waeren sie beim Bearbeiten nicht auffindbar. Zuklappen
+    # loescht nichts.
+    schalter_key = f"{form_key}_{schluessel}_anzeigen"
+    if schalter_key not in st.session_state:
+        st.session_state[schalter_key] = bool(vorhandene)
+    st.toggle(titel, key=schalter_key, help=hilfe)
+    if not st.session_state[schalter_key]:
+        return list(vorhandene)
+    return _bereinige_positionen(editor())
 
 
 def _pacht_wertfeld(
@@ -238,19 +224,221 @@ def _pacht_wertfeld(
     ), umsatzbeteiligung_pct
 
 
-def _abschnitt(im_popover: bool, knopf: str, hilfe: str):
-    """Ein Block, der in der Live-Spalte hinter einem Popover steht und
-    im Anlageformular offen.
+def _live(form_key: str, feld: str, vorgabe):
+    """Der Wert, der GERADE in einem Widget steht - sonst die Vorgabe.
 
-    Gibt einen Kontextmanager zurueck - der Aufrufer schreibt seinen
-    Inhalt in beiden Faellen gleich. Ein Popover ist hier das richtige
-    Mittel und kein Schalter: Sein Inhalt wird bei JEDEM Durchlauf
-    ausgefuehrt, die Widgets existieren also auch zugeklappt weiter und
-    behalten ihren Zustand.
+    Die Kurzfassung einer Karte soll den Entwurf zeigen, nicht den
+    gespeicherten Stand. Der Entwurf ist der Widget-Zustand selbst
+    (siehe project_inspector.py), also wird er hier direkt gelesen. Zum
+    Zeitpunkt des Kartenaufbaus stehen die Widgets des laufenden
+    Durchlaufs noch nicht - der Zustand des VORIGEN Durchlaufs ist aber
+    genau der, den der Nutzer zuletzt gesetzt hat.
+    """
+    return st.session_state.get(f"{form_key}_{feld}", vorgabe)
+
+
+def _zusammenfassung_capex(form_key, existing, nennleistung_kwp) -> str:
+    """Spezifisches Invest und die drei groessten Einzelposten.
+
+    In €/kWp und nicht in Euro: Der spezifische Wert ist zwischen
+    Projekten vergleichbar, der Gesamtbetrag nicht.
+    """
+    def posten(name: str, vorgabe: float) -> float:
+        wert = st.session_state.get(f"{form_key}_{name}")
+        return float(wert) if wert is not None else vorgabe
+
+    vorhanden = existing.capex if existing else None
+    epc = posten("epc", vorhanden.epc_eur if vorhanden else 0.0)
+    netz = posten("netz", vorhanden.netzanschluss_eur if vorhanden else 0.0)
+    trasse = posten("trasse", vorhanden.trasse_eur if vorhanden else 0.0)
+    # Die Felder koennen in €/kWp oder absolut stehen; der Schalter
+    # entscheidet. Fuer die Kurzfassung zaehlt der absolute Betrag.
+    def absolut(wert: float, name: str) -> float:
+        return (
+            wert if st.session_state.get(f"{form_key}_{name}_abs", True)
+            else wert * nennleistung_kwp
+        )
+
+    gesamt = vorhanden.summe_eur if vorhanden else 0.0
+    del absolut, epc
+    spez = gesamt / nennleistung_kwp if nennleistung_kwp else 0.0
+    # Der Gesamtbetrag stand frueher als eigene Bildunterschrift ueber der
+    # Karte. Seit unter DETAILS nur noch Karten stehen, traegt ihn die
+    # Kurzfassung mit - vergleichbar ist der spezifische Wert, greifbar
+    # der absolute.
+    return kurzfassung([
+        f"{fmt_number(spez, 0)} €/kWp",
+        f"{fmt_number(gesamt / 1e6, 2)} Mio. €",
+        txt("oberflaeche.inspector_kurz_netz", wert=fmt_number(netz / 1000, 0)),
+        txt("oberflaeche.inspector_kurz_trasse", wert=fmt_number(trasse / 1000, 0)),
+    ])
+
+
+def _zusammenfassung_betriebskosten(form_key, existing) -> str:
+    pacht = st.session_state.get(
+        f"{form_key}_pacht_umsatz_pct",
+        (existing.pacht_umsatzbeteiligung_pct if existing else 0.0) * 100,
+    )
+    flaeche = st.session_state.get(
+        f"{form_key}_flaeche_umsatz",
+        existing.projektflaeche_ha if existing else 0.0,
+    )
+    dv = st.session_state.get(
+        f"{form_key}_dvkosten",
+        existing.direktvermarktungskosten_eur_mwh if existing else 0.0,
+    )
+    return kurzfassung([
+        txt("oberflaeche.inspector_kurz_pacht", wert=fmt_number(pacht, 1)),
+        txt("oberflaeche.inspector_kurz_flaeche", wert=fmt_number(flaeche, 1)),
+        txt("oberflaeche.inspector_kurz_dv", wert=fmt_number(dv, 0)),
+    ])
+
+
+def _zusammenfassung_ertrag(form_key, existing, ga) -> str:
+    bauform = _live(form_key, "bauform", existing.bauform if existing else "")
+    degr = _live(form_key, "abw_degradation_pct_pa", None)
+    if degr is None:
+        degr = ga.degradation_pct_pa * 100
+    vbh = _live(
+        form_key, "vbh_live",
+        existing.vollbenutzungsstunden_kwh_kwp if existing else 0.0,
+    )
+    # Die Inbetriebnahme steht seit der Karten-Ansicht in diesem Bereich
+    # und gehoert damit in seine Kurzfassung. Die Rueckfallwerte kommen
+    # aus dem Projekt, nicht aus dem Leeren: Beim ERSTEN Aufbau der Karte
+    # gibt es die Widgets des Bereichs noch nicht - sie entstehen erst
+    # darin.
+    kurznamen = monate_kurz()
+    monat = _live(
+        form_key, "ibn_monat_live",
+        kurznamen[existing.inbetriebnahme_monat - 1] if existing else "",
+    )
+    jahr = _live(
+        form_key, "ibn_jahr_live",
+        existing.inbetriebnahme_jahr if existing else "",
+    )
+    ibn = f"{monat} {jahr}".strip() if jahr else ""
+    return kurzfassung([
+        str(bauform),
+        txt("oberflaeche.inspector_kurz_ibn", wert=ibn) if ibn else "",
+        txt("oberflaeche.inspector_kurz_degradation", wert=fmt_number(degr, 2)),
+        txt("oberflaeche.inspector_kurz_vbh", wert=fmt_number(vbh, 0)),
+    ])
+
+
+def _zusammenfassung_vermarktung(form_key, existing, ga) -> str:
+    anteil = overlay_wert(
+        form_key, "ppa_anteil_pct", existing.ppa_anteil_pct if existing else 0.0
+    )
+    if anteil <= 0:
+        return txt("oberflaeche.inspector_kurz_nur_praemie")
+    preis = overlay_wert(
+        form_key, "ppa_preis_eur_mwh",
+        existing.ppa_preis_eur_mwh if existing else ga.ppa_preis_eur_mwh_vorschlag,
+    )
+    return kurzfassung([
+        txt("oberflaeche.inspector_kurz_praemie",
+            wert=fmt_pct(1 - anteil, 0)),
+        txt("oberflaeche.inspector_kurz_ppa", wert=fmt_pct(anteil, 0)),
+        f"{fmt_number(preis, 0)} €/MWh",
+    ])
+
+
+def _zusammenfassung_finanzierung(form_key, existing, ga) -> str:
+    ek = _live(form_key, "ekanteil",
+               (existing.eigenkapitalquote_pct if existing else 0.2) * 100)
+    zins = _live(form_key, "fkzins",
+                 (existing.fremdkapitalzins_pct if existing else 0.0) * 100)
+    laufzeit = _live(form_key, "abw_kreditlaufzeit_jahre", None)
+    if laufzeit is None:
+        laufzeit = ga.kreditlaufzeit_jahre
+    art = _live(form_key, "abw_tilgungsart", _lesbar(ga.tilgungsart))
+    return kurzfassung([
+        txt("oberflaeche.inspector_kurz_ek", wert=fmt_number(ek, 0)),
+        txt("oberflaeche.inspector_kurz_zins", wert=fmt_number(zins, 2)),
+        txt("oberflaeche.inspector_kurz_jahre", wert=fmt_number(laufzeit, 0)),
+        str(art),
+    ])
+
+
+def _zusammenfassung_steuern(form_key, ga) -> str:
+    modus = _live(form_key, "abw_tax_modus", _lesbar(ga.tax_modus))
+    afa = _live(form_key, "abw_afa_nutzungsdauer_jahre", None)
+    if afa is None:
+        afa = ga.afa_nutzungsdauer_jahre
+    satz = _live(form_key, "abw_steuersatz_pct", None)
+    if satz is None:
+        satz = ga.steuersatz_pct * 100
+    return kurzfassung([
+        str(modus),
+        txt("oberflaeche.inspector_kurz_afa", wert=fmt_number(afa, 0)),
+        txt("oberflaeche.inspector_kurz_steuersatz", wert=fmt_number(satz, 0)),
+    ])
+
+
+def _zusammenfassung_foerdermodell(form_key, ga) -> str:
+    modell = _live(form_key, "abw_praemien_modell", _lesbar(ga.praemien_modell))
+    regel = _live(form_key, "abw_negative_stunden_regel",
+                  _lesbar(ga.negative_stunden_regel))
+    return kurzfassung([str(modell), str(regel)])
+
+
+def _zusammenfassung_erloese(form_key, existing, ga) -> str:
+    """Die Erloesseite in einer Zeile: Kategorie, Gebot, Szenario, Modell.
+
+    Der Anlagentyp steht vorn: Er entscheidet ueber den anzuwendenden
+    Zuschlagswert (Agri-PV oder konventionell) und ist damit die Frage,
+    die den Rest der Karte bestimmt.
+    """
+    # Rueckfall aus dem Projekt: Das Radio entsteht erst IN dieser Karte,
+    # steht beim ersten Aufbau der Kurzfassung also noch nicht im Zustand.
+    typ = _live(
+        form_key, "typ_live",
+        "Konventionell"
+        if existing and existing.anlagentyp == AnlagenTyp.KONVENTIONELL
+        else "Agri-PV",
+    )
+    zuschlag = _live(
+        form_key, "eag",
+        existing.eag_zuschlagswert_ct_kwh if existing else 0.0,
+    )
+    szenario = _live(
+        form_key, "marktpreisszenario",
+        existing.marktpreisszenario if existing else "",
+    )
+    return kurzfassung([
+        str(typ),
+        txt("oberflaeche.inspector_kurz_eag", wert=fmt_number(zuschlag, 2)),
+        str(szenario),
+        _zusammenfassung_foerdermodell(form_key, ga),
+    ])
+
+
+def _abschnitt(
+    im_popover: bool, knopf: str, hilfe: str,
+    *, zusammenfassung: str = "", geaendert: int = 0, karte: str = "",
+):
+    """Ein Themenbereich - im Inspector eine Karte, im Anlageformular offen.
+
+    Gibt einen Kontextmanager zurueck; der Aufrufer schreibt seinen
+    Inhalt in beiden Faellen gleich.
+
+    Im Inspector besteht der Bereich aus zwei Teilen: einer LESBAREN
+    Karte (Titel, Kurzfassung, Aenderungsstand) und einem kleinen
+    Oeffnen-Knopf darin. Der Knopf ist ein Popover - das richtige Mittel
+    und kein Schalter, weil sein Inhalt bei JEDEM Durchlauf ausgefuehrt
+    wird: Die Widgets existieren also auch zugeklappt weiter und behalten
+    ihren Zustand. Ein Expander oder ein Sichtbarkeits-Schalter wuerde
+    die Felder aus dem Baum nehmen und damit den Entwurf verlieren.
     """
     if not im_popover:
         return contextlib.nullcontext()
-    return st.popover(knopf, width="stretch", help=hilfe)
+    if not karte:
+        return st.popover(knopf, width="stretch", help=hilfe)
+    with summary_card(knopf, zusammenfassung, geaendert=geaendert, key=karte):
+        return st.popover(
+            txt("oberflaeche.inspector_oeffnen"), width="content", help=hilfe,
+        )
 
 
 #: Rueckfall der EPC-Vorbelegung je Anlagentyp in €/kWp. Gepflegt wird sie
@@ -1059,6 +1247,10 @@ def verwirf_entwurf(form_key: str) -> None:
 
     Danach lesen die Felder ihre Vorbelegung wieder aus dem gespeicherten
     Projekt - das ist genau die Wirkung von "Verwerfen".
+
+    Das Overlay traegt denselben Praefix und faellt damit unter dieselbe
+    Regel: Auch die in Dialoge ausgelagerten Bereiche stehen danach
+    wieder auf dem gespeicherten Stand.
     """
     for schluessel in [s for s in st.session_state if s.startswith(f"{form_key}_")]:
         del st.session_state[schluessel]
@@ -1147,16 +1339,38 @@ def _felder(
             help=txt("oberflaeche.formular_variante_hilfe"),
         )
 
-    st.markdown("**Technische Anlagenparameter**")
-    col1, col2 = spalten(2)
+    # QUICK ADJUST - die vier Groessen, an denen beim Durchspielen
+    # tatsaechlich gedreht wird, als 2x2-Gitter ganz oben im Inspector.
+    #
+    # EPC und Fremdkapitalzins entstehen im Code weiter unten (der EPC
+    # braucht Anlagentyp und Leistung, der Zins steht im
+    # Finanzierungsblock). Sie werden deshalb in reservierte Container
+    # gerendert: Streamlit erlaubt es, einen Container spaeter zu
+    # fuellen, und so bleibt jedes Feld genau EINMAL im Baum - die
+    # Widget-Schluessel aendern sich nicht.
+    quick: dict = {}
+    if spaltig:
+        abschnittstitel(txt("oberflaeche.inspector_quick_adjust"))
+        with st.container(key=f"quickbox_{form_key}"):
+            q1, q2 = st.columns(2)
+            q3, q4 = st.columns(2)
+        quick = {"leistung": q1, "vbh": q2, "epc": q3, "fk": q4}
+        col1, col2 = quick["leistung"], quick["vbh"]
+    else:
+        st.markdown("**Technische Anlagenparameter**")
+        col1, col2 = spalten(2)
+
     nennleistung_kwp = col1.number_input(
-        "Leistung (kWp)", min_value=0.0,
+        txt("oberflaeche.formular_leistung_kwp") if spaltig else "Leistung (kWp)",
+        min_value=0.0,
         value=(existing.nennleistung_kwp if existing
                else global_assumptions.nennleistung_kwp_vorschlag),
         step=100.0, key=f"{form_key}_leistung_live",
     )
     vollbenutzungsstunden = col2.number_input(
-        "Vollbenutzungsstunden (kWh/kWp)", min_value=0.0,
+        txt("oberflaeche.formular_vbh_kurz") if spaltig
+        else "Vollbenutzungsstunden (kWh/kWp)",
+        min_value=0.0,
         value=(existing.vollbenutzungsstunden_kwh_kwp if existing
                else global_assumptions.vollbenutzungsstunden_kwh_kwp_vorschlag),
         step=10.0, key=f"{form_key}_vbh_live",
@@ -1173,11 +1387,15 @@ def _felder(
         if existing and existing.bauform in bauform_options
         else 0
     )
-    bauform = st.radio(
-        txt("oberflaeche.formular_bauform_label"), bauform_options,
-        index=bauform_index, horizontal=True, key=f"{form_key}_bauform_live",
-        help=txt("oberflaeche.formular_bauform_hilfe"),
-    )
+
+    def bauform_feld():
+        return st.radio(
+            txt("oberflaeche.formular_bauform_label"), bauform_options,
+            index=bauform_index, horizontal=True,
+            key=f"{form_key}_bauform_live",
+            help=txt("oberflaeche.formular_bauform_hilfe"),
+        )
+
     # Der Anlagentyp steht NICHT hier, sondern weiter unten unter
     # "Erloese": Agri-PV gegen konventionell ist eine EAG-Kategorie - sie
     # entscheidet ueber den Zuschlagswert, nicht ueber die Technik. Der
@@ -1201,46 +1419,74 @@ def _felder(
     # Erklaertext steht als Tooltip am Feld statt als Bildunterschrift;
     # er nahm drei Zeilen ein, ohne beim Ausprobieren gebraucht zu
     # werden.
-    if spaltig:
-        # Kurze Beschriftungen: "Inbetriebnahme - Monat" bricht in einer
-        # halben Spaltenbreite mitten im Wort um. Die Angabe steht als
-        # Ueberschrift darueber, die Felder tragen nur noch Monat und
-        # Jahr.
-        st.caption(txt("oberflaeche.formular_ibn_titel"))
-        monat_label = txt("oberflaeche.formular_ibn_kurz_monat")
-        jahr_label = txt("oberflaeche.formular_ibn_kurz_jahr")
-    else:
-        monat_label = txt("oberflaeche.formular_ibn_monat_label")
-        jahr_label = txt("oberflaeche.formular_ibn_jahr_label")
-    col_ibn1, col_ibn2 = st.columns(2)
     # In der halben Spaltenbreite passt "Dezember" nicht - die Auswahl
     # zeigt dort die dreibuchstabige Kurzform, die ohnehin schon fuer
     # Diagramme gepflegt ist.
     monatsnamen = monate_kurz() if spaltig else monate()
-    inbetriebnahme_monat_label = col_ibn1.selectbox(
-        monat_label, monatsnamen,
-        index=(existing.inbetriebnahme_monat - 1) if existing else 0,
-        key=f"{form_key}_ibn_monat_live",
-        help=txt("oberflaeche.formular_ibn_monat_hilfe"),
-    )
-    inbetriebnahme_jahr = col_ibn2.number_input(
-        jahr_label, min_value=2000, max_value=2100,
-        value=existing.inbetriebnahme_jahr if existing else datetime.now().year + 1,
-        step=1, key=f"{form_key}_ibn_jahr_live",
-        help=txt("oberflaeche.formular_ibn_monat_hilfe"),
-    )
-    inbetriebnahme_monat = monatsnamen.index(inbetriebnahme_monat_label) + 1
 
-    ertrag_zeile = st.container()
-    with _abschnitt(spaltig,
-                    knopf=txt("oberflaeche.formular_ertrag_knopf"),
-                    hilfe=txt("oberflaeche.formular_ertrag_hilfe")):
+    def inbetriebnahme_felder():
+        if spaltig:
+            # Kurze Beschriftungen: "Inbetriebnahme - Monat" bricht in
+            # einer halben Spaltenbreite mitten im Wort um. Die Angabe
+            # steht als Ueberschrift darueber, die Felder tragen nur noch
+            # Monat und Jahr.
+            st.caption(txt("oberflaeche.formular_ibn_titel"))
+            monat_label = txt("oberflaeche.formular_ibn_kurz_monat")
+            jahr_label = txt("oberflaeche.formular_ibn_kurz_jahr")
+        else:
+            monat_label = txt("oberflaeche.formular_ibn_monat_label")
+            jahr_label = txt("oberflaeche.formular_ibn_jahr_label")
+        col_ibn1, col_ibn2 = st.columns(2)
+        monat_label_wert = col_ibn1.selectbox(
+            monat_label, monatsnamen,
+            index=(existing.inbetriebnahme_monat - 1) if existing else 0,
+            key=f"{form_key}_ibn_monat_live",
+            help=txt("oberflaeche.formular_ibn_monat_hilfe"),
+        )
+        jahr = col_ibn2.number_input(
+            jahr_label, min_value=2000, max_value=2100,
+            value=(existing.inbetriebnahme_jahr if existing
+                   else datetime.now().year + 1),
+            step=1, key=f"{form_key}_ibn_jahr_live",
+            help=txt("oberflaeche.formular_ibn_monat_hilfe"),
+        )
+        return monatsnamen.index(monat_label_wert) + 1, jahr
+
+    # In der breiten Maske stehen Bauform und Inbetriebnahme offen; im
+    # Inspector wandern sie in die erste Karte. Unter der Ueberschrift
+    # DETAILS soll nur noch eine Liste von Karten stehen - jedes offene
+    # Feld dazwischen macht die Spalte wieder unruhig.
+    if not spaltig:
+        bauform = bauform_feld()
+        inbetriebnahme_monat, inbetriebnahme_jahr = inbetriebnahme_felder()
+
+    if spaltig:
+        abschnittstitel(txt("oberflaeche.inspector_details"))
+    with _abschnitt(
+        spaltig,
+        knopf=(txt("oberflaeche.inspector_karte_anlage") if spaltig
+               else txt("oberflaeche.formular_ertrag_knopf")),
+        hilfe=txt("oberflaeche.formular_ertrag_hilfe"),
+        karte="ertrag" if spaltig else "",
+        zusammenfassung=_zusammenfassung_ertrag(
+            form_key, existing, global_assumptions
+        ) if spaltig else "",
+    ):
+        if spaltig:
+            bauform = bauform_feld()
+            inbetriebnahme_monat, inbetriebnahme_jahr = inbetriebnahme_felder()
+            st.divider()
+        # Die Vorgabezeile steht IM Bereich, nicht darunter: In der
+        # schmalen Spalte soll unter DETAILS nur die Kartenliste stehen -
+        # die Auskunft, ob dieser Block noch der globalen Vorgabe folgt,
+        # gehoert aber zu seinen Feldern und darf nicht verlorengehen.
+        ertrag_zeile = st.container()
         ertrag = _ertrag_felder(
             form_key, global_assumptions, gespeicherte_abweichung, existing
         )
+        with ertrag_zeile:
+            _abweichungszeile(_beschriftungen(ertrag))
     lastgang_datei = ertrag.pop("__lastgang", None)
-    with ertrag_zeile:
-        _abweichungszeile(_beschriftungen(ertrag))
 
     def zusatz_capex_tabelle(darstellung: str):
         return _positionstabelle(
@@ -1272,7 +1518,8 @@ def _felder(
             ],
         )
 
-    st.markdown(txt("oberflaeche.formular_investkosten_titel"))
+    if not spaltig:
+        st.markdown(txt("oberflaeche.formular_investkosten_titel"))
     capex_defaults = existing.capex if existing else CapexBreakdown()
 
     # Der EPC-Default haengt vom Anlagentyp ab. Ein Anlagentyp-Wechsel muss
@@ -1291,6 +1538,7 @@ def _felder(
         default_abs_eur: float,
         key_suffix: str,
         default_eur_kwp: float | None = None,
+        mit_umschalter: bool = True,
     ) -> float:
         """Ein Investkosten-Feld mit eigenem Einheiten-Umschalter.
 
@@ -1343,24 +1591,39 @@ def _felder(
             f"{label} ({einheit_label})", min_value=0.0,
             step=1000.0 if absolut else 1.0, key=key,
         )
-        col.toggle(
+        # Der Umschalter kann anderswo stehen als das Feld: Im
+        # Quick-Adjust-Gitter waere er ein dritter Bedienpunkt in einer
+        # Zelle, in die schon Beschriftung und Zahl kaum passen. Er wird
+        # dann in der Investkosten-Karte erzeugt (siehe epc_umschalter) -
+        # die Umrechnung oben liest ihn ohnehin nur aus dem Zustand.
+        if mit_umschalter:
+            col.toggle(
+                txt("oberflaeche.formular_capex_toggle_absolut"),
+                key=schalter_key,
+                help=txt("oberflaeche.formular_capex_toggle_hilfe"),
+            )
+        return eingabe if absolut else eingabe * nennleistung_kwp
+
+    def epc_umschalter() -> None:
+        """Der Einheiten-Schalter des EPC, ausgelagert aus Quick Adjust."""
+        st.toggle(
             txt("oberflaeche.formular_capex_toggle_absolut"),
-            key=schalter_key,
+            key=f"{form_key}_epc_absolut",
             help=txt("oberflaeche.formular_capex_toggle_hilfe"),
         )
-        return eingabe if absolut else eingabe * nennleistung_kwp
 
     epc_default_eur_kwp = global_assumptions.epc_eur_kwp_vorschlag_je_anlagentyp.get(
         anlagentyp_label, EPC_DEFAULT_EUR_KWP[anlagentyp_label]
     )
 
-    def epc_feld(col):
+    def epc_feld(col, mit_umschalter: bool = True):
         return capex_feld(
             col, "EPC",
             capex_defaults.epc_eur
             if existing
             else nennleistung_kwp * epc_default_eur_kwp,
             "epc",
+            mit_umschalter=mit_umschalter,
         )
 
     def netz_feld(col):
@@ -1413,21 +1676,26 @@ def _felder(
         )
 
     if spaltig:
-        # Drei Positionen tragen den Grossteil des Invests und sind die,
-        # an denen man beim Durchspielen dreht - EPC rund 80 %, dazu
-        # Netzanschluss und Trasse, die zusammen am Anschlusspunkt
-        # haengen. Die uebrigen sechs sind Projektfakten, die einmal
-        # erfasst und selten wieder angefasst werden; sie stehen im
-        # Popover, jede weiterhin mit ihrem eigenen Einheitenschalter.
-        summenzeile = st.container()
-        epc = epc_feld(st)
-        netzanschluss = netz_feld(st)
-        trasse = trasse_feld(st)
-        weitere = st.container()
-        with st.popover(txt("oberflaeche.formular_capex_weitere_knopf"),
-                        width="stretch",
-                        help=txt("oberflaeche.formular_capex_weitere_hilfe")):
+        # EPC steht im Quick-Adjust-Gitter ganz oben - rund 80 % des
+        # Invests und die Zahl, an der beim Durchspielen zuerst gedreht
+        # wird. Alles Uebrige liegt hinter der Investkosten-Karte;
+        # Netzanschluss und Trasse zuerst, weil sie am Anschlusspunkt
+        # haengen und sich mit ihm aendern.
+        epc = epc_feld(quick["epc"], mit_umschalter=False)
+        with _abschnitt(
+            spaltig,
+            knopf=txt("oberflaeche.formular_capex_knopf"),
+            hilfe=txt("oberflaeche.formular_capex_weitere_hilfe"),
+            karte="capex",
+            zusammenfassung=_zusammenfassung_capex(
+                form_key, existing, nennleistung_kwp
+            ),
+        ):
+            epc_umschalter()
             st.markdown(f"**{txt('oberflaeche.formular_capex_weitere_titel')}**")
+            netzanschluss = netz_feld(st)
+            trasse = trasse_feld(st)
+            weitere = st.container()
             (widmung, genehmigung, sonstige_extern, agm, m_and_a,
              poenale) = weitere_capex_felder([st] * 6)
             # Frei benannte Investkosten gehoeren in dieselbe Huelle wie
@@ -1437,7 +1705,6 @@ def _felder(
             st.divider()
             zusatz_capex = zusatz_capex_tabelle("offen")
     else:
-        summenzeile = None
         weitere = None
         c1, c2, c3, c4 = spalten(4)
         epc = epc_feld(c1)
@@ -1447,19 +1714,7 @@ def _felder(
          poenale) = weitere_capex_felder(list(spalten(3)) + list(spalten(3)))
         zusatz_capex = zusatz_capex_tabelle("schalter")
 
-    if summenzeile is not None:
-        gesamt = (epc + netzanschluss + trasse + widmung + genehmigung
-                  + sonstige_extern + agm + m_and_a + poenale)
-        with summenzeile:
-            # Die Summe steht ueber den Feldern: Sie ist die Zahl, auf
-            # die es beim Drehen ankommt - das spezifische Invest ist
-            # zwischen Projekten vergleichbar, der Gesamtbetrag nicht.
-            st.caption(
-                txt("oberflaeche.formular_capex_summe",
-                    spezifisch=fmt_number(gesamt / nennleistung_kwp, 0)
-                    if nennleistung_kwp else "–",
-                    gesamt=fmt_number(gesamt / 1e6, 2))
-            )
+    if weitere is not None:
         with weitere:
             st.caption(
                 txt("oberflaeche.formular_capex_weitere_summe",
@@ -1479,7 +1734,8 @@ def _felder(
     # Der ganze Block liegt ausserhalb des Formularrahmens: Er enthaelt
     # Umschalter, und die duerfen nicht in st.form stehen (siehe
     # Modulkopf).
-    st.markdown(f"**{txt('oberflaeche.formular_betriebskosten_titel')}**")
+    if not spaltig:
+        st.markdown(f"**{txt('oberflaeche.formular_betriebskosten_titel')}**")
     pachtmodus_fix = txt("oberflaeche.formular_pachtmodus_fix")
     pachtmodus_umsatz = txt("oberflaeche.formular_pachtmodus_umsatzbeteiligung")
 
@@ -1627,12 +1883,15 @@ def _felder(
         # In der Live-Spalte steckt der ganze Block hinter einem Popover:
         # Vertragsform, Flaeche und Abgaben je MWh sind Vertrags- und
         # Standortfakten, an denen beim Durchspielen niemand dreht. Was
-        # darin steht, muss von aussen ablesbar sein - die Bildunterschrift
-        # nennt Pachtmodell, Flaeche und die beiden Abgaben.
-        hinweisbereich = st.container()
-        with st.popover(txt("oberflaeche.formular_betriebskosten_knopf"),
-                        width="stretch",
-                        help=txt("oberflaeche.formular_betriebskosten_hilfe")):
+        # darin steht, ist von aussen ablesbar - die Kurzfassung der Karte
+        # nennt Pachtmodell, Flaeche und die Direktvermarktungskosten.
+        with _abschnitt(
+            spaltig,
+            knopf=txt("oberflaeche.formular_betriebskosten_knopf"),
+            hilfe=txt("oberflaeche.formular_betriebskosten_hilfe"),
+            karte="betriebskosten",
+            zusammenfassung=_zusammenfassung_betriebskosten(form_key, existing),
+        ):
             st.markdown(f"**{txt('oberflaeche.formular_pacht_titel')}**")
             (pacht_modus, flaeche_ha, pacht_eur_kwp_jahr,
              pacht_umsatzbeteiligung_pct) = pacht_felder()
@@ -1654,19 +1913,11 @@ def _felder(
                 faktor=100.0, nachkomma=1, min_value=0.0, step=0.25,
                 hilfe=txt("oberflaeche.formular_kosteninflation_hilfe"),
             )
-        with hinweisbereich:
-            st.caption(
-                txt("oberflaeche.formular_betriebskosten_zusammenfassung",
-                    pacht=(
-                        fmt_number(pacht_umsatzbeteiligung_pct * 100, 1) + " %"
-                        if pacht_modus == PachtModus.UMSATZBETEILIGUNG
-                        else fmt_number(pacht_eur_kwp_jahr, 2) + " €/kWp"
-                    ),
-                    flaeche=(fmt_number(flaeche_ha, 1) + " ha") if flaeche_ha
-                    else "–",
-                    dv=fmt_number(direktvermarktungskosten_mwh, 2),
-                    gemeinde=fmt_number(gemeindeabgabe_mwh, 2))
-            )
+            # Frei benannte Betriebskosten gehoeren in dieselbe Karte wie
+            # die festen - es sind Betriebskosten. Offen und nicht hinter
+            # einem weiteren Popover: Popover lassen sich nicht schachteln.
+            st.divider()
+            zusatz_opex = zusatz_opex_tabelle("offen")
     else:
         (pacht_modus, flaeche_ha, pacht_eur_kwp_jahr,
          pacht_umsatzbeteiligung_pct) = pacht_felder()
@@ -1686,9 +1937,11 @@ def _felder(
             hilfe=txt("oberflaeche.formular_kosteninflation_hilfe"),
         )
 
-    # Frei benannte Betriebskosten schliessen den Block ab: dieselbe
-    # Groessenordnung, derselbe Zeitbezug - jaehrliche Kosten je kWp.
-    zusatz_opex = zusatz_opex_tabelle("popover" if spaltig else "schalter")
+    if not spaltig:
+        # Frei benannte Betriebskosten schliessen den Block ab: dieselbe
+        # Groessenordnung, derselbe Zeitbezug - jaehrliche Kosten je kWp.
+        # Im Inspector stehen sie in der Betriebskosten-Karte.
+        zusatz_opex = zusatz_opex_tabelle("schalter")
 
     # --- Erloese ----------------------------------------------------------
     # Der Block steht VOR dem Formularrahmen und damit ausserhalb von
@@ -1696,35 +1949,11 @@ def _felder(
     # wirken - er belegt den EPC-Vorschlag vor und schaltet den
     # Abschlagshinweis. Innerhalb eines Formulars loest kein Widget einen
     # Neulauf aus, der Wechsel wuerde also erst beim Abschicken sichtbar.
-    st.markdown(f"**{txt('oberflaeche.formular_erloese_titel')}**")
-    # Agri-PV gegen konventionell ist eine EAG-Kategorie: Sie entscheidet
-    # ueber den anzuwendenden Zuschlagswert, nicht ueber die Technik der
-    # Anlage. Deshalb steht das Radio hier und nicht bei den technischen
-    # Parametern.
-    anlagentyp_label = st.radio(
-        txt("oberflaeche.formular_anlagentyp_label"), anlagentyp_options,
-        index=anlagentyp_index, horizontal=True, key=anlagentyp_key,
-        help=txt("oberflaeche.formular_anlagentyp_hilfe"),
-    )
-    col7, col8 = spalten(2)
-    eag_zuschlag = col7.number_input(
-        "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
-        value=existing.eag_zuschlagswert_ct_kwh
-        if existing
-        else float(st.session_state.get("empfohlenes_gebot_ct", 6.5)),
-        step=0.1, key=f"{form_key}_eag",
-        help=txt("oberflaeche.formular_eag_zuschlag_hilfe"),
-    )
-    if anlagentyp_label == "Konventionell":
-        st.caption(txt(
-            "oberflaeche.formular_konventionell_abschlag_hinweis",
-            wert=f"{eag_zuschlag * 0.75:.2f}",
-        ))
-
-    # Die Auswahl fuehrt die Szenarien OHNE Bauform: "Aurora Q3/26 ·
+    #
+    # Die Auswahl der Szenarien fuehrt sie OHNE Bauform: "Aurora Q3/26 ·
     # Central" statt zweier Eintraege fuer Pult und Tracker. Welche der
-    # beiden Kurven gerechnet wird, entscheidet das Bauform-Radio oben
-    # bei den technischen Parametern.
+    # beiden Kurven gerechnet wird, entscheidet das Bauform-Radio in der
+    # Anlagenkarte.
     szenario_namen = (szenario_auswahl(global_assumptions)
                       or ["Aurora Q3/26 · Central"])
     default_szenario = existing.marktpreisszenario if existing else szenario_namen[0]
@@ -1733,39 +1962,84 @@ def _felder(
         if default_szenario in szenario_namen
         else 0
     )
-    marktpreisszenario = st.selectbox(
-        txt("oberflaeche.formular_marktpreisszenario_label"), szenario_namen,
-        index=szenario_index, key=f"{form_key}_marktpreisszenario",
-        help=txt("oberflaeche.formular_marktpreisszenario_hilfe"),
-    )
+
+    def erloes_felder():
+        """Anlagentyp, Zuschlagswert und Marktpreisszenario.
+
+        Agri-PV gegen konventionell ist eine EAG-Kategorie: Sie
+        entscheidet ueber den anzuwendenden Zuschlagswert, nicht ueber die
+        Technik der Anlage. Deshalb steht das Radio hier und nicht bei den
+        technischen Parametern.
+        """
+        typ = st.radio(
+            txt("oberflaeche.formular_anlagentyp_label"), anlagentyp_options,
+            index=anlagentyp_index, horizontal=True, key=anlagentyp_key,
+            help=txt("oberflaeche.formular_anlagentyp_hilfe"),
+        )
+        c7, _c8 = spalten(2)
+        zuschlag = c7.number_input(
+            "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
+            value=existing.eag_zuschlagswert_ct_kwh
+            if existing
+            else float(st.session_state.get("empfohlenes_gebot_ct", 6.5)),
+            step=0.1, key=f"{form_key}_eag",
+            help=txt("oberflaeche.formular_eag_zuschlag_hilfe"),
+        )
+        if typ == "Konventionell":
+            st.caption(txt(
+                "oberflaeche.formular_konventionell_abschlag_hinweis",
+                wert=f"{zuschlag * 0.75:.2f}",
+            ))
+        szenario = st.selectbox(
+            txt("oberflaeche.formular_marktpreisszenario_label"), szenario_namen,
+            index=szenario_index, key=f"{form_key}_marktpreisszenario",
+            help=txt("oberflaeche.formular_marktpreisszenario_hilfe"),
+        )
+        return typ, zuschlag, szenario
+
+    if not spaltig:
+        st.markdown(f"**{txt('oberflaeche.formular_erloese_titel')}**")
+        anlagentyp_label, eag_zuschlag, marktpreisszenario = erloes_felder()
 
     # --- Hybride Vermarktung ------------------------------------------------
-    # In der Live-Spalte hinter einem Popover: PPA-Vertragsdaten sind
-    # Vertragsfakten, keine Groessen, an denen man beim Durchspielen
-    # dreht. Die Widgets existieren darin unveraendert weiter - der
-    # Inhalt eines Popovers wird bei JEDEM Durchlauf ausgefuehrt.
+    # In der SPALTE liegt dieser Bereich hinter dem Vermarktungsdialog
+    # (app/components/project_dialogs.py) und nicht mehr hinter einem
+    # Popover. Seine Werte kommen deshalb aus dem OVERLAY statt aus
+    # Widgets: Ein Widget, das nur im geoeffneten Dialog entsteht, waere
+    # bei jedem Durchlauf ohne Dialog verschwunden - und mit ihm sein
+    # Wert (siehe project_inspector.py).
+    #
+    # In der BREITEN Maske (Neuanlage) bleiben es normale Felder: Dort
+    # gibt es keinen Inspector, und ein Dialog im Dialog ginge ohnehin
+    # nicht.
     if spaltig:
-        # Was im Popover steckt, muss von aussen ablesbar sein - sonst
-        # weiss niemand, ob dort ein PPA wartet.
-        ppa_anteil_gespeichert = int(round(
-            (existing.ppa_anteil_pct if existing else 0.0) * 100
-        ))
-        st.caption(
-            txt("oberflaeche.formular_vermarktung_ppa_anteil",
-                anteil=ppa_anteil_gespeichert)
-            if ppa_anteil_gespeichert
-            else txt("oberflaeche.formular_vermarktung_ohne_ppa")
-        )
-    vermarktung = _abschnitt(
-        spaltig,
-        knopf=txt("oberflaeche.formular_vermarktung_knopf"),
-        hilfe=txt("oberflaeche.formular_vermarktung_hilfe"),
-    )
-    with vermarktung:
-        if spaltig:
-            st.markdown(f"**{txt('oberflaeche.formular_ppa_titel_kurz')}**")
-        else:
-            st.markdown(txt("oberflaeche.formular_ppa_titel"))
+        vorgabe = {
+            "ppa_anteil_pct": existing.ppa_anteil_pct if existing else 0.0,
+            "ppa_preis_eur_mwh": (
+                existing.ppa_preis_eur_mwh if existing
+                else global_assumptions.ppa_preis_eur_mwh_vorschlag
+            ),
+            "ppa_laufzeit_jahre": (
+                existing.ppa_laufzeit_jahre if existing
+                else global_assumptions.ppa_laufzeit_jahre_vorschlag
+            ),
+            "ppa_start_jahr": existing.ppa_start_jahr if existing else 1,
+            "ppa_indexierung_pct_pa": (
+                existing.ppa_indexierung_pct_pa if existing
+                else global_assumptions.ppa_indexierung_pct_pa_vorschlag
+            ),
+        }
+        aus_overlay = {
+            feld: overlay_wert(form_key, feld, wert)
+            for feld, wert in vorgabe.items()
+        }
+        ppa_anteil = aus_overlay["ppa_anteil_pct"] * 100
+        ppa_preis = aus_overlay["ppa_preis_eur_mwh"]
+        ppa_laufzeit = aus_overlay["ppa_laufzeit_jahre"]
+        ppa_start = aus_overlay["ppa_start_jahr"]
+        ppa_index = aus_overlay["ppa_indexierung_pct_pa"] * 100
+    else:
+        st.markdown(txt("oberflaeche.formular_ppa_titel"))
         ppa_anteil = st.slider(
             txt("oberflaeche.formular_ppa_anteil_label"),
             min_value=0, max_value=100,
@@ -1777,11 +2051,9 @@ def _felder(
         )
         # Bei 0 % bleiben die Vertragsfelder sichtbar, aber gesperrt - so
         # ist zu sehen, welche Angaben ein Vertrag braucht, ohne dass sie
-        # stumm mitrechnen. Sie verschwinden bewusst NICHT: Widgets, die
-        # zwischen Durchlaeufen kommen und gehen, sind in Streamlit ein
-        # Risikomuster (siehe Modulkopf).
+        # stumm mitrechnen.
         ohne_ppa = ppa_anteil == 0
-        col_ppa1, col_ppa2 = st.columns(2) if spaltig else spalten(2)
+        col_ppa1, col_ppa2 = spalten(2)
         ppa_preis = col_ppa1.number_input(
             txt("oberflaeche.formular_ppa_preis_label"), min_value=0.0,
             value=(existing.ppa_preis_eur_mwh if existing
@@ -1796,7 +2068,7 @@ def _felder(
             step=1, key=f"{form_key}_ppa_laufzeit", disabled=ohne_ppa,
             help=txt("oberflaeche.formular_ppa_laufzeit_hilfe"),
         )
-        col_ppa3, col_ppa4 = st.columns(2) if spaltig else spalten(2)
+        col_ppa3, col_ppa4 = spalten(2)
         ppa_index = col_ppa3.number_input(
             txt("oberflaeche.formular_ppa_index_label"), min_value=0.0,
             value=((existing.ppa_indexierung_pct_pa if existing
@@ -1812,65 +2084,133 @@ def _felder(
             help=txt("oberflaeche.formular_ppa_start_hilfe"),
         )
 
-    foerdermodell_zeile = st.container()
-    with _abschnitt(spaltig,
-                    knopf=txt("oberflaeche.formular_foerdermodell_knopf"),
-                    hilfe=txt("oberflaeche.formular_foerdermodell_hilfe")):
+    # Anlagentyp, Zuschlagswert, Preisszenario und Foerdermodell bilden im
+    # Inspector EINE Karte: Es ist eine einzige Frage - wofuer bekommt das
+    # Projekt sein Geld. In der breiten Maske bleiben es zwei Bloecke,
+    # weil dort Platz genug ist.
+    with _abschnitt(
+        spaltig,
+        knopf=(txt("oberflaeche.inspector_karte_erloese") if spaltig
+               else txt("oberflaeche.formular_foerdermodell_knopf")),
+        hilfe=txt("oberflaeche.formular_foerdermodell_hilfe"),
+        karte="foerdermodell" if spaltig else "",
+        zusammenfassung=_zusammenfassung_erloese(
+            form_key, existing, global_assumptions
+        ) if spaltig else "",
+    ):
+        if spaltig:
+            anlagentyp_label, eag_zuschlag, marktpreisszenario = erloes_felder()
+            st.divider()
+        foerdermodell_zeile = st.container()
         foerdermodell = _foerdermodell_felder(
             form_key, global_assumptions, gespeicherte_abweichung
         )
-    with foerdermodell_zeile:
-        _abweichungszeile(_beschriftungen(foerdermodell))
+        with foerdermodell_zeile:
+            _abweichungszeile(_beschriftungen(foerdermodell))
+
+    if spaltig:
+        # Die Vermarktung ist der einzige Bereich, der hinter einem
+        # DIALOG liegt statt hinter einem Popover: Sie ist die Frage, bei
+        # der das Ausprobieren am meisten bringt, und dafuer braucht es
+        # Platz fuer die Wirkung neben der Eingabe. Der Knopf setzt nur
+        # eine Marke - geoeffnet wird der Dialog von der Projektseite,
+        # weil ein Dialog nicht in einem Popover stehen kann.
+        with summary_card(
+            txt("oberflaeche.formular_vermarktung_knopf"),
+            _zusammenfassung_vermarktung(form_key, existing, global_assumptions),
+            key="vermarktung",
+        ):
+            if st.button(
+                txt("oberflaeche.inspector_oeffnen"),
+                key=f"{form_key}__dlg_vermarktung",
+                help=txt("oberflaeche.formular_vermarktung_hilfe"),
+            ):
+                st.session_state[f"{form_key}__dialog"] = "vermarktung"
+                st.rerun()
 
     # --- Finanzierung -------------------------------------------------------
     # Kapitalstruktur und Zins sind die letzte offene Frage, wenn Kosten
     # und Erloese stehen. Der Block liegt - wie inzwischen alle -
     # ausserhalb des Formularrahmens: Er enthaelt ein Popover, und
     # Popover duerfen nicht in st.form stehen (siehe Modulkopf).
-    st.markdown(f"**{txt('oberflaeche.formular_finanzierung_titel')}**")
+    if not spaltig:
+        st.markdown(f"**{txt('oberflaeche.formular_finanzierung_titel')}**")
     # Zwei kurze Prozentfelder passen auch in der schmalen Spalte
-    # nebeneinander.
-    col_ek, col_fk = st.columns(2)
+    # nebeneinander. Im Inspector steht der FK-Zins im Quick-Adjust-
+    # Gitter ganz oben; der Eigenkapitalanteil bleibt hier, weil er
+    # seltener bewegt wird und in der Finanzierungskarte zusammen mit
+    # Laufzeit und Tilgungsart gelesen werden will.
     # Kurzbeschriftungen in der schmalen Spalte: "Eigenkapitalanteil"
     # bricht auf halber Spaltenbreite mitten im Wort um.
-    ek_anteil = col_ek.number_input(
-        "EK-Anteil (%)" if spaltig else "Eigenkapitalanteil (%)",
-        min_value=0.0, max_value=100.0,
-        value=((existing.eigenkapitalquote_pct if existing
-                else global_assumptions.eigenkapitalquote_pct_vorschlag) * 100),
-        step=1.0, key=f"{form_key}_ekanteil",
-    )
-    fk_zins = col_fk.number_input(
-        "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
-        min_value=0.0,
-        value=((existing.fremdkapitalzins_pct if existing
-                else global_assumptions.fremdkapitalzins_pct_vorschlag) * 100),
-        step=0.1, key=f"{form_key}_fkzins",
-    )
-    kreditvertrag_zeile = st.container()
-    with _abschnitt(spaltig,
-                    knopf=txt("oberflaeche.formular_kreditvertrag_knopf"),
-                    hilfe=txt("oberflaeche.formular_kreditvertrag_hilfe")):
+    def ek_feld(ziel):
+        return ziel.number_input(
+            "EK-Anteil (%)" if spaltig else "Eigenkapitalanteil (%)",
+            min_value=0.0, max_value=100.0,
+            value=((existing.eigenkapitalquote_pct if existing
+                    else global_assumptions.eigenkapitalquote_pct_vorschlag)
+                   * 100),
+            step=1.0, key=f"{form_key}_ekanteil",
+        )
+
+    def fk_feld(ziel):
+        return ziel.number_input(
+            "FK-Zins (%)" if spaltig else "Fremdkapitalzins (%)",
+            min_value=0.0,
+            value=((existing.fremdkapitalzins_pct if existing
+                    else global_assumptions.fremdkapitalzins_pct_vorschlag)
+                   * 100),
+            step=0.1, key=f"{form_key}_fkzins",
+        )
+
+    if spaltig:
+        fk_zins = fk_feld(quick["fk"])
+    else:
+        col_ek, col_fk = st.columns(2)
+        ek_anteil = ek_feld(col_ek)
+        fk_zins = fk_feld(col_fk)
+
+    with _abschnitt(
+        spaltig,
+        knopf=txt("oberflaeche.formular_kreditvertrag_knopf"),
+        hilfe=txt("oberflaeche.formular_kreditvertrag_hilfe"),
+        karte="finanzierung" if spaltig else "",
+        zusammenfassung=_zusammenfassung_finanzierung(
+            form_key, existing, global_assumptions
+        ) if spaltig else "",
+    ):
+        if spaltig:
+            # Der Eigenkapitalanteil steht in der Karte und nicht im
+            # Quick-Adjust-Gitter: Er wird je Projekt einmal gesetzt und
+            # will zusammen mit Laufzeit und Tilgungsart gelesen werden.
+            ek_anteil = ek_feld(st)
+        kreditvertrag_zeile = st.container()
         kreditvertrag = _kreditvertrag_felder(
             form_key, global_assumptions, gespeicherte_abweichung, spaltig
         )
-    with kreditvertrag_zeile:
-        _abweichungszeile(_beschriftungen(kreditvertrag))
+        with kreditvertrag_zeile:
+            _abweichungszeile(_beschriftungen(kreditvertrag))
 
     # --- Steuern ------------------------------------------------------------
     # Bisher gab es diesen Block im Projekt gar nicht - die Steuer war
     # ausschliesslich global. Sie haengt aber an Sitz und Rechtsform der
     # Projektgesellschaft, nicht am Portfolio.
-    st.markdown(f"**{txt('oberflaeche.formular_steuern_titel')}**")
-    steuern_zeile = st.container()
-    with _abschnitt(spaltig,
-                    knopf=txt("oberflaeche.formular_steuern_knopf"),
-                    hilfe=txt("oberflaeche.formular_steuern_hilfe")):
+    if not spaltig:
+        st.markdown(f"**{txt('oberflaeche.formular_steuern_titel')}**")
+    with _abschnitt(
+        spaltig,
+        knopf=txt("oberflaeche.formular_steuern_knopf"),
+        hilfe=txt("oberflaeche.formular_steuern_hilfe"),
+        karte="steuern" if spaltig else "",
+        zusammenfassung=_zusammenfassung_steuern(
+            form_key, global_assumptions
+        ) if spaltig else "",
+    ):
+        steuern_zeile = st.container()
         steuern = _steuer_felder(
             form_key, global_assumptions, gespeicherte_abweichung, spaltig
         )
-    with steuern_zeile:
-        _abweichungszeile(_beschriftungen(steuern))
+        with steuern_zeile:
+            _abweichungszeile(_beschriftungen(steuern))
 
     # --- Regelwerk des Standorts ------------------------------------------
     # Zinsmethode, Steuermodell, Praemienmodell und Negativstunden-Regel

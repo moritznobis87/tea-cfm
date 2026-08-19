@@ -447,9 +447,10 @@ class TestLeitvariante:
         [b for b in at.button if b.key == f"open_{leitfall.id}"][0].click()
         at.run()
         assert not at.exception, at.exception
-        assert any("keine offenen Änderungen" in c.value for c in at.caption), (
-            "Ein frisch geoeffneter Leitfall meldet eine Aenderung"
-        )
+        assert any(
+            "keine offenen Änderungen" in (b.help or "")
+            for b in at.button if b.key and b.key.endswith("__verwerfen")
+        ), "Ein frisch geoeffneter Leitfall meldet eine Aenderung"
 
     def test_marke_ueberlebt_den_excel_rundlauf(self):
         p1 = _projekt("Sonnenfeld", "", "a")

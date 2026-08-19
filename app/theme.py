@@ -444,14 +444,220 @@ def _baue_css() -> str:
             background: {Colors.PAPER};
         }}
         .parameter-kopf {{
-            margin: 0 -16px 12px -16px;
-            padding: 10px 16px;
+            margin: 0 -16px 10px -16px;
+            padding: 9px 14px;
             background: {Colors.SELECT};
             border-radius: 10px 10px 0 0;
             color: {Colors.INK};
             font-weight: 700;
             font-size: 0.95rem;
             letter-spacing: 0.01em;
+            /* Titel links, Aenderungsmarke rechts - der Zustand kostet
+               damit keine eigene Zeile. */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }}
+        .parameter-marke {{
+            background: #F6C453;
+            color: {Colors.INK};
+            border-radius: 9px;
+            padding: 1px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }}
+        /* Die beiden Knoepfe direkt unter dem Kopf, kompakt. */
+        .st-key-parameterbox [data-testid="stButton"] button {{
+            padding: 4px 10px;
+            min-height: 34px;
+            font-size: 0.85rem;
+        }}
+
+        /* --- Project Inspector -------------------------------------------------
+           Links wird analysiert, rechts gesteuert. Der Inspector soll
+           LESBAR sein, ohne dass man ihn bedient: Jede Themenkarte traegt
+           Titel, Kurzfassung und Aenderungsstand, der Bearbeiten-Knopf
+           sitzt als kleines Zeichen rechts oben darin. */
+        .inspector-gruppe {{
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: {Colors.MUTED};
+            margin: 14px 0 6px 0;
+        }}
+
+        /* Quick Adjust: kompakte Eingabekarten im 2x2-Gitter. Es sind
+           echte Streamlit-Felder - nur ihr Rahmen ist anders. */
+        .st-key-quickbox_ [data-testid="stNumberInput"] input {{
+            font-size: 1.02rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: {Colors.INK};
+        }}
+        div[class*="st-key-quickbox_"] label p {{
+            font-size: 0.72rem !important;
+            color: {Colors.MUTED};
+            font-weight: 500;
+        }}
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInput"] > div {{
+            border-radius: 10px;
+            border-color: {Colors.LINE};
+        }}
+        /* Die Schrittknoepfe entfallen im Gitter: Auf halber Spaltenbreite
+           nahmen sie mehr Platz ein als die Zahl selbst, und gedreht wird
+           hier ohnehin durch Eintippen. */
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInputStepUp"],
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInputStepDown"] {{
+            display: none;
+        }}
+
+        /* Themenkarten: links der lesbare Text, rechts ein quadratisches
+           Icon-Feld. Beide liegen NEBENEINANDER IM FLUSS (flex row) -
+           ein absolut gesetzter Knopf legte sich in der schmalen Spalte
+           ueber die Kurzfassung. */
+        div[class*="st-key-card_"] {{
+            border: 1px solid {Colors.LINE};
+            border-radius: 11px;
+            background: {Colors.PAPER};
+            padding: 10px 10px 10px 12px;
+            margin-bottom: 7px;
+            /* Hoch genug fuer Titel plus drei Zeilen Kurzfassung: Bei
+               zwei Zeilen brach die Erloeskarte mitten im Szenarionamen
+               ab. Gleiche Mindesthoehe fuer alle Karten haelt die Liste
+               ruhig, auch wenn eine Kurzfassung nur eine Zeile braucht. */
+            min-height: 76px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            transition: border-color 0.12s ease, box-shadow 0.12s ease;
+        }}
+        /* Der Knopf behaelt seine Breite, der Text bekommt den Rest.
+           min-width:0 ist noetig, damit er sich kuerzen DARF - ohne das
+           sprengt ein langer Text den Flex-Kasten. */
+        div[class*="st-key-card_"] > * {{
+            flex: 0 0 auto;
+        }}
+        div[class*="st-key-card_"] > *:first-child {{
+            flex: 1 1 auto;
+            min-width: 0;
+        }}
+        div[class*="st-key-card_"]:hover {{
+            border-color: {Colors.BRAND};
+            box-shadow: 0 1px 6px rgba(20, 48, 79, 0.07);
+        }}
+        .inspector-karte-kopf {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 1px;
+        }}
+        .inspector-karte-titel {{
+            font-size: 0.86rem;
+            font-weight: 650;
+            color: {Colors.INK};
+            line-height: 1.25;
+        }}
+        .inspector-karte-zeile {{
+            font-size: 0.76rem;
+            color: {Colors.MUTED};
+            line-height: 1.35;
+            font-variant-numeric: tabular-nums;
+            /* Hoechstens drei Zeilen: Eine einzige kuerzte die Angaben in
+               der schmalen Spalte auf zwei Werte; mehr als drei liessen
+               die Karten zu ungleich hoch werden. */
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+        .inspector-marke {{
+            background: {Colors.BRAND};
+            color: {Colors.PAPER};
+            border-radius: 9px;
+            padding: 0 6px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            line-height: 1.5;
+        }}
+        /* Der Trigger ist ein quadratisches Icon-Feld am rechten Rand.
+           Ein Streamlit-Knopf braucht eine Beschriftung; sie ist deshalb
+           auf ein einziges Zeichen reduziert (siehe
+           oberflaeche.inspector_oeffnen) und wird hier zum Symbol
+           geformt. Ein wirklich beschriftungsloser Knopf oder eine
+           vollflaechig klickbare Karte gaebe es in Streamlit nur mit
+           eigenem JavaScript. */
+        div[class*="st-key-card_"] [data-testid="stPopover"],
+        div[class*="st-key-card_"] [data-testid="stButton"] {{
+            margin: 0;
+            width: auto;
+        }}
+        /* Das Aufklapp-Zeichen des Popovers entfaellt: Neben dem Pfeil
+           ergaebe es zwei Symbole fuer einen Knopf. */
+        div[class*="st-key-card_"] [data-testid="stIconMaterial"] {{
+            display: none !important;
+        }}
+        div[class*="st-key-card_"] button {{
+            width: 30px !important;
+            min-width: 30px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 8px !important;
+            background: {Colors.SELECT} !important;
+            color: {Colors.BRAND} !important;
+            font-size: 0.9rem !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }}
+        div[class*="st-key-card_"] button p {{
+            margin: 0 !important;
+            font-size: 0.9rem !important;
+        }}
+        div[class*="st-key-card_"]:hover button {{
+            background: {Colors.BRAND} !important;
+            color: {Colors.PAPER} !important;
+        }}
+
+        /* --- Live Impact im Dialog --------------------------------------------- */
+        .impact-kachel {{
+            border: 1px solid {Colors.LINE};
+            border-radius: 12px;
+            background: {Colors.WASH};
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }}
+        .impact-titel {{
+            font-size: 0.72rem;
+            color: {Colors.MUTED};
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }}
+        .impact-wert {{
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: {Colors.INK};
+            font-variant-numeric: tabular-nums;
+            line-height: 1.15;
+        }}
+        .impact-delta {{
+            font-size: 0.85rem;
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+        }}
+        .impact-auf {{ color: {Colors.POSITIVE}; }}
+        .impact-ab {{ color: {Colors.NEGATIVE}; }}
+        .impact-neutral {{ color: {Colors.MUTED}; }}
+        .impact-fuss {{
+            font-size: 0.7rem;
+            color: {Colors.MUTED};
+            margin-top: 1px;
         }}
 
         /* --- Kontextzeile ------------------------------------------------------ */

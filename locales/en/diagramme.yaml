@@ -110,3 +110,7 @@ achse_stunde_im_jahr: "Hour of year"
 achse_stunde_des_tages: "Hour of day"
 achse_anteil_jahreserzeugung: "Share of annual generation"
 achse_anteil_tageserzeugung: "Share of daily generation"
+
+# Erloesmix (Vermarktungsdialog)
+serie_ppa: "PPA"
+serie_merchant: "Market"

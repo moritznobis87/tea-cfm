@@ -1,5 +1,68 @@
 # Changelog
 
+## v5.26 – Project Inspector und Vermarktungsdialog (2026-08)
+
+**Die rechte Spalte ist kein Formular mehr.** Sie beginnt mit einem
+**Quick Adjust** aus vier Feldern im 2×2-Gitter — Leistung,
+Vollbenutzungsstunden, EPC und Fremdkapitalzins, also die Größen, an
+denen beim Durchspielen tatsächlich gedreht wird. Darunter steht je
+Themenbereich eine **Karte** mit Titel und Kurzfassung: „Pult · 0,40 %
+Degradation · 1.080 kWh/kWp". Der Inspector ist damit lesbar, ohne dass
+man ihn bedient; der Bearbeiten-Knopf sitzt als kleines Zeichen rechts
+oben in der Karte.
+
+**Neu: der Vermarktungsdialog.** Ein Klick auf die Vermarktungskarte
+öffnet einen großen Dialog — links Vermarktungsmix, PPA-Anteil und
+Vertragsdaten, rechts der **Live Impact**: Equity IRR und Equity Value
+mit ihrer Veränderung gegenüber dem gespeicherten Stand, dazu der
+Erlösmix und ein Hinweis, der ausschließlich aus den gerechneten Deltas
+stammt (DSCR, Equity Value, Rendite) — keine erfundene Interpretation.
+
+Der **Erlösmix** kommt aus den tatsächlichen Cashflows und nicht aus dem
+nominellen PPA-Anteil: Der sagt, welcher Teil der *Menge* unter Vertrag
+steht; was davon als Erlös ankommt, hängt am Preis. Drei Segmente (PPA,
+Markt, Marktprämie), die sich nicht überschneiden.
+
+**Drei Zustände, sauber getrennt.** Das war die eigentliche Arbeit:
+
+| Zustand | Träger | Übergang |
+| --- | --- | --- |
+| Dialog | `dlg_*`-Widgets | „Übernehmen" → Entwurf |
+| Entwurf | Widget-Zustand + **Overlay** | „Speichern" → YAML |
+| Gespeichert | YAML | — |
+
+„Abbrechen" und das Kreuz schreiben nichts. Das **Overlay** ist neu und
+nötig: Der Entwurf ist in dieser Anwendung der Widget-Zustand selbst,
+und Streamlit verwirft den Zustand eines Widgets, das in einem Durchlauf
+nicht entsteht. Ein Feld, das nur im offenen Dialog lebt, wäre sonst beim
+nächsten Durchlauf verschwunden. Das Overlay ist deshalb ein
+gewöhnliches dict unter einem widgetfreien Schlüssel — mit demselben
+Präfix, damit „Verwerfen" es unter dieselbe Regel nimmt.
+
+**Bewusst nicht gebaut:** isolierte IRR-Deltas je Karte. Sie kosteten je
+Bereich eine eigene Bewertung, und ihre Summe ergäbe wegen der
+Nichtlinearität des Modells nicht das Gesamtdelta — eine falsche Aussage
+in einem Investmentwerkzeug. Die Karte zeigt nur, *dass* ein Bereich
+offen ist; das Delta steht einmal und prominent beim Equity IRR.
+
+**Nachgezogen: unter „Details" stehen nur noch Karten.** Der erste Wurf
+mischte weiter Überschriften, einzelne Felder und Bildunterschriften
+zwischen die Karten — die Spalte wirkte dadurch unruhiger als vorher.
+Jetzt gilt eine Regel: Quick Adjust, die Marke **DETAILS**, dann
+ausschließlich Karten. Bauform und Inbetriebnahme sind in die Karte
+„Anlage & Ertrag" gewandert, Anlagentyp, EAG-Zuschlagswert und
+Marktpreisszenario zusammen mit dem Fördermodell in „Erlöse & Förderung",
+der Eigenkapitalanteil in den Kreditvertrag, die Zusatzpositionen in die
+Karte ihres Themas. Die doppelten Bereichsüberschriften und die Zeilen
+„nach Vorgabe" sind weg — was ein Bereich enthält, steht in seiner
+Kurzfassung.
+
+Dazu drei Korrekturen an der Karte selbst: Text und Öffnen-Knopf liegen
+**nebeneinander im Fluss** statt absolut positioniert (der Knopf legte
+sich in der schmalen Spalte über die Kurzfassung), die Kurzfassung darf
+drei Zeilen hoch sein, und die Spalte ist von 25,5 % auf 30 % Breite
+gewachsen.
+
 ## v5.25 – Einspeisegrenze: das 70-%-Kriterium wird gerechnet (2026-08)
 
 **Neu: eine Stundenreihe je Projekt.** Sobald ein Projekt konkret genug
