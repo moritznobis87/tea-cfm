@@ -194,6 +194,21 @@ def _rendern(
     )
 
 
+class _Stand:
+    """Lesezugriff auf den Widget-Zustand des GANZEN Dialogs.
+
+    `Feld.aktiv` fragt oft nach einem Feld aus einer anderen Gruppe: Ob
+    die Rueckzahlungsfelder wirksam sind, haengt am Praemienmodell, und
+    das steht in der Gruppe darueber. Ein dict nur aus den Feldern der
+    laufenden Gruppe lieferte dafuer None - und sperrte die Felder
+    dauerhaft, egal was eingestellt war. Genau das war der Fall bei
+    "Rueckzahlung des Uebergewinns".
+    """
+
+    def get(self, name: str, vorgabe=None):
+        return st.session_state.get(f"{DIALOG_PRAEFIX}{name}", vorgabe)
+
+
 def _gitter(felder: tuple[Feld, ...], spalten: int = 2) -> None:
     """Rendert eine Feldgruppe im Raster.
 
@@ -201,7 +216,7 @@ def _gitter(felder: tuple[Feld, ...], spalten: int = 2) -> None:
     Direktvermarktungskosten wirksam sind, haengt am Modus-Radio DESSELBEN
     Durchlaufs - der Entwurf kennt ihn noch nicht.
     """
-    stand = {f.name: st.session_state.get(_schluessel(f)) for f in felder}
+    stand = _Stand()
     reihe: list = []
     for i, f in enumerate(felder):
         if i % spalten == 0:
@@ -382,56 +397,102 @@ BETRIEBSKOSTEN: tuple[Feld, ...] = (
 )
 
 
-def _opex_tabelle(e: GlobalAssumptions) -> pd.DataFrame:
-    """Die Standard-OPEX bleiben ein Tabelleneditor.
+#: Die Arbeitsliste der Betriebskostenpositionen, solange der Dialog
+#: offen ist: [(Name, EUR/kWp/Jahr), ...]. Bewusst eine eigene Liste und
+#: nicht der Entwurf: Hinzufuegen und Entfernen sollen "Abbrechen"
+#: ueberleben koennen - also erst mit "Uebernehmen" wirken.
+_OPEX_LISTE = f"{DIALOG_PRAEFIX}opex_liste"
 
-    Frei benannte Positionen mit je drei Zahlen sind genau der Fall, fuer
-    den ein Editor die richtige Oberflaeche ist - vier feste Felder waeren
-    hier ein Rueckschritt.
+
+def _opex_ansaeen(e: GlobalAssumptions) -> None:
+    if _OPEX_LISTE not in st.session_state:
+        st.session_state[_OPEX_LISTE] = [
+            (i.name, float(i.basiswert_eur_kwp)) for i in e.opex_standard
+        ]
+
+
+def _opex_felder() -> None:
+    """Je Position ein gewoehnliches Eingabefeld.
+
+    Frueher war das ein Tabelleneditor mit vier Spalten - Wert,
+    Indexrate und Startjahr je Position. Das sah technischer aus, als
+    die Sache ist: In der Praxis laeuft EINE Kosteninflation ueber alle
+    Positionen, und wann sie einsetzt, hat noch niemand je Position
+    verschieden gebraucht. Beides steht jetzt einmal im Block darunter;
+    hier bleibt der Betrag, um den es geht.
     """
-    return st.data_editor(
-        pd.DataFrame(
-            [
-                {
-                    "Position": item.name,
-                    "EUR/kWp/Jahr": item.basiswert_eur_kwp,
-                    "Index %/Jahr": item.index_pct_pa * 100,
-                    "Indexierung ab Jahr": item.indexierung_ab_jahr,
-                }
-                for item in e.opex_standard
-            ],
-            columns=["Position", "EUR/kWp/Jahr", "Index %/Jahr",
-                     "Indexierung ab Jahr"],
-        ),
-        width="stretch", hide_index=True, num_rows="dynamic",
-        key=f"{DIALOG_PRAEFIX}opex_editor",
-        column_config={
-            "Position": st.column_config.TextColumn(
-                txt("oberflaeche.annahmen_col_position"),
-            ),
-            "EUR/kWp/Jahr": st.column_config.NumberColumn(
-                txt("oberflaeche.annahmen_col_eur_kwp_jahr"),
-            ),
-            "Index %/Jahr": st.column_config.NumberColumn(
-                txt("oberflaeche.annahmen_col_index_pct"),
-            ),
-            "Indexierung ab Jahr": st.column_config.NumberColumn(
-                txt("oberflaeche.annahmen_col_index_ab_jahr"), format="%d",
-            ),
-        },
-    )
+    liste = st.session_state[_OPEX_LISTE]
+    for i, (name, wert) in enumerate(liste):
+        schluessel = f"{DIALOG_PRAEFIX}opex_wert_{i}"
+        if schluessel not in st.session_state:
+            st.session_state[schluessel] = float(wert)
+        col_wert, col_weg = st.columns([6, 1], vertical_alignment="bottom")
+        col_wert.number_input(
+            f"{name} ({txt('oberflaeche.annahmen_opex_einheit')})",
+            min_value=0.0, step=0.5, key=schluessel,
+        )
+        if col_weg.button(
+            "✕", key=f"{DIALOG_PRAEFIX}opex_weg_{i}",
+            help=txt("oberflaeche.annahmen_opex_entfernen"),
+        ):
+            st.session_state[_OPEX_LISTE] = [
+                z for j, z in enumerate(liste) if j != i
+            ]
+            # Die Werte der nachrueckenden Positionen haengen an ihrem
+            # Index; ohne Raeumen zeigte die Liste danach verschobene
+            # Betraege.
+            _opex_werte_raeumen()
+            st.rerun(scope="fragment")
+
+    with st.expander(txt("oberflaeche.annahmen_opex_hinzufuegen")):
+        col_name, col_wert, col_knopf = st.columns(
+            [4, 2, 1], vertical_alignment="bottom"
+        )
+        name = col_name.text_input(
+            txt("oberflaeche.annahmen_opex_name"),
+            key=f"{DIALOG_PRAEFIX}opex_neu_name",
+        )
+        wert = col_wert.number_input(
+            txt("oberflaeche.annahmen_opex_einheit"),
+            min_value=0.0, step=0.5, key=f"{DIALOG_PRAEFIX}opex_neu_wert",
+        )
+        if col_knopf.button(
+            txt("oberflaeche.annahmen_opex_uebernehmen_knopf"),
+            key=f"{DIALOG_PRAEFIX}opex_neu_ok", width="stretch",
+        ) and name.strip():
+            st.session_state[_OPEX_LISTE] = [
+                *st.session_state[_OPEX_LISTE], (name.strip(), float(wert))
+            ]
+            st.session_state[f"{DIALOG_PRAEFIX}opex_neu_name"] = ""
+            st.rerun(scope="fragment")
 
 
-def _opex_aus_tabelle(tabelle: pd.DataFrame) -> list[OpexItem]:
+def _opex_werte_raeumen() -> None:
+    for schluessel in [
+        k for k in list(st.session_state)
+        if str(k).startswith(f"{DIALOG_PRAEFIX}opex_wert_")
+    ]:
+        st.session_state.pop(schluessel, None)
+
+
+def _opex_einsammeln(inflation: float) -> list[OpexItem]:
+    """Die Positionen mit EINER Inflationsrate fuer alle.
+
+    `index_pct_pa` bleibt im Modell erhalten (Bestandsdateien fuehren es,
+    und die Cashflow-Rechnung liest es je Position), wird hier aber
+    einheitlich aus der Kosteninflation gesetzt. `indexierung_ab_jahr`
+    steht auf 1: Die Indexierung beginnt mit dem ersten Betriebsjahr.
+    """
     return [
         OpexItem(
-            name=r["Position"],
-            basiswert_eur_kwp=float(r["EUR/kWp/Jahr"]),
-            index_pct_pa=float(r["Index %/Jahr"]) / 100,
-            indexierung_ab_jahr=int(r["Indexierung ab Jahr"]),
+            name=name,
+            basiswert_eur_kwp=float(
+                st.session_state.get(f"{DIALOG_PRAEFIX}opex_wert_{i}", wert)
+            ),
+            index_pct_pa=inflation,
+            indexierung_ab_jahr=1,
         )
-        for _, r in tabelle.iterrows()
-        if pd.notna(r["Position"]) and str(r["Position"]).strip()
+        for i, (name, wert) in enumerate(st.session_state[_OPEX_LISTE])
     ]
 
 
@@ -440,15 +501,19 @@ def render_betriebskosten(e: GlobalAssumptions) -> None:
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
         _luecken_fuellen(BETRIEBSKOSTEN, e)
+        _opex_ansaeen(e)
         st.caption(txt("oberflaeche.annahmen_dlg_betriebskosten_hinweis"))
         _abschnitt("oberflaeche.annahmen_standardbetriebskosten_titel")
-        tabelle = _opex_tabelle(e)
+        _opex_felder()
         _abschnitt("oberflaeche.annahmen_dlg_weitere_kosten")
         _gitter(BETRIEBSKOSTEN, 2)
 
         def uebernehmen():
-            _uebernehmen(e, _einsammeln(BETRIEBSKOSTEN))
-            e.opex_standard = _opex_aus_tabelle(tabelle)
+            werte = _einsammeln(BETRIEBSKOSTEN)
+            _uebernehmen(e, werte)
+            # Eine Inflationsrate fuer alle Positionen - dieselbe, die
+            # der Block darueber fuehrt.
+            e.opex_standard = _opex_einsammeln(werte["kosten_inflation_pct_pa"])
 
         _fuss(uebernehmen, "betriebskosten")
 
