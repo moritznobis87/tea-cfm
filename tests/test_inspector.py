@@ -116,11 +116,19 @@ class TestInspectorGrundzustand:
         """Der wichtigste Test der ganzen Datei: Ein Projekt zu OEFFNEN
         darf nichts aendern. Meldet die Spalte hier etwas, sind es
         Rundungsartefakte oder ein Feld, das seine Vorbelegung nicht
-        findet - beides waere in jeder Sitzung sofort im Weg."""
+        findet - beides waere in jeder Sitzung sofort im Weg.
+
+        Abgelesen wird am Speichern-Knopf und an der Aenderungsmarke im
+        Kopf: Die frueher gepruefte Statuszeile kostete in der schmalen
+        Spalte eine eigene Zeile und ist der Marke gewichen."""
         at, _, _ = _projektseite()
-        assert any(
-            "keine offenen Änderungen" in c.value for c in at.caption
-        )
+        assert not _hat_offene_aenderungen(at)
+        # Auf das div einschraenken: Der Begriff steht auch im
+        # Stylesheet, das die Seite als markdown ausliefert.
+        koepfe = [m.value for m in at.markdown
+                  if '<div class="parameter-kopf"' in m.value]
+        assert koepfe, "Kopf der Parameterspalte fehlt"
+        assert not any("parameter-marke" in k for k in koepfe)
 
     def test_karten_sind_lesbar_ohne_bedienung(self):
         """Der Inspector soll auf einen Blick lesbar sein - jede Karte

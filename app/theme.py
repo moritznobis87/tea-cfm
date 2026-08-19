@@ -444,14 +444,35 @@ def _baue_css() -> str:
             background: {Colors.PAPER};
         }}
         .parameter-kopf {{
-            margin: 0 -16px 12px -16px;
-            padding: 10px 16px;
+            margin: 0 -16px 10px -16px;
+            padding: 9px 14px;
             background: {Colors.SELECT};
             border-radius: 10px 10px 0 0;
             color: {Colors.INK};
             font-weight: 700;
             font-size: 0.95rem;
             letter-spacing: 0.01em;
+            /* Titel links, Aenderungsmarke rechts - der Zustand kostet
+               damit keine eigene Zeile. */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }}
+        .parameter-marke {{
+            background: #F6C453;
+            color: {Colors.INK};
+            border-radius: 9px;
+            padding: 1px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }}
+        /* Die beiden Knoepfe direkt unter dem Kopf, kompakt. */
+        .st-key-parameterbox [data-testid="stButton"] button {{
+            padding: 4px 10px;
+            min-height: 34px;
+            font-size: 0.85rem;
         }}
 
         /* --- Project Inspector -------------------------------------------------
@@ -485,17 +506,44 @@ def _baue_css() -> str:
             border-radius: 10px;
             border-color: {Colors.LINE};
         }}
+        /* Die Schrittknoepfe entfallen im Gitter: Auf halber Spaltenbreite
+           nahmen sie mehr Platz ein als die Zahl selbst, und gedreht wird
+           hier ohnehin durch Eintippen. */
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInputStepUp"],
+        div[class*="st-key-quickbox_"] [data-testid="stNumberInputStepDown"] {{
+            display: none;
+        }}
 
-        /* Themenkarten. Der Bearbeiten-Knopf liegt absolut rechts oben in
-           der Karte - so bleibt die Karte Text und nicht Knopfleiste. */
+        /* Themenkarten: links der lesbare Text, rechts ein quadratisches
+           Icon-Feld. Beide liegen NEBENEINANDER IM FLUSS (flex row) -
+           ein absolut gesetzter Knopf legte sich in der schmalen Spalte
+           ueber die Kurzfassung. */
         div[class*="st-key-card_"] {{
-            position: relative;
             border: 1px solid {Colors.LINE};
             border-radius: 11px;
             background: {Colors.PAPER};
-            padding: 9px 12px;
+            padding: 10px 10px 10px 12px;
             margin-bottom: 7px;
+            /* Hoch genug fuer Titel plus drei Zeilen Kurzfassung: Bei
+               zwei Zeilen brach die Erloeskarte mitten im Szenarionamen
+               ab. Gleiche Mindesthoehe fuer alle Karten haelt die Liste
+               ruhig, auch wenn eine Kurzfassung nur eine Zeile braucht. */
+            min-height: 76px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
             transition: border-color 0.12s ease, box-shadow 0.12s ease;
+        }}
+        /* Der Knopf behaelt seine Breite, der Text bekommt den Rest.
+           min-width:0 ist noetig, damit er sich kuerzen DARF - ohne das
+           sprengt ein langer Text den Flex-Kasten. */
+        div[class*="st-key-card_"] > * {{
+            flex: 0 0 auto;
+        }}
+        div[class*="st-key-card_"] > *:first-child {{
+            flex: 1 1 auto;
+            min-width: 0;
         }}
         div[class*="st-key-card_"]:hover {{
             border-color: {Colors.BRAND};
@@ -518,12 +566,13 @@ def _baue_css() -> str:
             color: {Colors.MUTED};
             line-height: 1.35;
             font-variant-numeric: tabular-nums;
-            /* Eine Zeile, notfalls gekuerzt: Die Karten sollen gleich
-               hoch bleiben, sonst franst die Spalte aus. */
+            /* Hoechstens drei Zeilen: Eine einzige kuerzte die Angaben in
+               der schmalen Spalte auf zwei Werte; mehr als drei liessen
+               die Karten zu ungleich hoch werden. */
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            padding-right: 74px;
         }}
         .inspector-marke {{
             background: {Colors.BRAND};
@@ -534,24 +583,46 @@ def _baue_css() -> str:
             font-weight: 700;
             line-height: 1.5;
         }}
-        /* Der Trigger: dezent, bis die Karte beruehrt wird. */
+        /* Der Trigger ist ein quadratisches Icon-Feld am rechten Rand.
+           Ein Streamlit-Knopf braucht eine Beschriftung; sie ist deshalb
+           auf ein einziges Zeichen reduziert (siehe
+           oberflaeche.inspector_oeffnen) und wird hier zum Symbol
+           geformt. Ein wirklich beschriftungsloser Knopf oder eine
+           vollflaechig klickbare Karte gaebe es in Streamlit nur mit
+           eigenem JavaScript. */
         div[class*="st-key-card_"] [data-testid="stPopover"],
         div[class*="st-key-card_"] [data-testid="stButton"] {{
-            position: absolute;
-            top: 8px;
-            right: 10px;
             margin: 0;
+            width: auto;
+        }}
+        /* Das Aufklapp-Zeichen des Popovers entfaellt: Neben dem Pfeil
+           ergaebe es zwei Symbole fuer einen Knopf. */
+        div[class*="st-key-card_"] [data-testid="stIconMaterial"] {{
+            display: none !important;
         }}
         div[class*="st-key-card_"] button {{
+            width: 30px !important;
+            min-width: 30px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
             border: none !important;
-            background: transparent !important;
-            color: {Colors.MUTED} !important;
-            font-size: 0.74rem !important;
-            padding: 2px 6px !important;
-            min-height: 0 !important;
+            border-radius: 8px !important;
+            background: {Colors.SELECT} !important;
+            color: {Colors.BRAND} !important;
+            font-size: 0.9rem !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }}
+        div[class*="st-key-card_"] button p {{
+            margin: 0 !important;
+            font-size: 0.9rem !important;
         }}
         div[class*="st-key-card_"]:hover button {{
-            color: {Colors.BRAND} !important;
+            background: {Colors.BRAND} !important;
+            color: {Colors.PAPER} !important;
         }}
 
         /* --- Live Impact im Dialog --------------------------------------------- */

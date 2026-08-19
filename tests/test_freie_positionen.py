@@ -226,12 +226,13 @@ class TestAlteExportdateien:
 
 
 class TestParameterspalte:
-    """Zusatzpositionen stehen in der Live-Spalte hinter einem Popover.
+    """Zusatzpositionen stehen in der Live-Spalte in ihrer Themenkarte.
 
     Der frueher benutzte Schalter erzeugte die Tabelle beim Aufklappen
     und entfernte sie beim Zuklappen - unfertige Zeilen gingen dabei
-    verloren. Ein Popover fuehrt seinen Inhalt bei JEDEM Durchlauf aus,
-    das Widget existiert also auch zugeklappt weiter.
+    verloren. Die Karte ist ein Popover und fuehrt ihren Inhalt bei
+    JEDEM Durchlauf aus, das Widget existiert also auch zugeklappt
+    weiter.
     """
 
     def _projektseite(self):
@@ -261,24 +262,36 @@ class TestParameterspalte:
         assert f"param_{projekt_id}_capex_zusatz_anzeigen" not in schalter
         assert f"param_{projekt_id}_opex_zusatz_anzeigen" not in schalter
 
-    def test_freie_investkosten_stehen_bei_den_investkosten(self):
-        """Frei benannte Investkosten gehoeren in dieselbe Huelle wie die
-        festen - es sind Investkosten. Ein eigener Knopf daneben war eine
-        Huelle zu viel.
+    def test_freie_positionen_stehen_in_ihrer_themenkarte(self):
+        """Frei benannte Positionen gehoeren in dieselbe Huelle wie die
+        festen - es sind Invest- bzw. Betriebskosten. Ein eigener Knopf
+        daneben war eine Huelle zu viel.
 
-        Seit dem Inspector-Umbau traegt der Oeffnen-Knopf keinen
-        Themennamen mehr ("Bearbeiten"); geprueft wird deshalb an der
-        Karte und den Feldern, nicht an einer Beschriftung.
+        Seit der Inspector unter DETAILS nur noch Themenkarten zeigt,
+        steht KEIN Zusatzpositionen-Knopf mehr in der Spalte: Beide
+        Tabellen liegen offen in der Karte ihres Themas.
         """
-        at, projekt_id = self._projektseite()
+        at, _ = self._projektseite()
         karten = [m.value for m in at.markdown if "inspector-karte" in m.value]
         assert any("Investkosten" in k for k in karten), "Investkosten-Karte fehlt"
-        # Nur noch EIN Zusatzpositionen-Popover: das der Betriebskosten.
         beschriftungen = [p.proto.popover.label for p in at.get("popover")]
-        assert sum("Zusatzpositionen" in b for b in beschriftungen) == 1
+        assert not any("Zusatzpositionen" in b for b in beschriftungen)
 
-    def test_zusammenfassung_der_betriebskosten_steht_vor_dem_popover(self):
+    def test_unter_details_stehen_nur_karten(self):
+        """Keine Bereichsueberschrift und keine Vorgabezeile zwischen den
+        Karten.
+
+        Die Spalte war zuvor eine Mischung aus Ueberschriften, Feldern,
+        Bildunterschriften und Knoepfen. Geprueft wird an zwei Resten, die
+        es dort nicht mehr geben darf: der fett gesetzten
+        Bereichsueberschrift und der Zeile "nach Vorgabe" unter jedem
+        Erbblock. (Ueberschriften INNERHALB einer Karte bleiben - dort
+        gliedern sie den aufgeklappten Inhalt.)
+        """
         at, _ = self._projektseite()
-        zeilen = " ".join(c.value for c in at.caption)
-        assert "Weitere Betriebskosten" in zeilen
+        texte = [m.value for m in at.markdown]
+        for verboten in ("**Investkosten**", "**Betriebskosten**", "**Erlöse**"):
+            assert verboten not in texte, verboten
+        zeilen = [c.value for c in at.caption]
+        assert "nach Vorgabe" not in zeilen
 
