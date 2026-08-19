@@ -30641,10 +30641,10 @@ kosten_inflation_pct_pa: 0.02
 negative_stunden_regel: 6h
 zeitaufloesung: jahr
 einspeisekurve_pct_je_monat:
-- 0.021630
+- 0.02163
 - 0.045764
 - 0.072472
-- 0.136310
+- 0.13631
 - 0.120248
 - 0.119668
 - 0.125485
@@ -30655,10 +30655,10 @@ einspeisekurve_pct_je_monat:
 - 0.038899
 einspeisekurven_je_bauform:
   Pult:
-  - 0.021630
+  - 0.02163
   - 0.045764
   - 0.072472
-  - 0.136310
+  - 0.13631
   - 0.120248
   - 0.119668
   - 0.125485
@@ -30717,6 +30717,14 @@ opex_standard:
   indexierung_ab_jahr: 1
 gemeindeabgabe_eur_kwh: 0.002
 pacht_umsatzbeteiligung_pct_vorschlag: 0.055
+pacht_mindestpacht_eur_ha_jahr_vorschlag: 3000.0
+nennleistung_kwp_vorschlag: 5000.0
+vollbenutzungsstunden_kwh_kwp_vorschlag: 1050.0
+eigenkapitalquote_pct_vorschlag: 0.2
+fremdkapitalzins_pct_vorschlag: 0.042
+epc_eur_kwp_vorschlag_je_anlagentyp:
+  Agri-PV: 520.0
+  Konventionell: 430.0
 direktvermarktungskosten_eur_kwh: 0.001
 direktvermarktung_modus: absolut
 direktvermarktung_pct_marktwert: 0.1

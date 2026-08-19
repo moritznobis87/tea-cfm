@@ -9,16 +9,20 @@ services.save_global_assumptions).
 
 from __future__ import annotations
 
+import html
+
 import pandas as pd
 import streamlit as st
 
 from app import services
-from app.components import charts
+from app.components import (
+    assumption_dialogs,
+    charts,
+    data_quality,
+    settings_hub,
+)
 from app.config import FLAGS_DIR, monate_kurz
 from app.formatting import fmt_number
-from engine import io_aurora, io_lastgang
-from engine.io_aurora import AuroraImportFehler
-from engine.io_lastgang import LastgangFehler
 from engine import (
     DirektvermarktungsModus,
     GlobalAssumptions,
@@ -26,13 +30,16 @@ from engine import (
     MarktSystem,
     NegativeStundenModus,
     NegativeStundenRegel,
-    OpexItem,
     PraemienModell,
     TaxModus,
     TilgungsArt,
     Zeitaufloesung,
     ZinsMethode,
+    io_aurora,
+    io_lastgang,
 )
+from engine.io_aurora import AuroraImportFehler
+from engine.io_lastgang import LastgangFehler
 from texte import txt
 
 #: Marktsystematik-Umschalter: Code -> (Flaggen-Datei, Textschluessel).
@@ -45,8 +52,15 @@ _MARKT_SYSTEME: dict[MarktSystem, tuple[str, str]] = {
 }
 
 
-def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
+def _wechsle_markt_system(ziel: MarktSystem) -> None:
     """Stellt die Marktsystematik als Paket um und speichert sofort.
+
+    Arbeitet auf einer frischen Kopie des GESPEICHERTEN Stands, nicht auf
+    dem Entwurf: Sonst gingen alle offenen Aenderungen der Seite mit in
+    die Datei, obwohl der Nutzer nur das Marktsystem umgestellt hat.
+    Danach zieht `sofort_abschliessen` genau die veraenderten Felder in
+    Entwurf und Basis nach - alles Uebrige bleibt offen (siehe
+    settings_hub).
 
     Oesterreich (EAG): 6h-Regel, Koerperschaftsteuer mit AfA, act/365,
     zweiseitiger CfD mit Toleranzband (§ 10 EAG).
@@ -57,6 +71,8 @@ def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
     (streamlit_app.py bzw. app/views/auktion.py); die einzelnen Felder
     bleiben danach weiterhin manuell aenderbar.
     """
+    vorher = settings_hub.sofort_beginnen()
+    ga = vorher.model_copy(deep=True)
     ga.markt_system = ziel
     if ziel == MarktSystem.OESTERREICH:
         ga.negative_stunden_regel = NegativeStundenRegel.SECHS_STUNDEN
@@ -71,29 +87,35 @@ def _wechsle_markt_system(ga: GlobalAssumptions, ziel: MarktSystem) -> None:
         ga.zinsmethode = ZinsMethode.DEUTSCH
         ga.praemien_modell = PraemienModell.EINSEITIG_CFD
     services.save_global_assumptions(ga)
+    settings_hub.sofort_abschliessen(vorher)
 
 
 def _render_markt_system_schalter(ga: GlobalAssumptions) -> None:
-    """Flaggen-Buttons direkt unter der Ueberschrift der Seite."""
-    st.markdown(txt("oberflaeche.annahmen_marktsystem_titel"))
-    spalten = st.columns([1, 1, 3])
+    """Flaggen-Buttons im Kopf der Seite.
+
+    Der Wechsel ist keine Zahleneingabe, sondern eine
+    Systemeinstellung: Er setzt ein ganzes Paket (Foerdermodell,
+    Negativpreisregel, Steuerlogik, Zinsmethode) und speichert es
+    unmittelbar. Deshalb steht er im Kopf und nicht in einer Karte - und
+    deshalb wirkt er, ohne dass jemand "Speichern" drueckt.
+    """
     for spalte, (system, (flagge, schluessel)) in zip(
-        spalten, _MARKT_SYSTEME.items(), strict=False
+        st.columns(2), _MARKT_SYSTEME.items(), strict=False
     ):
         with spalte:
-            col_flagge, col_knopf = st.columns([1, 3], vertical_alignment="center")
+            col_flagge, col_knopf = st.columns([1, 4], vertical_alignment="center")
             flaggen_pfad = FLAGS_DIR / f"{flagge}.png"
             if flaggen_pfad.exists():
-                col_flagge.image(str(flaggen_pfad), width=28)
+                col_flagge.image(str(flaggen_pfad), width=26)
             if col_knopf.button(
                 txt(schluessel),
                 key=f"marktsystem_{flagge}",
                 type="primary" if ga.markt_system == system else "secondary",
                 width="stretch",
+                help=txt("oberflaeche.annahmen_marktsystem_hinweis"),
             ) and ga.markt_system != system:
-                _wechsle_markt_system(ga, system)
+                _wechsle_markt_system(system)
                 st.rerun()
-    st.caption(txt("oberflaeche.annahmen_marktsystem_hinweis"))
 
 
 def _datei(hochgeladen) -> tuple[bytes, str] | None:
@@ -208,6 +230,12 @@ def _aurora_arbeitsmappe(ga: GlobalAssumptions) -> None:
         return
 
     namen = [e.szenario.name for e in ergebnisse]
+    # Auf einer frischen Kopie des GESPEICHERTEN Stands arbeiten: Der
+    # Import speichert unmittelbar, und mit dem Entwurf als Grundlage
+    # gingen alle offenen Aenderungen der Seite ungefragt mit in die
+    # Datei (siehe settings_hub).
+    vorher = settings_hub.sofort_beginnen()
+    ga = vorher.model_copy(deep=True)
     ga.marktpreisszenarien = [
         s for s in ga.marktpreisszenarien if s.name not in namen
     ] + [e.szenario for e in ergebnisse]
@@ -216,6 +244,7 @@ def _aurora_arbeitsmappe(ga: GlobalAssumptions) -> None:
     if auf_monat:
         ga.zeitaufloesung = Zeitaufloesung.MONAT
     services.save_global_assumptions(ga)
+    settings_hub.sofort_abschliessen(vorher)
 
     erstes = ergebnisse[0]
     st.success(
@@ -339,6 +368,8 @@ def _aurora_csv(ga: GlobalAssumptions) -> None:
 
     # Ein bestehendes Szenario gleichen Namens wird ersetzt, nicht
     # verdoppelt: Ein Reimport derselben Studie ist eine Korrektur.
+    vorher = settings_hub.sofort_beginnen()
+    ga = vorher.model_copy(deep=True)
     ga.marktpreisszenarien = [
         s for s in ga.marktpreisszenarien if s.name != ergebnis.szenario.name
     ] + [ergebnis.szenario]
@@ -351,6 +382,7 @@ def _aurora_csv(ga: GlobalAssumptions) -> None:
     if auf_monat:
         ga.zeitaufloesung = Zeitaufloesung.MONAT
     services.save_global_assumptions(ga)
+    settings_hub.sofort_abschliessen(vorher)
 
     st.success(
         txt("oberflaeche.aurora_erfolg",
@@ -602,327 +634,653 @@ def _bauform_auswahl(ga: GlobalAssumptions) -> None:
     )
     if wahl == aktiv:
         return
+    vorher = settings_hub.sofort_beginnen()
+    neu_ga = vorher.model_copy(deep=True)
     if wahl == _EIGENE_KURVE:
         # Die Kurve bleibt stehen, nur die Herkunftsangabe faellt weg:
         # Wer von Hand nachbessert, rechnet nicht mehr mit der Bauform.
-        ga.einspeisekurve_bauform = ""
+        neu_ga.einspeisekurve_bauform = ""
     else:
-        ga.einspeisekurve_bauform = wahl
-        ga.einspeisekurve_pct_je_monat = list(ga.einspeisekurven_je_bauform[wahl])
+        neu_ga.einspeisekurve_bauform = wahl
+        neu_ga.einspeisekurve_pct_je_monat = list(
+            neu_ga.einspeisekurven_je_bauform[wahl]
+        )
     # Der Editor haelt seine Aenderungen an der alten Kurve fest; ohne
     # Zuruecksetzen wuerde er die neue sofort wieder ueberschreiben.
     st.session_state.pop("einspeisekurve_editor", None)
-    services.save_global_assumptions(ga)
+    services.save_global_assumptions(neu_ga)
+    settings_hub.sofort_abschliessen(vorher)
     st.rerun()
 
 
-def render_assumptions() -> None:
-    st.subheader(txt("oberflaeche.nav_globale_annahmen"))
+# ---------------------------------------------------------------------------
+# Der Settings Hub
+# ---------------------------------------------------------------------------
+#
+# Zwei Ebenen (siehe app/components/settings_hub.py):
+#
+#   UEBERSICHT   Karten, die den geltenden Modellzustand zeigen. Lesbar,
+#                ohne dass man sie bedient.
+#   BEARBEITEN   Ein Klick auf eine Karte fuehrt dorthin, wo ihre Felder
+#                stehen - fuer sechs Bereiche in einen Dialog, fuer
+#                "Markt & Preise" und "Daten & Import" in einen
+#                Vollbreiten-Abschnitt.
+#
+# Warum zwei Bereiche NICHT im Dialog liegen: Markt & Preise fuehrt drei
+# nebeneinanderliegende Diagramme, Szenariotabellen mit 24 Zeilen je
+# Jahrgang und zwei Editoren; der Import fuehrt Dateiwahl, Vorschau und
+# Optionen. Ein Dialog ist schmaler als die Seite - hier waere er eine
+# Verschlechterung.
 
-    ga = services.get_global_assumptions()
-    _render_markt_system_schalter(ga)
-    st.caption(txt("oberflaeche.annahmen_hinweis"))
+#: Die interne Bereichsnavigation. Bewusst kurz: Sie ist kein zweites
+#: Hauptmenue, sondern der Wechsel zwischen Uebersicht und den beiden
+#: Bereichen, die eine ganze Seite brauchen.
+_NAV = (
+    ("uebersicht", "oberflaeche.annahmen_nav_uebersicht"),
+    ("markt", "oberflaeche.annahmen_nav_markt"),
+    ("daten", "oberflaeche.annahmen_nav_daten"),
+)
+_NAV_KEY = "annahmen_bereich"
 
-    # --- Marktpreisszenarien -------------------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_marktpreisszenarien_titel"), expanded=True):
-        st.caption(txt("oberflaeche.annahmen_szenarien_hinweis"))
 
-        st.markdown(txt("oberflaeche.annahmen_inflation_marktwerte_titel"))
-        st.caption(txt("oberflaeche.annahmen_inflation_marktwerte_hinweis"))
-        col_infl1, col_infl2, col_infl3 = st.columns(3)
-        marktpreis_inflation = col_infl1.number_input(
-            txt("oberflaeche.annahmen_inflation_marktwerte_label"), min_value=0.0,
-            value=ga.marktpreis_inflation_pct_pa * 100, step=0.1,
+def _bereich() -> str:
+    return st.session_state.get(_NAV_KEY, "uebersicht")
+
+
+def _setze_bereich(code: str) -> None:
+    st.session_state[_NAV_KEY] = code
+    # Die Segmentwahl fuehrt einen eigenen Widget-Zustand; ohne
+    # Zuruecksetzen spraenge sie beim naechsten Durchlauf wieder auf ihre
+    # alte Auswahl, weil das Widget sie gegenueber dem Vorgabewert
+    # gewinnt.
+    st.session_state.pop("annahmen_navwahl", None)
+
+
+# --- Kartenwerte ------------------------------------------------------------
+#
+# Jede Karte zeigt den EFFEKTIV geltenden Zustand, nicht das rohe Feld.
+# Steht die Direktvermarktung auf "Anteil am Marktwert", nennt die Karte
+# den Prozentsatz - der gespeicherte EUR/MWh-Wert wirkt dann nicht, und
+# ihn trotzdem gross anzuzeigen behauptete eine Geltung, die er nicht
+# hat. Dieselbe Regel gilt fuer Steuermodus, Foerdermodell und
+# Zeitaufloesung.
+
+
+def _lesbar_aufloesung(ga: GlobalAssumptions) -> str:
+    return txt(
+        "oberflaeche.annahmen_aufloesung_monat"
+        if ga.zeitaufloesung == Zeitaufloesung.MONAT
+        else "oberflaeche.annahmen_aufloesung_jahr"
+    )
+
+
+def _szenario_zeitraum(ga: GlobalAssumptions) -> str:
+    """Von-bis ueber alle Szenarien - die Spanne, in der Kurven vorliegen."""
+    jahre = [
+        j
+        for s in ga.marktpreisszenarien
+        for j in s.marktwert_solar_ct_kwh_je_kalenderjahr
+    ]
+    return f"{min(jahre)}–{max(jahre)}" if jahre else ""
+
+
+def _karte_markt(ga: GlobalAssumptions) -> tuple[str, str]:
+    if not ga.marktpreisszenarien:
+        return txt("oberflaeche.annahmen_karte_markt_leer"), ""
+    # Das Leitszenario steht stellvertretend fuer den Jahrgang: Aus einer
+    # Arbeitsmappe entstehen sechs Kurven, die alle dasselbe Datum
+    # tragen. Welche ein Projekt rechnet, entscheidet das Projekt.
+    leit = next(
+        (s.name for s in ga.marktpreisszenarien if io_aurora.ist_leitszenario(s.name)),
+        ga.marktpreisszenarien[0].name,
+    )
+    return leit, settings_hub.kurzfassung([
+        _lesbar_aufloesung(ga),
+        _szenario_zeitraum(ga),
+        txt("oberflaeche.annahmen_karte_markt_anzahl",
+            anzahl=len(ga.marktpreisszenarien)),
+    ])
+
+
+def _karte_vermarktung(ga: GlobalAssumptions) -> tuple[str, str]:
+    if ga.direktvermarktung_modus == DirektvermarktungsModus.ABSOLUT:
+        wert = txt("oberflaeche.annahmen_karte_dv_absolut",
+                   wert=fmt_number(ga.direktvermarktungskosten_eur_kwh * 1000, 2))
+    else:
+        bezug = txt(
+            "oberflaeche.annahmen_karte_dv_bezug_marktwert"
+            if ga.direktvermarktung_modus
+            == DirektvermarktungsModus.RELATIV_MARKTWERT
+            else "oberflaeche.annahmen_karte_dv_bezug_grosshandel"
         )
-        marktpreis_basisjahr = col_infl2.number_input(
-            txt("oberflaeche.annahmen_basisjahr_label"), min_value=2000,
-            max_value=2100, value=ga.marktpreis_inflation_basisjahr, step=1,
-            help=txt("oberflaeche.annahmen_basisjahr_hilfe"),
-        )
-        kosten_inflation = col_infl3.number_input(
-            txt("oberflaeche.annahmen_kosteninflation_label"), min_value=0.0,
-            value=ga.kosten_inflation_pct_pa * 100, step=0.1,
-            help=txt("oberflaeche.annahmen_kosteninflation_hilfe"),
-        )
+        wert = txt("oberflaeche.annahmen_karte_dv_relativ",
+                   wert=fmt_number(ga.direktvermarktung_pct_marktwert * 100, 1),
+                   bezug=bezug)
+    return wert, settings_hub.kurzfassung([
+        txt("oberflaeche.annahmen_karte_ppa",
+            preis=fmt_number(ga.ppa_preis_eur_mwh_vorschlag, 0),
+            jahre=ga.ppa_laufzeit_jahre_vorschlag),
+        txt("oberflaeche.annahmen_karte_ppa_anteil",
+            anteil=fmt_number(ga.ppa_anteil_pct_vorschlag * 100, 0)),
+    ])
 
-        st.markdown(txt("oberflaeche.annahmen_negative_stunden_gewichtung_titel"))
-        st.caption(txt("oberflaeche.annahmen_negative_stunden_gewichtung_hinweis"))
-        negative_stunden_gewichtung = st.slider(
-            txt("oberflaeche.annahmen_gewichtung_label"), min_value=0, max_value=100,
-            value=int(round(ga.negative_stunden_gewichtung_pct * 100)), step=5,
-        )
 
-        st.markdown(txt("oberflaeche.annahmen_praemienentfall_titel"))
-        st.caption(txt("oberflaeche.annahmen_praemienentfall_hinweis"))
-        regel_labels = {
-            NegativeStundenRegel.SECHS_STUNDEN.value: (
-                txt("oberflaeche.annahmen_regel_6h")
-            ),
-            NegativeStundenRegel.EINE_STUNDE.value: txt("oberflaeche.annahmen_regel_1h"),
-        }
-        regel_optionen = [r.value for r in NegativeStundenRegel]
-        negative_stunden_regel = st.radio(
-            txt("oberflaeche.annahmen_regel_label"),
-            regel_optionen,
-            format_func=lambda v: regel_labels[v],
-            index=regel_optionen.index(ga.negative_stunden_regel.value),
-            horizontal=True,
-            label_visibility="collapsed",
-        )
+def _karte_betriebskosten(ga: GlobalAssumptions) -> tuple[str, str]:
+    summe = sum(i.basiswert_eur_kwp for i in ga.opex_standard)
+    return (
+        txt("oberflaeche.annahmen_karte_opex_inflation",
+            wert=fmt_number(ga.kosten_inflation_pct_pa * 100, 1)),
+        settings_hub.kurzfassung([
+            txt("oberflaeche.annahmen_karte_opex_positionen",
+                anzahl=len(ga.opex_standard), summe=fmt_number(summe, 1)),
+            txt("oberflaeche.annahmen_karte_opex_pacht",
+                wert=fmt_number(ga.pacht_umsatzbeteiligung_pct_vorschlag * 100, 1)),
+        ]),
+    )
 
-        st.markdown(txt("oberflaeche.annahmen_verhalten_negativ_titel"))
-        neg_modus_labels = {
-            NegativeStundenModus.ABREGELUNG.value: (
-                txt("oberflaeche.annahmen_modus_abregelung")
-            ),
-            NegativeStundenModus.MARKTWERT.value: (
-                txt("oberflaeche.annahmen_modus_marktwert")
-            ),
-        }
-        neg_modus_optionen = [m.value for m in NegativeStundenModus]
-        negative_stunden_modus = st.radio(
-            txt("oberflaeche.annahmen_negativstunden_modus_label"),
-            neg_modus_optionen,
-            format_func=lambda v: neg_modus_labels[v],
-            index=neg_modus_optionen.index(ga.negative_stunden_modus.value),
-            label_visibility="collapsed",
-            help=txt("oberflaeche.annahmen_negativstunden_modus_hilfe"),
-        )
 
-        edited_szenarien: dict[str, pd.DataFrame] = {}
-        if not ga.marktpreisszenarien:
-            st.info(txt("oberflaeche.annahmen_kein_szenario"))
-        else:
-            # Zuerst das Bild, dann die Zahlen: Der Vergleich der
-            # Szenarien ist die Frage, die man an diese Sammlung hat -
-            # vier Tabellen mit je 36 Zeilen beantworten sie nicht. Die
-            # Kurven bleiben editierbar, aber einen Schalter entfernt.
-            st.markdown(txt("oberflaeche.annahmen_szenarien_plot_titel"))
-            st.caption(txt("oberflaeche.annahmen_szenarien_plot_hinweis"))
-            # Aus einer Arbeitsmappe entstehen sechs Szenarien je
-            # Jahrgang. Nebeneinander gezeichnet sind das zwanzig
-            # Linien, von denen die meisten dasselbe sagen: Low und High
-            # sind die Spanne um Central, der Tracker laeuft dicht neben
-            # dem Pult. Die Uebersicht zeigt deshalb je Familie eine
-            # Kurve; alle uebrigen bleiben in den Reitern darunter und
-            # in der Projektauswahl unveraendert verfuegbar.
-            gezeigt = [
-                s for s in ga.marktpreisszenarien
-                if io_aurora.ist_leitszenario(s.name)
-            ]
-            verdeckt = len(ga.marktpreisszenarien) - len(gezeigt)
-            if verdeckt and st.checkbox(
-                txt("oberflaeche.annahmen_szenarien_alle_zeigen", anzahl=verdeckt),
-                key="szenarien_alle_zeigen",
-                help=txt("oberflaeche.annahmen_szenarien_alle_zeigen_hilfe"),
+def _karte_technik(ga: GlobalAssumptions) -> tuple[str, str]:
+    limit = (
+        txt("oberflaeche.annahmen_karte_technik_limit",
+            wert=fmt_number(ga.einspeiselimit_pct * 100, 0))
+        if ga.einspeiselimit_pct
+        else ""
+    )
+    return (
+        txt("oberflaeche.annahmen_karte_technik_vbh",
+            wert=fmt_number(ga.vollbenutzungsstunden_kwh_kwp_vorschlag, 0)),
+        settings_hub.kurzfassung([
+            txt("oberflaeche.annahmen_karte_technik_degradation",
+                wert=fmt_number(ga.degradation_pct_pa * 100, 2)),
+            txt("oberflaeche.annahmen_karte_technik_dauer",
+                jahre=ga.betriebsdauer_jahre),
+            limit,
+        ]),
+    )
+
+
+def _karte_finanzierung(ga: GlobalAssumptions) -> tuple[str, str]:
+    tilgung = txt(
+        "oberflaeche.annahmen_tilgungsart_annuitaet"
+        if ga.tilgungsart == TilgungsArt.ANNUITAET
+        else "oberflaeche.annahmen_tilgungsart_linear"
+    )
+    return (
+        txt("oberflaeche.annahmen_karte_fin_kapital",
+            ek=fmt_number(ga.eigenkapitalquote_pct_vorschlag * 100, 0),
+            fk=fmt_number(ga.fremdkapitalzins_pct_vorschlag * 100, 2)),
+        settings_hub.kurzfassung([
+            txt("oberflaeche.annahmen_karte_fin_laufzeit",
+                jahre=ga.kreditlaufzeit_jahre),
+            tilgung,
+            txt("oberflaeche.annahmen_karte_fin_dscr",
+                wert=fmt_number(ga.dscr_cash_trap, 2)),
+        ]),
+    )
+
+
+#: Praemienmodell -> Etikett. Dieselbe Zuordnung wie im Dialog; die
+#: Karte darf keinen Enum-Wert zeigen ("PraemienModell.EAG_TOLERANZBAND").
+_MODELL_KURZ = {
+    PraemienModell.EINSEITIG_CFD: "oberflaeche.annahmen_karte_modell_einseitig",
+    PraemienModell.ZWEISEITIG_CFD: "oberflaeche.annahmen_karte_modell_zweiseitig",
+    PraemienModell.EAG_TOLERANZBAND: "oberflaeche.annahmen_karte_modell_eag",
+}
+
+
+def _karte_foerderung(ga: GlobalAssumptions) -> tuple[str, str]:
+    regel = txt(
+        "oberflaeche.annahmen_regel_6h"
+        if ga.negative_stunden_regel == NegativeStundenRegel.SECHS_STUNDEN
+        else "oberflaeche.annahmen_regel_1h"
+    )
+    # Toleranzband und Rueckzahlungsanteil gelten nur im EAG-Modell -
+    # in den beiden CfD-Modellen bleiben die Felder stehen, wirken aber
+    # nicht, und die Karte zeigt nur, was gilt.
+    band = (
+        txt("oberflaeche.annahmen_karte_foerder_band",
+            wert=fmt_number(ga.eag_rueckzahlung_toleranzband_pct * 100, 0))
+        if ga.praemien_modell == PraemienModell.EAG_TOLERANZBAND
+        else ""
+    )
+    return (
+        txt(_MODELL_KURZ[ga.praemien_modell]),
+        settings_hub.kurzfassung([
+            regel,
+            txt("oberflaeche.annahmen_karte_foerder_dauer",
+                jahre=ga.eag_foerderdauer_jahre),
+            band,
+        ]),
+    )
+
+
+def _karte_steuern(ga: GlobalAssumptions) -> tuple[str, str]:
+    if ga.tax_modus == TaxModus.GEWERBESTEUER_DE:
+        # Der Satz ergibt sich aus dem Hebesatz und wird nicht eingegeben
+        # - die Karte zeigt deshalb den gerechneten Wert.
+        satz = 0.035 * (ga.gewerbesteuer_hebesatz_pct / 100) * 100
+        wert = txt("oberflaeche.annahmen_karte_steuer_gewerbe",
+                   satz=fmt_number(satz, 2))
+        sub = settings_hub.kurzfassung([
+            txt("oberflaeche.annahmen_karte_steuer_hebesatz",
+                wert=fmt_number(ga.gewerbesteuer_hebesatz_pct, 0)),
+            txt("oberflaeche.annahmen_karte_steuer_afa",
+                jahre=ga.afa_nutzungsdauer_jahre or 0),
+        ])
+        return wert, sub
+    wert = txt("oberflaeche.annahmen_karte_steuer_satz",
+               satz=fmt_number(ga.steuersatz_pct * 100, 0))
+    teile = []
+    if ga.tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER:
+        teile.append(txt("oberflaeche.annahmen_karte_steuer_afa",
+                         jahre=ga.afa_nutzungsdauer_jahre or 0))
+    else:
+        teile.append(txt("oberflaeche.annahmen_karte_steuer_pauschal"))
+    teile.append(txt("oberflaeche.annahmen_karte_steuer_verlustvortrag",
+                     wert=fmt_number(ga.verlustvortrag_verrechnungsgrenze_pct * 100, 0)))
+    return wert, settings_hub.kurzfassung(teile)
+
+
+def _letztes_modelljahr() -> int | None:
+    """Das spaeteste Jahr, bis zu dem irgendein Projekt rechnet.
+
+    Die Globalen Annahmen kennen kein Startjahr - die Inbetriebnahme
+    steht im Projekt. Ohne Projekte gibt es keinen Modellzeitraum, den
+    eine Preiskurve verfehlen koennte; dann entfaellt die Pruefung.
+    """
+    projekte = services.list_projects()
+    if not projekte:
+        return None
+    dauer = services.get_global_assumptions().betriebsdauer_jahre
+    return max(p.inbetriebnahme_jahr for p in projekte) + dauer - 1
+
+
+# --- Uebersicht -------------------------------------------------------------
+
+#: Bereich -> (Titelschluessel, Wertfunktion, Ziel). Ziel ist entweder
+#: ein Dialogname oder - mit "nav:" davor - ein Bereich der internen
+#: Navigation. So steht die ganze Uebersicht an EINER Stelle und nicht
+#: als acht kopierte Kartenbloecke.
+_KARTEN = (
+    ("markt", "oberflaeche.annahmen_karte_markt", _karte_markt, "nav:markt"),
+    ("vermarktung", "oberflaeche.annahmen_karte_vermarktung",
+     _karte_vermarktung, "vermarktung"),
+    ("betriebskosten", "oberflaeche.annahmen_karte_betriebskosten",
+     _karte_betriebskosten, "betriebskosten"),
+    ("technik", "oberflaeche.annahmen_karte_technik", _karte_technik, "technik"),
+    ("finanzierung", "oberflaeche.annahmen_karte_finanzierung",
+     _karte_finanzierung, "finanzierung"),
+    ("foerderung", "oberflaeche.annahmen_karte_foerderung",
+     _karte_foerderung, "foerderung"),
+    ("steuern", "oberflaeche.annahmen_karte_steuern", _karte_steuern, "steuern"),
+)
+
+
+def _uebersicht(e: GlobalAssumptions, geaendert: set[str]) -> None:
+    """Das Kartenraster - die Startansicht der Seite."""
+    offen = settings_hub.aenderungen_je_bereich(geaendert)
+    spalten = st.columns(3, gap="small")
+    for i, (bereich, titel, wertfunktion, ziel) in enumerate(_KARTEN):
+        wert, subline = wertfunktion(e)
+        with spalten[i % 3], settings_hub.settings_card(
+            txt(titel), wert, subline,
+            geaendert=offen.get(bereich, 0), key=bereich,
+        ):
+            if st.button(
+                txt("oberflaeche.annahmen_karte_bearbeiten"),
+                key=f"gakarte_{bereich}", width="content",
             ):
-                gezeigt = list(ga.marktpreisszenarien)
-            elif verdeckt:
-                st.caption(
-                    txt("oberflaeche.annahmen_szenarien_auswahl_hinweis",
-                        bauform=io_aurora.TECHNOLOGIE_STANDARD,
-                        preisszenario=io_aurora.PREISSZENARIO_STANDARD)
-                )
-
-            col_preis, col_baseload, col_negativ = st.columns(3)
-            with col_preis:
-                st.plotly_chart(
-                    charts.szenarien_linien_chart(
-                        [
-                            (s.name, s.marktwert_solar_ct_kwh_je_kalenderjahr)
-                            for s in gezeigt
-                        ],
-                        txt("diagramme.achse_marktwert_solar"), "ct/kWh",
-                    ),
-                    width="stretch", key="szenarien_marktwert",
-                )
-            with col_baseload:
-                # Der Grosshandelspreis ist die Bezugsgroesse der
-                # Direktvermarktungskosten und der Massstab, an dem sich
-                # der Marktwert Solar messen laesst (Kannibalisierung).
-                # Er kommt aus dem Aurora-Import; aeltere Szenarien
-                # fuehren ihn nicht.
-                if any(s.baseload_ct_kwh_je_kalenderjahr for s in gezeigt):
-                    st.plotly_chart(
-                        charts.szenarien_linien_chart(
-                            [
-                                (s.name, s.baseload_ct_kwh_je_kalenderjahr)
-                                for s in gezeigt
-                            ],
-                            txt("diagramme.serie_baseload"), "ct/kWh",
-                        ),
-                        width="stretch", key="szenarien_baseload",
-                    )
+                if ziel.startswith("nav:"):
+                    _setze_bereich(ziel.removeprefix("nav:"))
                 else:
-                    st.info(txt("oberflaeche.annahmen_kein_baseload"))
-            with col_negativ:
-                st.plotly_chart(
-                    charts.szenarien_linien_chart(
-                        [
-                            (
-                                s.name,
-                                s.erzeugungsmenge_negativ(
-                                    NegativeStundenRegel(negative_stunden_regel)
-                                ),
-                            )
-                            for s in gezeigt
-                        ],
-                        txt("diagramme.achse_negativ_anteil"), "%",
-                        faktor=100.0, nachkommastellen=1,
-                    ),
-                    width="stretch", key="szenarien_negativ",
-                )
-
-            # Ein Reiter je Jahrgang statt je Szenario: Aus einer
-            # Arbeitsmappe entstehen sechs Szenarien, und sechs
-            # Jahrgaenge ergaeben sonst eine Reiterleiste, die man
-            # scrollen muss. Bauform und Preisszenario werden IM Reiter
-            # gewaehlt - dort, wo sie hingehoeren.
-            familien: dict[str, list] = {}
-            for s in ga.marktpreisszenarien:
-                familien.setdefault(
-                    io_aurora.zerlege_szenarioname(s.name)[0], []
-                ).append(s)
-
-            tabs = st.tabs(list(familien))
-            for tab, (stamm, geschwister) in zip(
-                tabs, familien.items(), strict=True
-            ):
-                with tab:
-                    szenario = _waehle_aus_familie(stamm, geschwister)
-                    jahre = sorted(
-                        set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
-                        | set(szenario.baseload_ct_kwh_je_kalenderjahr)
-                        | set(szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr)
-                        | set(szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr)
-                    )
-                    kurven_df = pd.DataFrame(
-                        {
-                            "Kalenderjahr": jahre,
-                            "Marktwert Solar (ct/kWh)": [
-                                szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(j)
-                                for j in jahre
-                            ],
-                            "Großhandelspreis (ct/kWh)": [
-                                szenario.baseload_ct_kwh_je_kalenderjahr.get(j)
-                                for j in jahre
-                            ],
-                            "Erzeugungsmenge neg. Stunden 6h (%)": [
-                                (
-                                    szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.get(
-                                        j
-                                    )
-                                    or 0
-                                )
-                                * 100
-                                for j in jahre
-                            ],
-                            "Erzeugungsmenge neg. Stunden 1h (%)": [
-                                (
-                                    szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr.get(
-                                        j
-                                    )
-                                    or 0
-                                )
-                                * 100
-                                for j in jahre
-                            ],
-                        }
-                    )
-                    monatsjahre = len(szenario.marktwert_solar_ct_kwh_je_monat)
-                    st.caption(
-                        txt("oberflaeche.annahmen_szenario_umfang",
-                            jahre=len(jahre), monatsjahre=monatsjahre)
-                    )
-                    # Bewusst ein Schalter und kein Klappfeld: Klappfelder
-                    # lassen sich in Streamlit nicht ineinander setzen,
-                    # und dieser Block steckt bereits in einem.
-                    # Der Schalter haengt am Jahrgang, nicht an der
-                    # einzelnen Kurve: Wer zwischen Pult und Tracker
-                    # vergleicht, will die Zahlen nicht jedes Mal neu
-                    # aufklappen.
-                    if not st.toggle(
-                        txt("oberflaeche.annahmen_zahlen_zeigen"),
-                        key=f"kurven_zahlen_{stamm}",
-                        help=txt("oberflaeche.annahmen_zahlen_zeigen_hilfe"),
-                    ):
-                        continue
-                    st.caption(txt("oberflaeche.annahmen_erzeugung_negativ_hinweis"))
-                    edited_szenarien[szenario.name] = st.data_editor(
-                        kurven_df, width="stretch", hide_index=True,
-                        num_rows="dynamic", key=f"kurven_editor_{szenario.name}",
-                        column_config={
-                            "Kalenderjahr": st.column_config.NumberColumn(
-                                txt("oberflaeche.annahmen_col_kalenderjahr"),
-                                format="%d",
-                            ),
-                            "Marktwert Solar (ct/kWh)": st.column_config.NumberColumn(
-                                txt("oberflaeche.annahmen_col_marktwert_solar"),
-                            ),
-                            "Großhandelspreis (ct/kWh)": st.column_config.NumberColumn(
-                                txt("oberflaeche.annahmen_col_baseload"),
-                                help=txt("oberflaeche.annahmen_col_baseload_hilfe"),
-                            ),
-                            "Erzeugungsmenge neg. Stunden 6h (%)":
-                                st.column_config.NumberColumn(
-                                    txt("oberflaeche.annahmen_col_neg6h"),
-                                ),
-                            "Erzeugungsmenge neg. Stunden 1h (%)":
-                                st.column_config.NumberColumn(
-                                    txt("oberflaeche.annahmen_col_neg1h"),
-                                ),
-                        },
-                    )
-
-        st.divider()
-        st.markdown(txt("oberflaeche.annahmen_neues_szenario_titel"))
-        neuer_szenario_name = st.text_input(
-            txt("oberflaeche.annahmen_neues_szenario_label"),
-            key="neues_szenario_name",
-            placeholder=txt("oberflaeche.annahmen_neues_szenario_platzhalter"),
-        )
-        if st.button(txt("oberflaeche.annahmen_szenario_hinzufuegen")) and neuer_szenario_name.strip():
-            if neuer_szenario_name in ga.szenario_namen:
-                st.error(txt("oberflaeche.annahmen_szenario_existiert_bereits"))
-            else:
-                ga.marktpreisszenarien.append(
-                    MarktpreisSzenario(name=neuer_szenario_name.strip())
-                )
-                services.save_global_assumptions(ga)
+                    assumption_dialogs.dialog_oeffnen(ziel, e)
                 st.rerun()
 
-    # --- Aurora-Import ---------------------------------------------------------
-    _aurora_import(ga)
+    # Die Datenqualitaet steht zuletzt und traegt keinen
+    # Bearbeiten-Knopf: Sie ist eine Auskunft ueber den Datenbestand und
+    # kein Parameter, den man einstellt.
+    befunde = data_quality.pruefe(e, _letztes_modelljahr())
+    stufe = data_quality.gesamtstufe(befunde)
+    wert, subline = data_quality.kurzfassung(befunde)
+    with spalten[len(_KARTEN) % 3], settings_hub.settings_card(
+        txt("oberflaeche.annahmen_karte_datenqualitaet"), wert, subline,
+        status=txt(f"oberflaeche.dq_marke_{stufe}"),
+        ton={"ok": "neutral", "hinweis": "warnung", "fehler": "fehler"}[stufe],
+        key="datenqualitaet",
+    ):
+        if st.button(
+            txt("oberflaeche.annahmen_karte_bearbeiten"),
+            key="gakarte_datenqualitaet", width="content",
+        ):
+            _setze_bereich("daten")
+            st.rerun()
 
-    # --- Zeitaufloesung, Foerdermodell, PPA ------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_modell_titel"), expanded=False):
-        st.markdown(txt("oberflaeche.annahmen_zeitaufloesung_titel"))
-        st.caption(txt("oberflaeche.annahmen_zeitaufloesung_hinweis"))
-        aufloesung_labels = {
-            Zeitaufloesung.JAHR.value: txt("oberflaeche.annahmen_aufloesung_jahr"),
-            Zeitaufloesung.MONAT.value: txt("oberflaeche.annahmen_aufloesung_monat"),
-        }
-        aufloesung_optionen = [a.value for a in Zeitaufloesung]
-        zeitaufloesung = st.radio(
-            txt("oberflaeche.annahmen_zeitaufloesung_label"),
-            aufloesung_optionen,
-            format_func=lambda v: aufloesung_labels[v],
-            index=aufloesung_optionen.index(ga.zeitaufloesung.value),
-            horizontal=True, label_visibility="collapsed",
-            help=txt("oberflaeche.annahmen_zeitaufloesung_hilfe"),
+
+# --- Abschnitt "Markt & Preise" ---------------------------------------------
+#
+# Vollbreite, aber KEIN Rueckfall in die alte Einstellungsseite: erst der
+# geltende Zustand in wenigen Feldern, dann die Szenarien als kompakte
+# Liste, dann die Kurven als Bild - die Zahlentabellen und der
+# Kurveneditor erst auf Anforderung.
+
+
+_MARKT_FELDER = (
+    assumption_dialogs.Feld(
+        "zeitaufloesung", "enum", "oberflaeche.annahmen_zeitaufloesung_label",
+        hilfe="oberflaeche.annahmen_zeitaufloesung_hilfe",
+        enum=Zeitaufloesung,
+        labels={
+            Zeitaufloesung.JAHR.value: "oberflaeche.annahmen_aufloesung_jahr",
+            Zeitaufloesung.MONAT.value: "oberflaeche.annahmen_aufloesung_monat",
+        },
+    ),
+    assumption_dialogs.Feld(
+        "marktpreis_inflation_pct_pa", "prozent",
+        "oberflaeche.annahmen_inflation_marktwerte_label", schritt=0.1,
+    ),
+    assumption_dialogs.Feld(
+        "marktpreis_inflation_basisjahr", "zahl",
+        "oberflaeche.annahmen_basisjahr_label",
+        hilfe="oberflaeche.annahmen_basisjahr_hilfe",
+        schritt=1, minimum=2000, maximum=2100, ganzzahl=True,
+    ),
+    assumption_dialogs.Feld(
+        "negative_stunden_gewichtung_pct", "prozent",
+        "oberflaeche.annahmen_gewichtung_label",
+        schritt=5.0, maximum=100.0,
+    ),
+    assumption_dialogs.Feld(
+        "negative_stunden_modus", "enum",
+        "oberflaeche.annahmen_negativstunden_modus_label",
+        hilfe="oberflaeche.annahmen_negativstunden_modus_hilfe",
+        enum=NegativeStundenModus,
+        labels={
+            NegativeStundenModus.ABREGELUNG.value:
+                "oberflaeche.annahmen_modus_abregelung",
+            NegativeStundenModus.MARKTWERT.value:
+                "oberflaeche.annahmen_modus_marktwert",
+        },
+    ),
+)
+
+
+def _markt_einstellungen(e: GlobalAssumptions) -> None:
+    """Der Kopf des Abschnitts: was gerade gilt, in fuenf Feldern."""
+    assumption_dialogs.abschnitt_rendern(_MARKT_FELDER[:3], e, 3)
+    assumption_dialogs.abschnitt_rendern(_MARKT_FELDER[3:], e, 2)
+
+
+def _szenarienliste(e: GlobalAssumptions) -> None:
+    """Die Szenarien als kompakte Liste statt als Tabellenstapel.
+
+    Je Jahrgang eine Zeile mit Zeitraum, Aufloesung und Anzahl der
+    Kurven. Die Zahlen dahinter stehen auf Anforderung - sie sind der
+    Ausnahmefall, nicht die Frage, mit der man hierherkommt.
+    """
+    familien: dict[str, list[MarktpreisSzenario]] = {}
+    for s in e.marktpreisszenarien:
+        familien.setdefault(io_aurora.zerlege_szenarioname(s.name)[0], []).append(s)
+    for stamm, geschwister in familien.items():
+        jahre = sorted(
+            j for s in geschwister for j in s.marktwert_solar_ct_kwh_je_kalenderjahr
+        )
+        monatsjahre = sum(
+            1 for s in geschwister if s.marktwert_solar_ct_kwh_je_monat
+        )
+        st.markdown(
+            f'<div class="szenario-zeile">'
+            f'<span class="szenario-name">{html.escape(stamm)}</span>'
+            f'<span class="szenario-sub">'
+            + html.escape(settings_hub.kurzfassung([
+                f"{jahre[0]}–{jahre[-1]}" if jahre else "",
+                txt("oberflaeche.annahmen_karte_markt_anzahl",
+                    anzahl=len(geschwister)),
+                txt("oberflaeche.annahmen_szenario_monatsreihen",
+                    anzahl=monatsjahre) if monatsjahre else "",
+            ]))
+            + "</span></div>",
+            unsafe_allow_html=True,
         )
 
-        st.markdown(txt("oberflaeche.annahmen_einspeisekurve_titel"))
-        st.caption(txt("oberflaeche.annahmen_einspeisekurve_hinweis"))
-        _bauform_auswahl(ga)
-        kurve_df = pd.DataFrame(
+
+def _abschnitt_markt(e: GlobalAssumptions) -> None:
+    st.markdown(f"### {txt('oberflaeche.annahmen_nav_markt')}")
+    st.caption(txt("oberflaeche.annahmen_szenarien_hinweis"))
+    _markt_einstellungen(e)
+
+    st.divider()
+    st.markdown(f"**{txt('oberflaeche.annahmen_szenarien_uebersicht')}**")
+    if not e.marktpreisszenarien:
+        st.info(txt("oberflaeche.annahmen_kein_szenario"))
+    else:
+        _szenarienliste(e)
+        _szenarien_charts(e)
+        _szenarien_zahlen(e)
+
+    st.divider()
+    _neues_szenario(e)
+
+    st.divider()
+    _einspeisekurve(e)
+
+
+def _szenarien_charts(e: GlobalAssumptions) -> None:
+    """Die Kurven als Bild - eine Linie je Jahrgang.
+
+    Aus einer Arbeitsmappe entstehen sechs Szenarien je Jahrgang.
+    Nebeneinander gezeichnet sind das zwanzig Linien, von denen die
+    meisten dasselbe sagen: Low und High sind die Spanne um Central, der
+    Tracker laeuft dicht neben dem Pult.
+    """
+    gezeigt = [
+        s for s in e.marktpreisszenarien if io_aurora.ist_leitszenario(s.name)
+    ]
+    verdeckt = len(e.marktpreisszenarien) - len(gezeigt)
+    if verdeckt and st.checkbox(
+        txt("oberflaeche.annahmen_szenarien_alle_zeigen", anzahl=verdeckt),
+        key="szenarien_alle_zeigen",
+        help=txt("oberflaeche.annahmen_szenarien_alle_zeigen_hilfe"),
+    ):
+        gezeigt = list(e.marktpreisszenarien)
+    elif verdeckt:
+        st.caption(
+            txt("oberflaeche.annahmen_szenarien_auswahl_hinweis",
+                bauform=io_aurora.TECHNOLOGIE_STANDARD,
+                preisszenario=io_aurora.PREISSZENARIO_STANDARD)
+        )
+    if not gezeigt:
+        return
+
+    col_preis, col_baseload, col_negativ = st.columns(3)
+    with col_preis:
+        st.plotly_chart(
+            charts.szenarien_linien_chart(
+                [(s.name, s.marktwert_solar_ct_kwh_je_kalenderjahr) for s in gezeigt],
+                txt("diagramme.achse_marktwert_solar"), "ct/kWh",
+            ),
+            width="stretch", key="szenarien_marktwert",
+        )
+    with col_baseload:
+        # Der Grosshandelspreis ist die Bezugsgroesse der
+        # Direktvermarktungskosten und der Massstab, an dem sich der
+        # Marktwert Solar messen laesst (Kannibalisierung). Er kommt aus
+        # dem Aurora-Import; aeltere Szenarien fuehren ihn nicht.
+        if any(s.baseload_ct_kwh_je_kalenderjahr for s in gezeigt):
+            st.plotly_chart(
+                charts.szenarien_linien_chart(
+                    [(s.name, s.baseload_ct_kwh_je_kalenderjahr) for s in gezeigt],
+                    txt("diagramme.achse_grosshandelspreis"), "ct/kWh",
+                ),
+                width="stretch", key="szenarien_baseload",
+            )
+        else:
+            st.info(txt("oberflaeche.annahmen_kein_baseload"))
+    with col_negativ:
+        st.plotly_chart(
+            charts.szenarien_linien_chart(
+                [
+                    (s.name, {
+                        j: w * 100 for j, w in
+                        s.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.items()
+                    })
+                    for s in gezeigt
+                ],
+                txt("diagramme.achse_anteil_negativ"), "%",
+            ),
+            width="stretch", key="szenarien_negativ",
+        )
+
+
+def _szenarien_zahlen(e: GlobalAssumptions) -> None:
+    """Die Jahreswerte als Tabelle - auf Anforderung, je Jahrgang.
+
+    Der Editor schreibt unmittelbar in den Entwurf: Er steht in einem
+    Abschnitt, nicht in einem Dialog, und ein eigener Uebernehmen-Schritt
+    je Tabelle waere hier nur eine weitere Huelle.
+    """
+    familien: dict[str, list[MarktpreisSzenario]] = {}
+    for s in e.marktpreisszenarien:
+        familien.setdefault(io_aurora.zerlege_szenarioname(s.name)[0], []).append(s)
+    for stamm, geschwister in familien.items():
+        if not st.checkbox(
+            txt("oberflaeche.annahmen_zahlen_zeigen_jahrgang", jahrgang=stamm),
+            key=f"kurven_zahlen_{stamm}",
+        ):
+            continue
+        szenario = _waehle_aus_familie(stamm, geschwister)
+        jahre = sorted(set(szenario.marktwert_solar_ct_kwh_je_kalenderjahr))
+        tabelle = pd.DataFrame(
             {
-                "Monat": monate_kurz(),
-                "Anteil (%)": [w * 100 for w in ga.einspeisekurve_pct_je_monat],
+                "Kalenderjahr": jahre,
+                "Marktwert Solar (ct/kWh)": [
+                    szenario.marktwert_solar_ct_kwh_je_kalenderjahr.get(j)
+                    for j in jahre
+                ],
+                "Großhandelspreis (ct/kWh)": [
+                    szenario.baseload_ct_kwh_je_kalenderjahr.get(j) for j in jahre
+                ],
+                "Erzeugungsmenge neg. Stunden 6h (%)": [
+                    (szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.get(j) or 0)
+                    * 100
+                    for j in jahre
+                ],
+                "Erzeugungsmenge neg. Stunden 1h (%)": [
+                    (szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr.get(j) or 0)
+                    * 100
+                    for j in jahre
+                ],
             }
         )
-        edited_kurve = st.data_editor(
-            kurve_df, width="stretch", hide_index=True, key="einspeisekurve_editor",
+        bearbeitet = st.data_editor(
+            tabelle, width="stretch", hide_index=True, num_rows="dynamic",
+            key=f"szenario_editor_{szenario.name}",
+            column_config={
+                "Kalenderjahr": st.column_config.NumberColumn(
+                    txt("oberflaeche.annahmen_col_kalenderjahr"), format="%d",
+                ),
+                "Marktwert Solar (ct/kWh)": st.column_config.NumberColumn(
+                    txt("oberflaeche.annahmen_col_marktwert_solar"),
+                ),
+                "Großhandelspreis (ct/kWh)": st.column_config.NumberColumn(
+                    txt("oberflaeche.annahmen_col_baseload"),
+                ),
+                "Erzeugungsmenge neg. Stunden 6h (%)":
+                    st.column_config.NumberColumn(
+                        txt("oberflaeche.annahmen_col_neg6h"),
+                    ),
+                "Erzeugungsmenge neg. Stunden 1h (%)":
+                    st.column_config.NumberColumn(
+                        txt("oberflaeche.annahmen_col_neg1h"),
+                    ),
+            },
+        )
+        _uebernimm_szenario(e, szenario, bearbeitet)
+
+
+def _uebernimm_szenario(
+    e: GlobalAssumptions, szenario: MarktpreisSzenario, bearbeitet: pd.DataFrame
+) -> None:
+    """Baut das Szenario aus der Tabelle neu - MIT seinen Monatsreihen.
+
+    Der Editor zeigt nur die Jahreswerte. Ein Neuaufbau ohne die
+    Monatsreihen loeschte sie beim Speichern still (siehe
+    tests/test_lastgang.py::test_speichern_verliert_die_kurven_nicht).
+    """
+    def spalte(name: str, faktor: float = 1.0) -> dict[int, float]:
+        return {
+            int(r["Kalenderjahr"]): float(r[name]) * faktor
+            for _, r in bearbeitet.iterrows()
+            if pd.notna(r["Kalenderjahr"]) and pd.notna(r[name])
+        }
+
+    neu = MarktpreisSzenario(
+        name=szenario.name,
+        marktwert_solar_ct_kwh_je_monat=szenario.marktwert_solar_ct_kwh_je_monat,
+        erzeugungsmenge_negativ_6h_pct_je_monat=(
+            szenario.erzeugungsmenge_negativ_6h_pct_je_monat
+        ),
+        erzeugungsmenge_negativ_1h_pct_je_monat=(
+            szenario.erzeugungsmenge_negativ_1h_pct_je_monat
+        ),
+        baseload_ct_kwh_je_monat=szenario.baseload_ct_kwh_je_monat,
+        baseload_ct_kwh_je_kalenderjahr=spalte("Großhandelspreis (ct/kWh)"),
+        marktwert_solar_ct_kwh_je_kalenderjahr=spalte("Marktwert Solar (ct/kWh)"),
+        erzeugungsmenge_negativ_6h_pct_je_kalenderjahr=spalte(
+            "Erzeugungsmenge neg. Stunden 6h (%)", 0.01
+        ),
+        erzeugungsmenge_negativ_1h_pct_je_kalenderjahr=spalte(
+            "Erzeugungsmenge neg. Stunden 1h (%)", 0.01
+        ),
+    )
+    e.marktpreisszenarien = [
+        neu if s.name == szenario.name else s for s in e.marktpreisszenarien
+    ]
+
+
+def _neues_szenario(e: GlobalAssumptions) -> None:
+    """Ein leeres Szenario anlegen - in den ENTWURF, nicht in die Datei.
+
+    Frueher wurde es sofort gespeichert. Das war schon damals eine
+    Ausnahme ohne Grund: Ein leeres Szenario ist eine Eingabe wie jede
+    andere und gehoert in denselben Speichervorgang.
+    """
+    col_name, col_knopf = st.columns([3, 1], vertical_alignment="bottom")
+    name = col_name.text_input(
+        txt("oberflaeche.annahmen_neues_szenario_label"),
+        key="neues_szenario_name",
+        placeholder=txt("oberflaeche.annahmen_neues_szenario_platzhalter"),
+    )
+    if col_knopf.button(
+        txt("oberflaeche.annahmen_szenario_hinzufuegen"), width="stretch"
+    ) and name.strip():
+        if name.strip() in [s.name for s in e.marktpreisszenarien]:
+            st.error(txt("oberflaeche.annahmen_szenario_existiert_bereits"))
+        else:
+            e.marktpreisszenarien = [
+                *e.marktpreisszenarien,
+                MarktpreisSzenario(name=name.strip()),
+            ]
+            st.rerun()
+
+
+def _einspeisekurve(e: GlobalAssumptions) -> None:
+    """Bauform, Monatskurve und das Erzeugungsprofil."""
+    st.markdown(f"**{txt('oberflaeche.annahmen_einspeisekurve_titel')}**")
+    st.caption(txt("oberflaeche.annahmen_einspeisekurve_hinweis"))
+    _bauform_auswahl(services.get_global_assumptions())
+
+    if st.checkbox(
+        txt("oberflaeche.annahmen_kurve_bearbeiten"),
+        key="einspeisekurve_bearbeiten",
+    ):
+        bearbeitet = st.data_editor(
+            pd.DataFrame(
+                {
+                    "Monat": monate_kurz(),
+                    "Anteil (%)": [w * 100 for w in e.einspeisekurve_pct_je_monat],
+                }
+            ),
+            width="stretch", hide_index=True, key="einspeisekurve_editor",
             column_config={
                 "Monat": st.column_config.TextColumn(
                     txt("oberflaeche.annahmen_col_monat"), disabled=True,
@@ -933,473 +1291,131 @@ def render_assumptions() -> None:
                 ),
             },
         )
-        summe_kurve = float(pd.to_numeric(edited_kurve["Anteil (%)"],
-                                          errors="coerce").fillna(0).sum())
-        st.caption(txt("oberflaeche.annahmen_einspeisekurve_summe",
-                       summe=fmt_number(summe_kurve, 1)))
-
-        st.divider()
-        _erzeugungsprofil(ga)
-
-        st.divider()
-        st.markdown(txt("oberflaeche.annahmen_praemienmodell_titel"))
-        st.caption(txt("oberflaeche.annahmen_praemienmodell_hinweis"))
-        modell_labels = {
-            PraemienModell.EINSEITIG_CFD.value: txt("oberflaeche.annahmen_modell_einseitig"),
-            PraemienModell.ZWEISEITIG_CFD.value: txt("oberflaeche.annahmen_modell_zweiseitig"),
-            PraemienModell.EAG_TOLERANZBAND.value: txt("oberflaeche.annahmen_modell_eag"),
-        }
-        modell_optionen = [m.value for m in PraemienModell]
-        praemien_modell = st.radio(
-            txt("oberflaeche.annahmen_praemienmodell_label"),
-            modell_optionen,
-            format_func=lambda v: modell_labels[v],
-            index=modell_optionen.index(ga.praemien_modell.value),
-            label_visibility="collapsed",
-        )
-        # Die drei Parameter stehen immer sichtbar, aber nur im
-        # Toleranzband-Modell wirksam: Ausgeblendete Felder wuerden beim
-        # Wechsel des Modells stumm auf ihren alten Wert zurueckfallen.
-        st.caption(txt("oberflaeche.annahmen_eag_rueckzahlung_hinweis"))
-        col_mw, col_band, col_anteil = st.columns(3)
-        eag_ab_mw = col_mw.number_input(
-            txt("oberflaeche.annahmen_eag_ab_mw_label"), min_value=0.0,
-            value=float(ga.eag_rueckzahlung_ab_mw), step=0.5,
-            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
-            help=txt("oberflaeche.annahmen_eag_ab_mw_hilfe"),
-        )
-        eag_band = col_band.number_input(
-            txt("oberflaeche.annahmen_eag_band_label"), min_value=0.0,
-            value=ga.eag_rueckzahlung_toleranzband_pct * 100, step=5.0,
-            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
-            help=txt("oberflaeche.annahmen_eag_band_hilfe"),
-        )
-        eag_anteil = col_anteil.number_input(
-            txt("oberflaeche.annahmen_eag_anteil_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.eag_rueckzahlung_anteil_pct * 100, step=1.0,
-            disabled=praemien_modell != PraemienModell.EAG_TOLERANZBAND.value,
-            help=txt("oberflaeche.annahmen_eag_anteil_hilfe"),
-        )
-
-        st.divider()
-        # --- Vorbelegung der Projektmaske -------------------------------
-        # Diese Werte VERERBEN sich nicht: Leistung, Ertrag und
-        # Kapitalstruktur sind je Projekt verschieden und werden dort
-        # gespeichert. Was hier steht, ist die Vorbelegung des Formulars
-        # "Neues Projekt" - bis v5.16 stand sie hart im Code und war
-        # damit als einziger Hausstandard nicht pflegbar.
-        st.markdown(txt("oberflaeche.annahmen_vorbelegung_titel"))
-        st.caption(txt("oberflaeche.annahmen_vorbelegung_hinweis"))
-        col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-        nennleistung_vorschlag = col_v1.number_input(
-            txt("oberflaeche.annahmen_vorbelegung_leistung_label"),
-            min_value=1.0, value=ga.nennleistung_kwp_vorschlag, step=100.0,
-        )
-        vbh_vorschlag = col_v2.number_input(
-            txt("oberflaeche.annahmen_vorbelegung_vbh_label"),
-            min_value=1.0, value=ga.vollbenutzungsstunden_kwh_kwp_vorschlag,
-            step=10.0,
-        )
-        ek_vorschlag = col_v3.number_input(
-            txt("oberflaeche.annahmen_vorbelegung_ek_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.eigenkapitalquote_pct_vorschlag * 100, step=1.0,
-        )
-        fk_vorschlag = col_v4.number_input(
-            txt("oberflaeche.annahmen_vorbelegung_fk_label"),
-            min_value=0.0, value=ga.fremdkapitalzins_pct_vorschlag * 100,
-            step=0.1,
-        )
-        epc_vorschlag = st.data_editor(
-            pd.DataFrame(
-                [{"Anlagentyp": typ, "EPC (€/kWp)": wert}
-                 for typ, wert in ga.epc_eur_kwp_vorschlag_je_anlagentyp.items()],
-                columns=["Anlagentyp", "EPC (€/kWp)"],
-            ),
-            width="stretch", hide_index=True, num_rows="fixed",
-            key="annahmen_epc_vorschlag",
-            column_config={
-                "Anlagentyp": st.column_config.TextColumn(
-                    txt("oberflaeche.annahmen_vorbelegung_typ_label"),
-                    disabled=True,
-                ),
-                "EPC (€/kWp)": st.column_config.NumberColumn(
-                    txt("oberflaeche.annahmen_vorbelegung_epc_label"),
-                    format="%.0f", min_value=0.0,
-                ),
-            },
-        )
-
-        st.divider()
-        st.markdown(txt("oberflaeche.annahmen_ppa_titel"))
-        st.caption(txt("oberflaeche.annahmen_ppa_hinweis"))
-        col_ppa1, col_ppa2, col_ppa3, col_ppa4 = st.columns(4)
-        ppa_anteil_vorschlag = col_ppa1.number_input(
-            txt("oberflaeche.annahmen_ppa_anteil_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.ppa_anteil_pct_vorschlag * 100, step=5.0,
-        )
-        ppa_preis_vorschlag = col_ppa2.number_input(
-            txt("oberflaeche.annahmen_ppa_preis_label"), min_value=0.0,
-            value=ga.ppa_preis_eur_mwh_vorschlag, step=1.0,
-        )
-        ppa_laufzeit_vorschlag = col_ppa3.number_input(
-            txt("oberflaeche.annahmen_ppa_laufzeit_label"), min_value=0,
-            value=ga.ppa_laufzeit_jahre_vorschlag, step=1,
-        )
-        ppa_index_vorschlag = col_ppa4.number_input(
-            txt("oberflaeche.annahmen_ppa_index_label"), min_value=0.0,
-            value=ga.ppa_indexierung_pct_pa_vorschlag * 100, step=0.25,
-        )
-
-    # --- Standardbetriebskosten ----------------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_standardbetriebskosten_titel")):
-        opex_df = pd.DataFrame(
-            [
-                {
-                    "Position": item.name,
-                    "EUR/kWp/Jahr": item.basiswert_eur_kwp,
-                    "Index %/Jahr": item.index_pct_pa * 100,
-                    "Indexierung ab Jahr": item.indexierung_ab_jahr,
-                }
-                for item in ga.opex_standard
-            ]
-        )
-        edited_opex = st.data_editor(
-            opex_df, width="stretch", hide_index=True, num_rows="dynamic",
-            key="opex_editor",
-            column_config={
-                "Position": st.column_config.TextColumn(
-                    txt("oberflaeche.annahmen_col_position"),
-                ),
-                "EUR/kWp/Jahr": st.column_config.NumberColumn(
-                    txt("oberflaeche.annahmen_col_eur_kwp_jahr"),
-                ),
-                "Index %/Jahr": st.column_config.NumberColumn(
-                    txt("oberflaeche.annahmen_col_index_pct"),
-                ),
-                "Indexierung ab Jahr": st.column_config.NumberColumn(
-                    txt("oberflaeche.annahmen_col_index_ab_jahr"), format="%d",
-                ),
-            },
-        )
-        gemeindeabgabe = st.number_input(
-            txt("oberflaeche.annahmen_gemeindeabgabe_label"),
-            min_value=0.0, value=ga.gemeindeabgabe_eur_kwh * 1000, step=0.5,
-            help=txt("oberflaeche.annahmen_gemeindeabgabe_hilfe"),
-        )
-        pacht_umsatzbeteiligung_vorschlag = st.number_input(
-            txt("oberflaeche.annahmen_pacht_umsatzbeteiligung_vorschlag_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.pacht_umsatzbeteiligung_pct_vorschlag * 100, step=0.5,
-            help=txt("oberflaeche.annahmen_pacht_umsatzbeteiligung_vorschlag_hilfe"),
-        )
-        st.markdown(txt("oberflaeche.annahmen_direktvermarktung_titel"))
-        dv_labels = {
-            DirektvermarktungsModus.ABSOLUT.value: (
-                txt("oberflaeche.annahmen_dv_modus_absolut")
-            ),
-            DirektvermarktungsModus.RELATIV_GROSSHANDEL.value: (
-                txt("oberflaeche.annahmen_dv_modus_grosshandel")
-            ),
-            DirektvermarktungsModus.RELATIV_MARKTWERT.value: (
-                txt("oberflaeche.annahmen_dv_modus_relativ")
-            ),
-        }
-        dv_optionen = list(dv_labels)
-        dv_modus_wert = st.radio(
-            txt("oberflaeche.annahmen_dv_modus_label"),
-            dv_optionen,
-            format_func=lambda v: dv_labels[v],
-            index=dv_optionen.index(ga.direktvermarktung_modus.value),
-            help=txt("oberflaeche.annahmen_dv_modus_hilfe"),
-        )
-        dv_relativ = dv_modus_wert != DirektvermarktungsModus.ABSOLUT.value
-        col_dv1, col_dv2 = st.columns(2)
-        direktvermarktungskosten = col_dv1.number_input(
-            txt("oberflaeche.annahmen_dv_vorschlagswert_label"),
-            min_value=0.0, value=ga.direktvermarktungskosten_eur_kwh * 1000,
-            step=0.1,
-            disabled=dv_relativ,
-            help=txt("oberflaeche.annahmen_dv_vorschlagswert_hilfe"),
-        )
-        dv_pct_marktwert = col_dv2.number_input(
-            txt("oberflaeche.annahmen_dv_anteil_marktwert_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.direktvermarktung_pct_marktwert * 100, step=0.5,
-            disabled=not dv_relativ,
-            help=txt("oberflaeche.annahmen_dv_anteil_marktwert_hilfe"),
-        )
-
-    # --- Technische Standardannahmen -------------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_technische_standardannahmen_titel"), expanded=True):
-        st.caption(txt("oberflaeche.annahmen_technisch_hinweis"))
-        col_deg, col_sich = st.columns(2)
-        degradation = col_deg.number_input(
-            txt("oberflaeche.annahmen_degradation_label"), min_value=0.0,
-            value=ga.degradation_pct_pa * 100, step=0.05,
-            help=txt("oberflaeche.annahmen_degradation_hilfe"),
-        )
-        sicherheitsabschlag = col_sich.number_input(
-            txt("oberflaeche.annahmen_sicherheitsabschlag_label"),
-            min_value=0.0, max_value=100.0,
-            value=ga.sicherheitsabschlag_pct * 100, step=0.5,
-            help=txt("oberflaeche.annahmen_sicherheitsabschlag_hilfe"),
-        )
-
-    # --- Foerderung, Finanzierung ----------------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_foerderung_finanzierung_titel"), expanded=True):
-        col1, col2, col3 = st.columns(3)
-        eag_foerderdauer = col1.number_input(
-            txt("oberflaeche.annahmen_eag_foerderdauer_label"), min_value=1, value=ga.eag_foerderdauer_jahre
-        )
-        betriebsdauer = col2.number_input(
-            txt("oberflaeche.annahmen_betrachtungsdauer_label"), min_value=1, value=ga.betriebsdauer_jahre
-        )
-        kreditlaufzeit = col3.number_input(
-            txt("oberflaeche.annahmen_kreditlaufzeit_label"), min_value=1, value=ga.kreditlaufzeit_jahre
-        )
-        tilgungsart = st.selectbox(
-            txt("oberflaeche.annahmen_tilgungsart_label"), [art.value for art in TilgungsArt],
-            index=0 if ga.tilgungsart == TilgungsArt.ANNUITAET else 1,
-        )
-        tilgungsfreies_anlaufjahr = st.toggle(
-            txt("oberflaeche.annahmen_tilgungsfreies_anlaufjahr_label"),
-            value=ga.tilgungsfreies_anlaufjahr,
-            help=txt("oberflaeche.annahmen_tilgungsfreies_anlaufjahr_hilfe"),
-        )
-        # DSCR-Kovenanten des Kreditvertrags: Sie veraendern die
-        # Cashflow-Rechnung nicht, sondern werden darauf ausgewertet
-        # (siehe engine/covenants.py).
-        col_trap, col_eod = st.columns(2)
-        dscr_cash_trap = col_trap.number_input(
-            txt("oberflaeche.annahmen_dscr_cash_trap_label"),
-            min_value=0.0, max_value=5.0, step=0.05,
-            value=float(ga.dscr_cash_trap),
-            help=txt("oberflaeche.annahmen_dscr_cash_trap_hilfe"),
-        )
-        dscr_event_of_default = col_eod.number_input(
-            txt("oberflaeche.annahmen_dscr_event_of_default_label"),
-            min_value=0.0, max_value=5.0, step=0.05,
-            value=float(ga.dscr_event_of_default),
-            help=txt("oberflaeche.annahmen_dscr_event_of_default_hilfe"),
-        )
-
-        zm_oesterreich = txt("oberflaeche.annahmen_zinsmethode_oesterreich")
-        zm_deutsch = txt("oberflaeche.annahmen_zinsmethode_deutsch")
-        zinsmethode_label = st.radio(
-            txt("oberflaeche.annahmen_zinsmethode_label"),
-            [zm_oesterreich, zm_deutsch],
-            index=0 if ga.zinsmethode == ZinsMethode.OESTERREICH else 1,
-            horizontal=True,
-            help=txt("oberflaeche.annahmen_zinsmethode_hilfe"),
-        )
-
-    # --- Steuern ---------------------------------------------------------------
-    with st.expander(txt("oberflaeche.annahmen_steuern_titel"), expanded=False):
-        tax_modus_optionen = [modus.value for modus in TaxModus]
-        tax_modus_labels = {
-            "pauschal_auf_ebt": txt("oberflaeche.annahmen_steuermodus_pauschal"),
-            "afa_koerperschaftsteuer": txt("oberflaeche.annahmen_steuermodus_afa"),
-            "gewerbesteuer_de": txt("oberflaeche.annahmen_steuermodus_gewerbesteuer_de"),
-        }
-        tax_modus = st.radio(
-            txt("oberflaeche.annahmen_steuermodus_label"),
-            tax_modus_optionen,
-            format_func=lambda v: tax_modus_labels[v],
-            index=tax_modus_optionen.index(ga.tax_modus.value),
-            horizontal=True,
-        )
-
-        if tax_modus == TaxModus.GEWERBESTEUER_DE.value:
-            st.caption(txt("oberflaeche.annahmen_gewerbesteuer_hinweis"))
-            col4, col5, col6 = st.columns(3)
-            afa_nutzungsdauer = col4.number_input(
-                txt("oberflaeche.annahmen_afa_nutzungsdauer_label"), min_value=1,
-                value=ga.afa_nutzungsdauer_jahre or 20,
-                help=txt("oberflaeche.annahmen_afa_nutzungsdauer_hilfe"),
-            )
-            gewerbesteuer_hebesatz = col5.number_input(
-                txt("oberflaeche.annahmen_gewerbesteuer_hebesatz_label"),
-                min_value=0.0, value=ga.gewerbesteuer_hebesatz_pct, step=10.0,
-                help=txt("oberflaeche.annahmen_gewerbesteuer_hebesatz_hilfe"),
-            )
-            gewerbesteuer_freibetrag = col6.number_input(
-                txt("oberflaeche.annahmen_gewerbesteuer_freibetrag_label"),
-                min_value=0.0, value=ga.gewerbesteuer_freibetrag_eur, step=500.0,
-                help=txt("oberflaeche.annahmen_gewerbesteuer_freibetrag_hilfe"),
-            )
-            effektiver_gewerbesteuersatz = 0.035 * (gewerbesteuer_hebesatz / 100)
-            st.caption(txt(
-                "oberflaeche.annahmen_gewerbesteuer_effektiv_hinweis",
-                satz=f"{effektiver_gewerbesteuersatz * 100:.2f}",
-            ))
-            steuersatz = ga.steuersatz_pct * 100
-            verlustvortrag_grenze = ga.verlustvortrag_verrechnungsgrenze_pct * 100
-            freibetrag = ga.freibetrag_eur
-        else:
-            col4, col5 = st.columns(2)
-            steuersatz = col4.number_input(
-                txt("oberflaeche.annahmen_steuersatz_label"), min_value=0.0,
-                value=ga.steuersatz_pct * 100, step=0.5,
-                help=txt("oberflaeche.annahmen_steuersatz_hilfe"),
-            )
-            verlustvortrag_grenze = col5.number_input(
-                txt("oberflaeche.annahmen_verlustvortrag_label"),
-                min_value=0.0, max_value=100.0,
-                value=ga.verlustvortrag_verrechnungsgrenze_pct * 100, step=5.0,
-                help=txt("oberflaeche.annahmen_verlustvortrag_hilfe"),
-            )
-            gewerbesteuer_hebesatz = ga.gewerbesteuer_hebesatz_pct
-            gewerbesteuer_freibetrag = ga.gewerbesteuer_freibetrag_eur
-
-            if tax_modus == TaxModus.AFA_KOERPERSCHAFTSTEUER.value:
-                col6, col7 = st.columns(2)
-                afa_nutzungsdauer = col6.number_input(
-                    txt("oberflaeche.annahmen_afa_nutzungsdauer_label"), min_value=1,
-                    value=ga.afa_nutzungsdauer_jahre or 20,
-                    help=txt("oberflaeche.annahmen_afa_nutzungsdauer_hilfe"),
-                )
-                freibetrag = col7.number_input(
-                    txt("oberflaeche.annahmen_freibetrag_label"), min_value=0.0,
-                    value=ga.freibetrag_eur, step=100.0,
-                )
-            else:
-                afa_nutzungsdauer = ga.afa_nutzungsdauer_jahre
-                freibetrag = ga.freibetrag_eur
-                st.caption(txt("oberflaeche.annahmen_afa_pauschal_hinweis"))
-
-    # --- Speichern ---------------------------------------------------------------
-    if st.button(txt("oberflaeche.btn_speichern"), type="primary"):
-        neue_szenarien = []
-        for szenario in ga.marktpreisszenarien:
-            edited = edited_szenarien.get(szenario.name)
-            if edited is None:
-                neue_szenarien.append(szenario)
-                continue
-            neue_szenarien.append(
-                MarktpreisSzenario(
-                    name=szenario.name,
-                    # Die Monatsreihen bleiben unangetastet: Der Editor
-                    # oben zeigt nur die Jahreskurven, ein Neuaufbau ohne
-                    # sie wuerde sie beim Speichern loeschen.
-                    marktwert_solar_ct_kwh_je_monat=(
-                        szenario.marktwert_solar_ct_kwh_je_monat
-                    ),
-                    erzeugungsmenge_negativ_6h_pct_je_monat=(
-                        szenario.erzeugungsmenge_negativ_6h_pct_je_monat
-                    ),
-                    erzeugungsmenge_negativ_1h_pct_je_monat=(
-                        szenario.erzeugungsmenge_negativ_1h_pct_je_monat
-                    ),
-                    baseload_ct_kwh_je_monat=szenario.baseload_ct_kwh_je_monat,
-                    baseload_ct_kwh_je_kalenderjahr={
-                        int(r["Kalenderjahr"]): float(r["Großhandelspreis (ct/kWh)"])
-                        for _, r in edited.iterrows()
-                        if pd.notna(r["Kalenderjahr"])
-                        and pd.notna(r["Großhandelspreis (ct/kWh)"])
-                    },
-                    marktwert_solar_ct_kwh_je_kalenderjahr={
-                        int(r["Kalenderjahr"]): float(r["Marktwert Solar (ct/kWh)"])
-                        for _, r in edited.iterrows()
-                        if pd.notna(r["Kalenderjahr"])
-                        and pd.notna(r["Marktwert Solar (ct/kWh)"])
-                    },
-                    erzeugungsmenge_negativ_6h_pct_je_kalenderjahr={
-                        int(r["Kalenderjahr"]): float(
-                            r["Erzeugungsmenge neg. Stunden 6h (%)"]
-                        )
-                        / 100
-                        for _, r in edited.iterrows()
-                        if pd.notna(r["Kalenderjahr"])
-                        and pd.notna(r["Erzeugungsmenge neg. Stunden 6h (%)"])
-                    },
-                    erzeugungsmenge_negativ_1h_pct_je_kalenderjahr={
-                        int(r["Kalenderjahr"]): float(
-                            r["Erzeugungsmenge neg. Stunden 1h (%)"]
-                        )
-                        / 100
-                        for _, r in edited.iterrows()
-                        if pd.notna(r["Kalenderjahr"])
-                        and pd.notna(r["Erzeugungsmenge neg. Stunden 1h (%)"])
-                    },
-                )
-            )
-        ga.marktpreisszenarien = neue_szenarien
-        ga.marktpreis_inflation_pct_pa = marktpreis_inflation / 100
-        ga.kosten_inflation_pct_pa = kosten_inflation / 100
-        ga.marktpreis_inflation_basisjahr = int(marktpreis_basisjahr)
-        ga.negative_stunden_gewichtung_pct = negative_stunden_gewichtung / 100
-        ga.negative_stunden_modus = NegativeStundenModus(negative_stunden_modus)
-        ga.negative_stunden_regel = NegativeStundenRegel(negative_stunden_regel)
-
-        ga.opex_standard = [
-            OpexItem(
-                name=r["Position"],
-                basiswert_eur_kwp=float(r["EUR/kWp/Jahr"]),
-                index_pct_pa=float(r["Index %/Jahr"]) / 100,
-                indexierung_ab_jahr=int(r["Indexierung ab Jahr"]),
-            )
-            for _, r in edited_opex.iterrows()
-            if pd.notna(r["Position"])
-        ]
-        ga.eag_foerderdauer_jahre = int(eag_foerderdauer)
-        ga.betriebsdauer_jahre = int(betriebsdauer)
-        ga.kreditlaufzeit_jahre = int(kreditlaufzeit)
-        ga.degradation_pct_pa = degradation / 100
-        ga.sicherheitsabschlag_pct = sicherheitsabschlag / 100
-        ga.steuersatz_pct = steuersatz / 100
-        ga.tilgungsart = TilgungsArt(tilgungsart)
-        ga.tilgungsfreies_anlaufjahr = tilgungsfreies_anlaufjahr
-        ga.dscr_cash_trap = float(dscr_cash_trap)
-        ga.dscr_event_of_default = float(dscr_event_of_default)
-        ga.zinsmethode = (
-            ZinsMethode.OESTERREICH if zinsmethode_label == zm_oesterreich
-            else ZinsMethode.DEUTSCH
-        )
-        ga.gemeindeabgabe_eur_kwh = gemeindeabgabe / 1000
-        ga.pacht_umsatzbeteiligung_pct_vorschlag = pacht_umsatzbeteiligung_vorschlag / 100
-        ga.direktvermarktungskosten_eur_kwh = direktvermarktungskosten / 1000
-        ga.direktvermarktung_modus = DirektvermarktungsModus(dv_modus_wert)
-        ga.direktvermarktung_pct_marktwert = dv_pct_marktwert / 100
-        ga.tax_modus = TaxModus(tax_modus)
-        ga.afa_nutzungsdauer_jahre = (
-            int(afa_nutzungsdauer) if afa_nutzungsdauer else None
-        )
-        ga.freibetrag_eur = float(freibetrag)
-        ga.gewerbesteuer_hebesatz_pct = float(gewerbesteuer_hebesatz)
-        ga.gewerbesteuer_freibetrag_eur = float(gewerbesteuer_freibetrag)
-        ga.verlustvortrag_verrechnungsgrenze_pct = verlustvortrag_grenze / 100
-
-        ga.zeitaufloesung = Zeitaufloesung(zeitaufloesung)
         anteile = [
             float(w) / 100
-            for w in pd.to_numeric(edited_kurve["Anteil (%)"],
-                                   errors="coerce").fillna(0)
+            for w in pd.to_numeric(
+                bearbeitet["Anteil (%)"], errors="coerce"
+            ).fillna(0)
         ]
+        summe = sum(anteile) * 100
+        st.caption(txt("oberflaeche.annahmen_einspeisekurve_summe",
+                       summe=fmt_number(summe, 1)))
         # Eine leere oder nur aus Nullen bestehende Kurve waere eine
         # Anlage ohne Erzeugung - dann bleibt die bisherige stehen.
         if len(anteile) == 12 and sum(anteile) > 0:
-            ga.einspeisekurve_pct_je_monat = anteile
-        ga.praemien_modell = PraemienModell(praemien_modell)
-        ga.eag_rueckzahlung_ab_mw = float(eag_ab_mw)
-        ga.eag_rueckzahlung_toleranzband_pct = eag_band / 100
-        ga.eag_rueckzahlung_anteil_pct = eag_anteil / 100
-        ga.ppa_anteil_pct_vorschlag = ppa_anteil_vorschlag / 100
-        ga.ppa_preis_eur_mwh_vorschlag = float(ppa_preis_vorschlag)
-        ga.ppa_laufzeit_jahre_vorschlag = int(ppa_laufzeit_vorschlag)
-        ga.ppa_indexierung_pct_pa_vorschlag = ppa_index_vorschlag / 100
-        ga.nennleistung_kwp_vorschlag = float(nennleistung_vorschlag)
-        ga.vollbenutzungsstunden_kwh_kwp_vorschlag = float(vbh_vorschlag)
-        ga.eigenkapitalquote_pct_vorschlag = ek_vorschlag / 100
-        ga.fremdkapitalzins_pct_vorschlag = fk_vorschlag / 100
-        ga.epc_eur_kwp_vorschlag_je_anlagentyp = {
-            str(zeile["Anlagentyp"]): float(zeile["EPC (€/kWp)"])
-            for _, zeile in epc_vorschlag.iterrows()
-            if pd.notna(zeile["EPC (€/kWp)"])
-        }
+            e.einspeisekurve_pct_je_monat = anteile
 
-        services.save_global_assumptions(ga)
+    st.divider()
+    _erzeugungsprofil(e)
+
+
+# --- Abschnitt "Daten & Import" ---------------------------------------------
+
+
+def _abschnitt_daten(e: GlobalAssumptions) -> None:
+    st.markdown(f"### {txt('oberflaeche.annahmen_nav_daten')}")
+
+    befunde = data_quality.pruefe(e, _letztes_modelljahr())
+    st.markdown(f"**{txt('oberflaeche.annahmen_karte_datenqualitaet')}**")
+    st.caption(txt("oberflaeche.dq_hinweis"))
+    for befund in befunde:
+        if befund.stufe == "fehler":
+            st.error(befund.text)
+        elif befund.stufe == "hinweis":
+            st.warning(befund.text)
+        else:
+            st.caption(f"✓ {befund.text}")
+
+    st.divider()
+    _aurora_import(e)
+
+
+# --- Seite ------------------------------------------------------------------
+
+
+def _kopf(e: GlobalAssumptions, geaendert: set[str]) -> None:
+    """Titel, Marktsystem und die Speicherleiste.
+
+    Der Aenderungsstand steht als Marke neben dem Titel und nicht als
+    eigene Zeile: Er ist eine Randnotiz, solange nichts offen ist, und
+    soll dann auch keinen Platz kosten.
+    """
+    marke = (
+        '<span class="settings-marke">'
+        + html.escape(txt("oberflaeche.annahmen_offen", anzahl=len(geaendert)))
+        + "</span>"
+        if geaendert
+        else ""
+    )
+    st.markdown(
+        f'<div class="settings-kopf">'
+        f'<span class="settings-titel">'
+        f'{html.escape(txt("oberflaeche.nav_globale_annahmen"))}</span>'
+        f"{marke}</div>"
+        f'<div class="settings-untertitel">'
+        f'{html.escape(txt("oberflaeche.annahmen_untertitel"))}</div>',
+        unsafe_allow_html=True,
+    )
+    col_system, col_verwerfen, col_speichern = st.columns(
+        [3, 1, 1], vertical_alignment="bottom"
+    )
+    with col_system:
+        _render_markt_system_schalter(e)
+    if col_verwerfen.button(
+        txt("oberflaeche.btn_verwerfen"), key="ga_verwerfen",
+        width="stretch", disabled=not geaendert,
+    ):
+        settings_hub.entwurf_verwerfen()
+        st.rerun()
+    if col_speichern.button(
+        txt("oberflaeche.btn_speichern"), key="ga_speichern", type="primary",
+        width="stretch", disabled=not geaendert,
+    ):
+        settings_hub.entwurf_speichern()
         st.success(txt("oberflaeche.annahmen_gespeichert"))
         st.rerun()
+
+
+def _navigation() -> str:
+    codes = [code for code, _ in _NAV]
+    beschriftungen = [txt(schluessel) for _, schluessel in _NAV]
+    aktuell = _bereich()
+    wahl = st.segmented_control(
+        txt("oberflaeche.annahmen_nav_label"), beschriftungen,
+        default=beschriftungen[codes.index(aktuell)],
+        key="annahmen_navwahl", label_visibility="collapsed",
+    )
+    gewaehlt = codes[beschriftungen.index(wahl)] if wahl in beschriftungen else aktuell
+    st.session_state[_NAV_KEY] = gewaehlt
+    return gewaehlt
+
+
+def render_assumptions() -> None:
+    """Die Seite "Globale Annahmen" als Settings Hub.
+
+    Der Ablauf ist bewusst kurz: Zustand holen, Kopf zeichnen, den
+    gewaehlten Bereich zeichnen, einen etwaigen Dialog nachziehen. Alles
+    Weitere steht in den Bausteinen - die View orchestriert nur.
+    """
+    e = settings_hub.entwurf()
+    if settings_hub.aussen_geaendert():
+        # Nicht stillschweigend: Ein Entwurf ist einer Fremdaenderung
+        # gewichen (Wiederherstellung, zweite Sitzung).
+        st.warning(txt("oberflaeche.annahmen_fremdaenderung"))
+    geaendert = settings_hub.geaenderte_felder()
+
+    _kopf(e, geaendert)
+    bereich = _navigation()
+    if bereich == "markt":
+        _abschnitt_markt(e)
+    elif bereich == "daten":
+        _abschnitt_daten(e)
+    else:
+        _uebersicht(e, geaendert)
+
+    # Der Dialog wird ZULETZT gezeichnet: st.dialog legt sich ueber die
+    # Seite, und sein Inhalt soll den Entwurf sehen, wie ihn die
+    # Abschnitte dieses Durchlaufs hinterlassen haben.
+    offen = st.session_state.get(assumption_dialogs.OFFEN)
+    if offen in assumption_dialogs.DIALOGE:
+        assumption_dialogs.DIALOGE[offen][1](e)

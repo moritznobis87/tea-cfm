@@ -254,12 +254,32 @@ def _navigiere(at, key: str):
     return at
 
 
+def _bereich(at, code: str):
+    """Wechselt in einen Bereich der Annahmenseite.
+
+    Seit dem Settings Hub startet die Seite mit der Uebersicht; die
+    Felder von "Markt & Preise" und "Daten & Import" entstehen erst,
+    wenn ihr Bereich gewaehlt ist. Gesetzt wird der WIDGET-Zustand der
+    Bereichswahl und nicht der abgeleitete Merker: Ein Widget gewinnt
+    gegen einen programmatisch gesetzten Vorgabewert.
+    """
+    from texte import txt
+
+    at.session_state["annahmen_navwahl"] = txt(
+        f"oberflaeche.annahmen_nav_{code}"
+    )
+    at.run()
+    assert not at.exception, at.exception
+    return at
+
+
 class TestUmschalter:
     def test_wechsel_auf_tracker_setzt_die_kurve(self, _ga_datei_gesichert):
         from engine.io_yaml import load_global_assumptions_yaml
 
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         at.session_state["einspeisekurve_bauform_wahl"] = "Tracker"
         at.run()
         assert not at.exception, at.exception
@@ -317,14 +337,14 @@ class TestGrosshandelspreis:
 
         at = _app()
         _navigiere(at, "nav_annahmen")
-        assert not at.exception, at.exception
+        _bereich(at, "markt")
         assert [i for i in at.info if "Großhandelspreis" in i.value]
 
     def test_kurve_wird_geplottet(self, _ga_datei_gesichert):
         self._mit_grosshandelspreis()
         at = _app()
         _navigiere(at, "nav_annahmen")
-        assert not at.exception, at.exception
+        _bereich(at, "markt")
         # Drei Diagramme statt zwei: Marktwert, Grosshandelspreis,
         # Anteil negativer Stunden.
         assert len(at.get("plotly_chart")) >= 3
@@ -339,14 +359,20 @@ class TestGrosshandelspreis:
         name, jahre = self._mit_grosshandelspreis()
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         # Erst mit aufgeklappten Zahlen wird das Szenario neu gebaut.
         from engine.io_aurora import zerlege_szenarioname
 
         # Der Schalter haengt am Jahrgang, nicht an der einzelnen Kurve.
         stamm = zerlege_szenarioname(name)[0]
         at.session_state[f"kurven_zahlen_{stamm}"] = True
+        # Der Speichern-Knopf ist gesperrt, solange nichts offen ist -
+        # der Test braucht also eine echte Aenderung, sonst prueft er
+        # nichts. Die Marktpreisinflation steht im selben Bereich.
+        at.session_state["gasec_marktpreis_inflation_pct_pa"] = 2.5
         at.run()
-        [b for b in at.button if "peichern" in (b.label or "")][0].click()
+        assert not at.exception, at.exception
+        [b for b in at.button if b.key == "ga_speichern"][0].click()
         at.run()
         assert not at.exception, at.exception
 
@@ -357,12 +383,17 @@ class TestGrosshandelspreis:
         assert neu.baseload_ct_kwh_je_monat[jahre[0]] == pytest.approx([8.0] * 12)
 
 
-class TestSzenarienreiter:
-    """Ein Reiter je Jahrgang, nicht je Kurve: Aus einer Arbeitsmappe
-    entstehen sechs Szenarien, und sechs Jahrgaenge ergaeben sonst eine
-    Reiterleiste, die man scrollen muss."""
+class TestSzenarienliste:
+    """Eine Zeile je Jahrgang, nicht je Kurve: Aus einer Arbeitsmappe
+    entstehen sechs Szenarien, und alle einzeln aufzufuehren ergaebe eine
+    Liste, die man scrollen muss.
 
-    def test_reiter_fuehren_jahrgaenge(self, _ga_datei_gesichert):
+    Bis v5.26 war das eine Reiterleiste. Der Settings Hub zeigt
+    stattdessen eine kompakte Liste; die Zahlen dahinter stehen auf
+    Anforderung.
+    """
+
+    def test_liste_fuehrt_jahrgaenge(self, _ga_datei_gesichert):
         from engine.io_aurora import zerlege_szenarioname
         from engine.io_yaml import load_global_assumptions_yaml
 
@@ -373,27 +404,28 @@ class TestSzenarienreiter:
 
         at = _app()
         _navigiere(at, "nav_annahmen")
-        assert not at.exception, at.exception
-        beschriftungen = {
-            e.label for e in at.get("tab") if e.label
-        }
+        _bereich(at, "markt")
+        zeilen = " ".join(
+            m.value for m in at.markdown if "szenario-zeile" in m.value
+        )
         for stamm in erwartet:
-            assert stamm in beschriftungen
-        # Die einzelne Kurve steht nicht mehr in der Reiterleiste.
-        assert "Aurora Q3/26 · Pult · Central" not in beschriftungen
+            assert stamm in zeilen
+        # Die einzelne Kurve steht nicht in der Liste.
+        assert "Aurora Q3/26 · Pult · Central" not in zeilen
 
-    def test_auswahl_im_reiter_wechselt_die_kurve(self, _ga_datei_gesichert):
-        """Bauform und Preisszenario werden im Reiter gewaehlt - die
+    def test_auswahl_wechselt_die_kurve(self, _ga_datei_gesichert):
+        """Bauform und Preisszenario werden bei den Zahlen gewaehlt - die
         Tabelle muss der Auswahl folgen."""
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         at.session_state["kurven_zahlen_Aurora Q3/26"] = True
         at.session_state["familie_preis_Aurora Q3/26"] = "High"
         at.run()
         assert not at.exception, at.exception
         schluessel = {k for k in at.session_state.filtered_state
-                      if k.startswith("kurven_editor_")}
-        assert "kurven_editor_Aurora Q3/26 · Pult · High" in schluessel
+                      if k.startswith("szenario_editor_")}
+        assert "szenario_editor_Aurora Q3/26 · Pult · High" in schluessel
 
 
 class TestMarktsystemSetztPraemienmodell:
