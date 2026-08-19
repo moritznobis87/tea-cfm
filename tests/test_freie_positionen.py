@@ -284,14 +284,12 @@ class TestParameterspalte:
         Die Spalte war zuvor eine Mischung aus Ueberschriften, Feldern,
         Bildunterschriften und Knoepfen. Geprueft wird an zwei Resten, die
         es dort nicht mehr geben darf: der fett gesetzten
-        Bereichsueberschrift und der Zeile "nach Vorgabe" unter jedem
-        Erbblock. (Ueberschriften INNERHALB einer Karte bleiben - dort
-        gliedern sie den aufgeklappten Inhalt.)
+        Bereichsueberschrift. (Ueberschriften INNERHALB einer Karte
+        bleiben - dort gliedern sie den aufgeklappten Inhalt, ebenso wie
+        die Vorgabezeile jetzt bei ihren Feldern steht.)
         """
         at, _ = self._projektseite()
         texte = [m.value for m in at.markdown]
         for verboten in ("**Investkosten**", "**Betriebskosten**", "**Erlöse**"):
             assert verboten not in texte, verboten
-        zeilen = [c.value for c in at.caption]
-        assert "nach Vorgabe" not in zeilen
 

@@ -103,8 +103,11 @@ class TestParameterspalte:
         """Rundungen zwischen Anzeige (€/kWp) und Modell duerfen keine
         Aenderungen vortaeuschen."""
         at, form_key = self._projektseite(at)
+        # Der Zustand steht am Verwerfen-Knopf: Die frueher gepruefte
+        # Statuszeile kostete in der schmalen Spalte eine eigene Zeile.
         assert any(
-            "keine offenen Änderungen" in c.value for c in at.caption
+            "keine offenen Änderungen" in (b.help or "")
+            for b in at.button if b.key and b.key.endswith("__verwerfen")
         )
         gesperrt = {
             b.key: b.disabled for b in at.button if b.key and "__" in b.key
@@ -242,7 +245,10 @@ class TestBetriebskostenblock:
         zurueckgerechnet; auf ganze Euro gerundet wich der €/kWp-Wert so
         weit ab, dass die Seite eine Aenderung meldete."""
         at, _ = self._spalte(at)
-        assert any("keine offenen Änderungen" in c.value for c in at.caption)
+        assert any(
+            "keine offenen Änderungen" in (b.help or "")
+            for b in at.button if b.key and b.key.endswith("__verwerfen")
+        )
 
 
 class TestVierAnsichten:

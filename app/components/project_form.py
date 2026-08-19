@@ -1460,7 +1460,6 @@ def _felder(
         bauform = bauform_feld()
         inbetriebnahme_monat, inbetriebnahme_jahr = inbetriebnahme_felder()
 
-    ertrag_zeile = None if spaltig else st.container()
     if spaltig:
         abschnittstitel(txt("oberflaeche.inspector_details"))
     with _abschnitt(
@@ -1477,13 +1476,17 @@ def _felder(
             bauform = bauform_feld()
             inbetriebnahme_monat, inbetriebnahme_jahr = inbetriebnahme_felder()
             st.divider()
+        # Die Vorgabezeile steht IM Bereich, nicht darunter: In der
+        # schmalen Spalte soll unter DETAILS nur die Kartenliste stehen -
+        # die Auskunft, ob dieser Block noch der globalen Vorgabe folgt,
+        # gehoert aber zu seinen Feldern und darf nicht verlorengehen.
+        ertrag_zeile = st.container()
         ertrag = _ertrag_felder(
             form_key, global_assumptions, gespeicherte_abweichung, existing
         )
-    lastgang_datei = ertrag.pop("__lastgang", None)
-    if ertrag_zeile is not None:
         with ertrag_zeile:
             _abweichungszeile(_beschriftungen(ertrag))
+    lastgang_datei = ertrag.pop("__lastgang", None)
 
     def zusatz_capex_tabelle(darstellung: str):
         return _positionstabelle(
@@ -2085,7 +2088,6 @@ def _felder(
     # Inspector EINE Karte: Es ist eine einzige Frage - wofuer bekommt das
     # Projekt sein Geld. In der breiten Maske bleiben es zwei Bloecke,
     # weil dort Platz genug ist.
-    foerdermodell_zeile = None if spaltig else st.container()
     with _abschnitt(
         spaltig,
         knopf=(txt("oberflaeche.inspector_karte_erloese") if spaltig
@@ -2099,10 +2101,10 @@ def _felder(
         if spaltig:
             anlagentyp_label, eag_zuschlag, marktpreisszenario = erloes_felder()
             st.divider()
+        foerdermodell_zeile = st.container()
         foerdermodell = _foerdermodell_felder(
             form_key, global_assumptions, gespeicherte_abweichung
         )
-    if foerdermodell_zeile is not None:
         with foerdermodell_zeile:
             _abweichungszeile(_beschriftungen(foerdermodell))
 
@@ -2167,7 +2169,6 @@ def _felder(
         ek_anteil = ek_feld(col_ek)
         fk_zins = fk_feld(col_fk)
 
-    kreditvertrag_zeile = None if spaltig else st.container()
     with _abschnitt(
         spaltig,
         knopf=txt("oberflaeche.formular_kreditvertrag_knopf"),
@@ -2182,10 +2183,10 @@ def _felder(
             # Quick-Adjust-Gitter: Er wird je Projekt einmal gesetzt und
             # will zusammen mit Laufzeit und Tilgungsart gelesen werden.
             ek_anteil = ek_feld(st)
+        kreditvertrag_zeile = st.container()
         kreditvertrag = _kreditvertrag_felder(
             form_key, global_assumptions, gespeicherte_abweichung, spaltig
         )
-    if kreditvertrag_zeile is not None:
         with kreditvertrag_zeile:
             _abweichungszeile(_beschriftungen(kreditvertrag))
 
@@ -2195,7 +2196,6 @@ def _felder(
     # Projektgesellschaft, nicht am Portfolio.
     if not spaltig:
         st.markdown(f"**{txt('oberflaeche.formular_steuern_titel')}**")
-    steuern_zeile = None if spaltig else st.container()
     with _abschnitt(
         spaltig,
         knopf=txt("oberflaeche.formular_steuern_knopf"),
@@ -2205,10 +2205,10 @@ def _felder(
             form_key, global_assumptions
         ) if spaltig else "",
     ):
+        steuern_zeile = st.container()
         steuern = _steuer_felder(
             form_key, global_assumptions, gespeicherte_abweichung, spaltig
         )
-    if steuern_zeile is not None:
         with steuern_zeile:
             _abweichungszeile(_beschriftungen(steuern))
 
