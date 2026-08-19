@@ -261,14 +261,20 @@ class TestParameterspalte:
         assert f"param_{projekt_id}_capex_zusatz_anzeigen" not in schalter
         assert f"param_{projekt_id}_opex_zusatz_anzeigen" not in schalter
 
-    def test_freie_investkosten_stehen_im_investitions_popover(self):
+    def test_freie_investkosten_stehen_bei_den_investkosten(self):
         """Frei benannte Investkosten gehoeren in dieselbe Huelle wie die
         festen - es sind Investkosten. Ein eigener Knopf daneben war eine
-        Huelle zu viel."""
+        Huelle zu viel.
+
+        Seit dem Inspector-Umbau traegt der Oeffnen-Knopf keinen
+        Themennamen mehr ("Bearbeiten"); geprueft wird deshalb an der
+        Karte und den Feldern, nicht an einer Beschriftung.
+        """
         at, projekt_id = self._projektseite()
-        beschriftungen = [p.proto.popover.label for p in at.get("popover")]
-        assert any("Weitere Investkosten" in b for b in beschriftungen)
+        karten = [m.value for m in at.markdown if "inspector-karte" in m.value]
+        assert any("Investkosten" in k for k in karten), "Investkosten-Karte fehlt"
         # Nur noch EIN Zusatzpositionen-Popover: das der Betriebskosten.
+        beschriftungen = [p.proto.popover.label for p in at.get("popover")]
         assert sum("Zusatzpositionen" in b for b in beschriftungen) == 1
 
     def test_zusammenfassung_der_betriebskosten_steht_vor_dem_popover(self):

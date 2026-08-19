@@ -199,12 +199,13 @@ class TestBetriebskostenblock:
         pruefte. Beide liegen jetzt im selben Popover wie die Pacht.
         """
         at, form_key = self._spalte(at)
-        knopf = [p for p in at.get("popover")
-                 if "Pacht und Abgaben" in p.proto.popover.label]
-        assert knopf, "Popover 'Pacht und Abgaben' fehlt"
-        werte = {n.key for n in knopf[0].get("number_input") if n.key}
+        # Seit dem Inspector-Umbau steht der Themenname in der Karte, der
+        # Oeffnen-Knopf heisst nur noch "Bearbeiten" - geprueft wird
+        # deshalb an den Feldern, die zusammen in einem Block liegen.
+        karten = [m.value for m in at.markdown if "inspector-karte" in m.value]
+        assert any("Pacht und Abgaben" in k for k in karten), "Karte fehlt"
+        werte = {n.key for n in at.get("number_input") if n.key}
         assert f"{form_key}_gemeindeabgabe" in werte
-        # Im selben Popover wie der Pachtwert - ein Block, eine Rubrik.
         assert werte & {f"{form_key}_pacht_ha", f"{form_key}_pacht_kwp",
                         f"{form_key}_pacht_umsatz_pct"}
 
