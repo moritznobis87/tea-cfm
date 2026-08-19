@@ -514,6 +514,32 @@ def _baue_css() -> str:
             display: none;
         }}
 
+        /* Einheiten-Umschalter der Investkosten: "(€/kWp) ◯— (€)" in
+           EINER Zeile, direkt unter seinem Feld. Die linke Einheit ist
+           ein Textstueck, die rechte die Beschriftung des Schalters -
+           beide zusammen sagen, wohin er schaltet. */
+        div[class*="st-key-einheit_"] {{
+            flex-direction: row;
+            align-items: center;
+            gap: 5px;
+            margin-top: -6px;
+            margin-bottom: 4px;
+        }}
+        div[class*="st-key-einheit_"] > * {{
+            flex: 0 0 auto;
+            width: auto !important;
+        }}
+        .einheit-marke {{
+            font-size: 0.72rem;
+            color: {Colors.MUTED};
+            white-space: nowrap;
+        }}
+        div[class*="st-key-einheit_"] [data-testid="stWidgetLabel"] p {{
+            font-size: 0.72rem !important;
+            color: {Colors.MUTED};
+            white-space: nowrap;
+        }}
+
         /* Themenkarten: links der lesbare Text, rechts ein quadratisches
            Icon-Feld. Beide liegen NEBENEINANDER IM FLUSS (flex row) -
            ein absolut gesetzter Knopf legte sich in der schmalen Spalte
