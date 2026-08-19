@@ -376,19 +376,17 @@ def _zusammenfassung_steuern(form_key, ga) -> str:
     ])
 
 
-def _zusammenfassung_foerdermodell(form_key, ga) -> str:
-    modell = _live(form_key, "abw_praemien_modell", _lesbar(ga.praemien_modell))
-    regel = _live(form_key, "abw_negative_stunden_regel",
-                  _lesbar(ga.negative_stunden_regel))
-    return kurzfassung([str(modell), str(regel)])
-
-
-def _zusammenfassung_erloese(form_key, existing, ga) -> str:
-    """Die Erloesseite in einer Zeile: Kategorie, Gebot, Szenario, Modell.
+def _zusammenfassung_erloese(form_key, existing) -> str:
+    """Die Erloesseite in einer Zeile: Kategorie, Gebot, Szenario.
 
     Der Anlagentyp steht vorn: Er entscheidet ueber den anzuwendenden
     Zuschlagswert (Agri-PV oder konventionell) und ist damit die Frage,
     die den Rest der Karte bestimmt.
+
+    Praemienmodell und Negativstunden-Regel stehen bewusst NICHT hier:
+    Sie sind Regelwerk des Standorts, das man einmal einrichtet und
+    danach nicht mehr liest - in der Vorschau kosteten sie zwei
+    zusaetzliche Zeilen und sprengten die Karte.
     """
     # Rueckfall aus dem Projekt: Das Radio entsteht erst IN dieser Karte,
     # steht beim ersten Aufbau der Kurzfassung also noch nicht im Zustand.
@@ -410,7 +408,6 @@ def _zusammenfassung_erloese(form_key, existing, ga) -> str:
         str(typ),
         txt("oberflaeche.inspector_kurz_eag", wert=fmt_number(zuschlag, 2)),
         str(szenario),
-        _zusammenfassung_foerdermodell(form_key, ga),
     ])
 
 
@@ -1342,19 +1339,24 @@ def _felder(
     # QUICK ADJUST - die vier Groessen, an denen beim Durchspielen
     # tatsaechlich gedreht wird, als 2x2-Gitter ganz oben im Inspector.
     #
-    # EPC und Fremdkapitalzins entstehen im Code weiter unten (der EPC
-    # braucht Anlagentyp und Leistung, der Zins steht im
-    # Finanzierungsblock). Sie werden deshalb in reservierte Container
+    # EPC und EAG-Zuschlagswert entstehen im Code weiter unten (der EPC
+    # braucht Anlagentyp und Leistung, der Zuschlagswert steht im
+    # Erloesblock). Sie werden deshalb in reservierte Container
     # gerendert: Streamlit erlaubt es, einen Container spaeter zu
     # fuellen, und so bleibt jedes Feld genau EINMAL im Baum - die
     # Widget-Schluessel aendern sich nicht.
+    #
+    # Der Fremdkapitalzins stand hier zuerst und ist in den Kreditvertrag
+    # gewandert: Er wird je Projekt einmal verhandelt, der Zuschlagswert
+    # dagegen ist die Gebotsgroesse, an der beim Durchspielen gedreht
+    # wird.
     quick: dict = {}
     if spaltig:
         abschnittstitel(txt("oberflaeche.inspector_quick_adjust"))
         with st.container(key=f"quickbox_{form_key}"):
             q1, q2 = st.columns(2)
             q3, q4 = st.columns(2)
-        quick = {"leistung": q1, "vbh": q2, "epc": q3, "fk": q4}
+        quick = {"leistung": q1, "vbh": q2, "epc": q3, "eag": q4}
         col1, col2 = quick["leistung"], quick["vbh"]
     else:
         st.markdown("**Technische Anlagenparameter**")
@@ -1976,9 +1978,14 @@ def _felder(
             index=anlagentyp_index, horizontal=True, key=anlagentyp_key,
             help=txt("oberflaeche.formular_anlagentyp_hilfe"),
         )
+        # Der Zuschlagswert ist die Gebotsgroesse und steht im Inspector
+        # im Quick-Adjust-Gitter ganz oben; erzeugt wird er hier, weil er
+        # zum Erloesblock gehoert (siehe QUICK ADJUST oben).
         c7, _c8 = spalten(2)
-        zuschlag = c7.number_input(
-            "EAG-Zuschlagswert (ct/kWh)", min_value=0.0,
+        zuschlag = (quick["eag"] if spaltig else c7).number_input(
+            txt("oberflaeche.formular_eag_kurz") if spaltig
+            else "EAG-Zuschlagswert (ct/kWh)",
+            min_value=0.0,
             value=existing.eag_zuschlagswert_ct_kwh
             if existing
             else float(st.session_state.get("empfohlenes_gebot_ct", 6.5)),
@@ -2095,7 +2102,7 @@ def _felder(
         hilfe=txt("oberflaeche.formular_foerdermodell_hilfe"),
         karte="foerdermodell" if spaltig else "",
         zusammenfassung=_zusammenfassung_erloese(
-            form_key, existing, global_assumptions
+            form_key, existing
         ) if spaltig else "",
     ):
         if spaltig:
@@ -2162,9 +2169,7 @@ def _felder(
             step=0.1, key=f"{form_key}_fkzins",
         )
 
-    if spaltig:
-        fk_zins = fk_feld(quick["fk"])
-    else:
+    if not spaltig:
         col_ek, col_fk = st.columns(2)
         ek_anteil = ek_feld(col_ek)
         fk_zins = fk_feld(col_fk)
@@ -2179,10 +2184,13 @@ def _felder(
         ) if spaltig else "",
     ):
         if spaltig:
-            # Der Eigenkapitalanteil steht in der Karte und nicht im
-            # Quick-Adjust-Gitter: Er wird je Projekt einmal gesetzt und
-            # will zusammen mit Laufzeit und Tilgungsart gelesen werden.
-            ek_anteil = ek_feld(st)
+            # Kapitalstruktur und Zins stehen in der Karte und nicht im
+            # Quick-Adjust-Gitter: Beide werden je Projekt einmal
+            # verhandelt und wollen zusammen mit Laufzeit und Tilgungsart
+            # gelesen werden.
+            spalte_ek, spalte_fk = st.columns(2)
+            ek_anteil = ek_feld(spalte_ek)
+            fk_zins = fk_feld(spalte_fk)
         kreditvertrag_zeile = st.container()
         kreditvertrag = _kreditvertrag_felder(
             form_key, global_assumptions, gespeicherte_abweichung, spaltig

@@ -63,6 +63,15 @@ sich in der schmalen Spalte über die Kurzfassung), die Kurzfassung darf
 drei Zeilen hoch sein, und die Spalte ist von 25,5 % auf 30 % Breite
 gewachsen.
 
+**Quick Adjust führt den EAG-Zuschlagswert statt des Fremdkapitalzinses.**
+Der Zuschlagswert ist die Gebotsgröße — die Zahl, an der beim
+Durchspielen gedreht wird; der Zins wird je Projekt einmal verhandelt und
+steht deshalb im Kreditvertrag neben Eigenkapitalanteil, Laufzeit und
+Tilgungsart. Die Kurzfassung der Erlöskarte nennt nur noch Anlagentyp,
+Zuschlagswert und Preisszenario: Prämienmodell und Negativstunden-Regel
+sind Regelwerk des Standorts, das man einmal einrichtet, und kosteten in
+der Vorschau zwei Zeilen.
+
 ## v5.25 – Einspeisegrenze: das 70-%-Kriterium wird gerechnet (2026-08)
 
 **Neu: eine Stundenreihe je Projekt.** Sobald ein Projekt konkret genug
