@@ -314,6 +314,25 @@ def _navigiere(at, key: str):
     return at
 
 
+def _bereich(at, code: str):
+    """Wechselt in einen Bereich der Annahmenseite.
+
+    Seit dem Settings Hub startet die Seite mit der Uebersicht; die
+    Felder von "Markt & Preise" und "Daten & Import" entstehen erst,
+    wenn ihr Bereich gewaehlt ist. Gesetzt wird der WIDGET-Zustand der
+    Bereichswahl und nicht der abgeleitete Merker: Ein Widget gewinnt
+    gegen einen programmatisch gesetzten Vorgabewert.
+    """
+    from texte import txt
+
+    at.session_state["annahmen_navwahl"] = txt(
+        f"oberflaeche.annahmen_nav_{code}"
+    )
+    at.run()
+    assert not at.exception, at.exception
+    return at
+
+
 class TestMarktsystemSetztPraemienmodell:
     """Oesterreich rechnet mit dem Toleranzband des EAG, Deutschland mit
     dem einseitigen CfD des EEG - der Laenderschalter stellt das mit um."""
@@ -491,6 +510,7 @@ class TestProfilRubrik:
     def test_rubrik_erscheint_mit_allen_ansichten(self):
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         radios = [r for r in at.radio if r.key == "profil_ansicht"]
         assert radios, "Auflösungs-Umschalter fehlt"
         # options traegt die uebersetzten Etiketten, value den stabilen
@@ -503,6 +523,7 @@ class TestProfilRubrik:
     def test_jede_ansicht_zeichnet_ohne_fehler(self, ansicht):
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         [r for r in at.radio if r.key == "profil_ansicht"][0].set_value(ansicht)
         at.run()
         assert not at.exception, at.exception
@@ -513,6 +534,7 @@ class TestProfilRubrik:
         hat."""
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "markt")
         assert not [
             s for s in at.selectbox if (s.key or "").startswith("profil_monat_")
         ]
@@ -535,6 +557,7 @@ class TestAuroraKurveNichtVorbelegt:
 
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "daten")
         inhalt, name = _tech_monat_csv()
         [u for u in at.file_uploader if u.key == "aurora_tech_monat"][0].set_value(
             (name, inhalt, "text/csv")
@@ -556,6 +579,7 @@ class TestAuroraKurveNichtVorbelegt:
 
         at = _app()
         _navigiere(at, "nav_annahmen")
+        _bereich(at, "daten")
         inhalt, name = _tech_monat_csv()
         [u for u in at.file_uploader if u.key == "aurora_tech_monat"][0].set_value(
             (name, inhalt, "text/csv")
