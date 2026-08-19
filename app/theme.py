@@ -625,6 +625,164 @@ def _baue_css() -> str:
             color: {Colors.PAPER} !important;
         }}
 
+        /* --- Settings Hub (Globale Annahmen) -----------------------------------
+           Dieselbe Kartensprache wie der Project Inspector: Text links,
+           quadratischer Trigger rechts, beides im Fluss. Nur der Inhalt
+           ist ein anderer - hier steht ein grosser Hauptwert zwischen
+           Titel und Subline, weil eine Einstellungskarte VOR allem die
+           Frage "was gilt gerade" beantwortet. */
+        .settings-kopf {{
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 1px;
+        }}
+        .settings-titel {{
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: {Colors.INK};
+            letter-spacing: -0.01em;
+        }}
+        .settings-untertitel {{
+            font-size: 0.84rem;
+            color: {Colors.MUTED};
+            margin-bottom: 10px;
+        }}
+        .settings-marke {{
+            background: #F6C453;
+            color: {Colors.INK};
+            border-radius: 9px;
+            padding: 1px 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }}
+        div[class*="st-key-gacard_"] {{
+            border: 1px solid {Colors.LINE};
+            border-radius: 12px;
+            background: {Colors.PAPER};
+            padding: 12px 10px 12px 14px;
+            margin-bottom: 8px;
+            /* Gleiche Hoehe in einer Reihe, damit das Raster nicht
+               ausfranst - der Hauptwert steht dann immer auf einer
+               Linie. */
+            min-height: 104px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            transition: border-color 0.12s ease, box-shadow 0.12s ease;
+        }}
+        div[class*="st-key-gacard_"]:hover {{
+            border-color: {Colors.BRAND};
+            box-shadow: 0 1px 6px rgba(20, 48, 79, 0.07);
+        }}
+        div[class*="st-key-gacard_"] > * {{
+            flex: 0 0 auto;
+        }}
+        div[class*="st-key-gacard_"] > *:first-child {{
+            flex: 1 1 auto;
+            min-width: 0;
+        }}
+        .settings-karte-kopf {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }}
+        .settings-karte-titel {{
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: {Colors.MUTED};
+        }}
+        .settings-karte-wert {{
+            font-size: 1.02rem;
+            font-weight: 650;
+            color: {Colors.INK};
+            line-height: 1.25;
+            font-variant-numeric: tabular-nums;
+        }}
+        .settings-karte-sub {{
+            font-size: 0.76rem;
+            color: {Colors.MUTED};
+            line-height: 1.35;
+            font-variant-numeric: tabular-nums;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+        .settings-status {{
+            border-radius: 9px;
+            padding: 0 7px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            line-height: 1.6;
+            white-space: nowrap;
+        }}
+        .settings-status-neutral {{
+            background: {Colors.SELECT};
+            color: {Colors.BRAND};
+        }}
+        .settings-status-warnung {{
+            background: #FDF1D6;
+            color: #8A6100;
+        }}
+        .settings-status-fehler {{
+            background: #FBE6E3;
+            color: {Colors.NEGATIVE};
+        }}
+        /* Trigger wie im Inspector - eine Produktsprache, eine Regel. */
+        div[class*="st-key-gacard_"] [data-testid="stButton"] {{
+            margin: 0;
+            width: auto;
+        }}
+        div[class*="st-key-gacard_"] button {{
+            width: 30px !important;
+            min-width: 30px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 8px !important;
+            background: {Colors.SELECT} !important;
+            color: {Colors.BRAND} !important;
+            font-size: 0.9rem !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }}
+        div[class*="st-key-gacard_"] button p {{
+            margin: 0 !important;
+            font-size: 0.9rem !important;
+        }}
+        div[class*="st-key-gacard_"]:hover button {{
+            background: {Colors.BRAND} !important;
+            color: {Colors.PAPER} !important;
+        }}
+        /* Szenarienliste im Abschnitt "Markt & Preise": eine Zeile je
+           Jahrgang statt eines Tabellenstapels. */
+        .szenario-zeile {{
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding: 6px 0;
+            border-bottom: 1px solid {Colors.LINE};
+        }}
+        .szenario-name {{
+            font-size: 0.9rem;
+            font-weight: 650;
+            color: {Colors.INK};
+        }}
+        .szenario-sub {{
+            font-size: 0.78rem;
+            color: {Colors.MUTED};
+            font-variant-numeric: tabular-nums;
+        }}
+
         /* --- Live Impact im Dialog --------------------------------------------- */
         .impact-kachel {{
             border: 1px solid {Colors.LINE};
