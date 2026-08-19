@@ -1,5 +1,93 @@
 # Changelog
 
+## v5.27 – Globale Annahmen als Settings Hub (2026-08)
+
+**Die Seite ist keine Parameterliste mehr.** Sie war eine Folge von
+sieben Expandern mit rund sechzig dauerhaft offenen Feldern. Jetzt ist
+sie zweistufig: eine **Übersicht aus acht Karten**, die den geltenden
+Modellzustand zeigt, und dahinter die Bearbeitung.
+
+Eine Karte trägt Titel, Hauptwert und zwei bis drei einordnende Angaben
+— „FINANZIERUNG / 20 % EK · 4,20 % FK / 20 Jahre · Annuität · Cash Trap
+1,10x". Gezeigt wird der **effektiv geltende** Wert: Im relativen
+Direktvermarktungsmodus der Prozentsatz statt des dann wirkungslosen
+€/MWh-Werts, im Gewerbesteuermodus der aus dem Hebesatz gerechnete Satz.
+Enum-Bezeichnungen erscheinen nirgends roh.
+
+### Der Entwurf — und warum es ihn geben muss
+
+Der alte Speichern-Knopf las am Ende ~60 lokale Variablen aus. Das trug
+nur, weil ein Expander seinen Inhalt **auch zugeklappt ausführt**: Jedes
+Widget entstand bei jedem Durchlauf, jede Variable war gefüllt. Ein
+Dialog bricht das — was nur dort lebt, ist beim Speichern verschwunden.
+Jedes Ausblenden von Feldern erzwingt deshalb einen Zwischenspeicher;
+das ist keine Stilfrage.
+
+Geführt werden zwei vollständige `GlobalAssumptions`-Objekte:
+
+| Zustand | Träger | Übergang |
+| --- | --- | --- |
+| Dialog | `gadlg_*`-Widgets | „Übernehmen" → Entwurf |
+| Entwurf | `ga_entwurf` | „Speichern" → YAML |
+| Gespeichert | YAML | — |
+
+Dazu `ga_basis` als Vergleichsstand. Gezählt wird **feldweise**: Wer
+einen Wert ändert und wieder zurücksetzt, hat nichts geändert, und die
+Seite sagt das auch. Erst „Speichern" schreibt und invalidiert die
+Bewertungs-Caches — während im Dialog gedreht wird, passiert nichts
+davon.
+
+### Sofort-Persistenz ohne stillen Verlust
+
+Drei Aktionen speichern weiterhin unmittelbar, weil sie keine Eingabe
+sind, sondern eine abgeschlossene Handlung: **Marktsystemwechsel**
+(setzt ein Paket aus fünf Feldern), **Bauformwahl** (die Kurve darunter
+muss die neue Auswahl zeigen) und die beiden **Aurora-Importe**. Das
+Anlegen eines leeren Szenarios speichert **nicht mehr** sofort — das war
+eine Ausnahme ohne Grund.
+
+Sie arbeiten auf einer frischen Kopie des *gespeicherten* Stands, nie
+auf dem Entwurf: Sonst gingen alle offenen Änderungen ungefragt mit in
+die Datei. Danach zieht `sofort_abschliessen()` genau die Felder in
+Entwurf und Basis nach, die sich **tatsächlich geändert haben** —
+gemessen, nicht aufgelistet. Eine gepflegte Feldliste wäre in beide
+Richtungen gefährlich: ein vergessenes Feld erschiene als
+Phantomänderung, ein zu viel genanntes überschriebe eine offene
+Änderung mit dem alten Wert.
+
+**Was nicht zu retten ist:** eine Änderung der Datei von außen
+(Wiederherstellung, zweite Sitzung). Dann ist unbekannt, was sich
+geändert hat, und der Entwurf fällt weg. Das passiert nicht
+stillschweigend — die Seite meldet es.
+
+### Markt & Preise bleibt breit
+
+Zwei Bereiche liegen bewusst **nicht** in Dialogen: Markt & Preise führt
+drei nebeneinanderliegende Diagramme, Szenariotabellen und zwei
+Editoren, der Import führt Dateiwahl, Vorschau und Optionen. Ein Dialog
+ist schmaler als die Seite — hier wäre er eine Verschlechterung. Beide
+folgen trotzdem der Progressive Disclosure: erst der geltende Zustand in
+fünf Feldern, dann eine Zeile je Jahrgang statt eines Tabellenstapels,
+dann die Kurven als Bild; Zahlentabellen und Kurveneditor nur auf
+Anforderung.
+
+### Datenqualität — bewusst klein
+
+Vier Prüfungen, die sich aus dem Datenbestand eindeutig beantworten
+lassen: Szenario vorhanden, Monatswerte bei Monatsmodus, Abdeckung des
+Modellzeitraums, Regelwerk passt zum Marktsystem. Alles, wofür es nur
+eine Heuristik gäbe, bleibt draußen — ein Fehlalarm entwertet die Karte
+schneller, als zehn richtige Hinweise sie aufwerten.
+
+Deshalb heißt die gute Nachricht auch nicht „alles korrekt", sondern
+**„Keine strukturellen Datenprobleme erkannt · 4 technische Checks
+bestanden"**: Geprüft wird die Struktur der Daten, nicht die fachliche
+Richtigkeit der Zahlen.
+
+**Keine fachliche Änderung.** EAG, EEG, Förderlogik, Steuern,
+Finanzierung, Marktpreismodell und die Aurora-Importinterpretation sind
+unberührt; alle bestehenden Dateien laden unverändert.
+
 ## v5.26 – Project Inspector und Vermarktungsdialog (2026-08)
 
 **Die rechte Spalte ist kein Formular mehr.** Sie beginnt mit einem
