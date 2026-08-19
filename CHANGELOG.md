@@ -1,5 +1,54 @@
 # Changelog
 
+## v5.25 – Einspeisegrenze: das 70-%-Kriterium wird gerechnet (2026-08)
+
+**Neu: eine Stundenreihe je Projekt.** Sobald ein Projekt konkret genug
+ist, liegt aus der Auslegungssimulation eine Reihe der Einspeisung vor.
+Sie lässt sich im Ertrags-Popover hochladen, wird als Datei neben dem
+Projekt abgelegt (`data/lastgang/projekte/`) und leistet zweierlei: Sie
+ist das individuelle Profil dieser Anlage, und sie ist die einzige
+Grundlage, auf der sich die Einspeisegrenze beziffern lässt.
+
+**Die Grenze rechnet mit.** `einspeiselimit_pct` ist ein erbfähiger
+Parameter (Vorgabe 70 % der Modulspitzenleistung, je Projekt
+überschreibbar). Was darüber liegt, wird monatsscharf von der Menge
+abgezogen und wirkt damit auf Erlöse, DSCR und Rendite. Ohne
+Stundenreihe wird nicht gekappt — aus einer Jahresmenge lässt sich nicht
+ablesen, welche Stunden die Grenze gerissen haben, und eine geratene
+Zahl wäre schlechter als keine.
+
+**Die Nennleistung kürzt sich heraus.** Der Verlustanteil hängt nur an
+drei Größen: der Form der Stundenreihe, dem Limit als Anteil der kWp und
+den Vollbenutzungsstunden. Denn das Limit, ausgedrückt als Anteil der
+Jahresmenge, ist schlicht `limit_pct / kwh_kwp`. Zwei Anlagen mit
+gleichem Profil und gleichen Volllaststunden verlieren denselben
+Prozentsatz — die Grundlage dafür, einen Befund von einem Projekt auf
+ein anderes zu übertragen.
+
+**Der Verlust schrumpft mit der Degradation.** Die Grenze steht fest,
+die Anlage nicht: Ihre Spitzenleistung fällt Jahr für Jahr auf die
+Grenze zu und irgendwann darunter — ab da kostet die Begrenzung nichts
+mehr. Für ein Projekt mit 73,3 % Spitzenleistung und 0,25 % Degradation
+ist das im Jahr 20 der Fall:
+
+| Betriebsjahr | Spitze/kWp | Verlust |
+| --- | ---: | ---: |
+| 1 | 73,3 % | 0,508 % |
+| 10 | 71,6 % | 0,147 % |
+| 20 | 69,8 % | 0 |
+
+Deshalb wird je Jahr neu gerechnet. Wer den Verlust des ersten Jahres
+über die Laufzeit fortschreibt, verdreifacht ihn.
+
+**Schutz vor Doppelzählung.** Eine bereits gekappte Reihe erkennt man
+daran, dass die Anlage stundenlang exakt am selben Wert steht. Die
+Prüfung vergleicht deshalb, statt zu zählen: Bei den hinterlegten Reihen
+liegen 5 % (Pult) und 13 % (Tracker) der Spitzenstunden auf dem Maximum,
+bei künstlich gekappten über 90 %. Beim Upload warnt die Oberfläche
+zudem, wenn die Spitzenleistung der Reihe nicht zur Modulspitzenleistung
+des Projekts passt — dann gehört die Reihe vermutlich zu einer anderen
+Anlage.
+
 ## v5.24 – Auswahlfelder ohne Vorgabe-Option (2026-08)
 
 **Die Radios in den Parameter-Popovern zeigen nur noch die echten

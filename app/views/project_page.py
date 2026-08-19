@@ -643,7 +643,13 @@ def _loeschbestaetigung(project: PVProject, pfad) -> None:
         services.delete_project(project.id)
         st.session_state.pop(STATE_DELETE_CANDIDATE, None)
         if geschwister:
-            router.gehe_zu("projekt", projekt_id=geschwister[0].id)
+            # Die Leitvariante zuerst: Sie ist die Rechnung, die fuer
+            # den Standort gilt. Vorher stand hier geschwister[0] - eine
+            # willkuerliche Wahl, die sich mit der Sortierung der Liste
+            # aenderte und damit auch dann anders ausfiel, wenn an den
+            # Varianten selbst nichts geschehen war.
+            ziel = next((v for v in geschwister if v.leitvariante), geschwister[0])
+            router.gehe_zu("projekt", projekt_id=ziel.id)
         router.gehe_zu("portfolio")
     if col_nein.button(txt("oberflaeche.btn_abbrechen"),
                        key=f"del_no_{project.id}"):

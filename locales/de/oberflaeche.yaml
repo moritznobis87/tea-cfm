@@ -845,3 +845,22 @@ annahmen_profil_tagesgang_fussnote: "Die einzige Ansicht, die etwas zeigt, was i
 # Rueckverguetung an den Foerdergeber (Reiter Erloese)
 projekt_rueckzahlung_summe: "**Rückvergütung an den Fördergeber: {betrag}** über die Gesamtlaufzeit — {anteil} der Erlöse. Betroffen sind die Betriebsjahre {jahre}. Ausgelöst wird sie, wenn der Referenzmarktwert den anzulegenden Wert um mehr als das Toleranzband übersteigt; ein PPA schützt nicht davor, weil sie sich am Referenzmarktwert bemisst und nicht am erzielten Preis."
 projekt_rueckzahlung_keine: "Keine Rückvergütung an den Fördergeber: Der Referenzmarktwert erreicht in diesem Preisszenario nie die Überförderungsgrenze von {grenze}."
+
+# Einspeisegrenze und Stundenreihe
+formular_einspeiselimit_label: "Einspeisegrenze (% der kWp)"
+formular_einspeiselimit_hilfe: "Höchste zulässige Einspeisung am Netzverknüpfungspunkt, als Anteil der Modulspitzenleistung — in Österreich üblich 70 %. Wirksam nur mit hinterlegter Stundenreihe: Aus einer Monats- oder Jahresmenge lässt sich nicht ablesen, in welchen Stunden die Leistung über der Grenze lag."
+formular_lastgang_titel: "Stundenreihe der Einspeisung"
+formular_lastgang_hinweis: "8.760 Stundenwerte aus der Auslegungssimulation. Sie ersetzt die Einspeisekurve der Bauform durch das Profil dieser Anlage und ist die Grundlage der Kappungsrechnung."
+formular_lastgang_upload: "Reihe hochladen"
+formular_lastgang_upload_hilfe: "CSV, Text oder Excel — eine Zahl je Stunde, beginnend am 1. Januar 00:00. Erwartet wird die EINSPEISUNG (hinter dem Wechselrichter), nicht die DC-Erzeugung."
+formular_lastgang_entfernen: "Reihe entfernen"
+formular_lastgang_erst_speichern: "Eine Stundenreihe lässt sich hinterlegen, sobald das Projekt gespeichert ist."
+formular_lastgang_kennzahlen: "{stunden} Stunden · Spitzenleistung {spitze} der Modulspitzenleistung. Liegt die Einspeisegrenze darüber, kostet sie nichts."
+formular_lastgang_fehlt: "Die hinterlegte Reihe „{datei}“ wurde nicht gefunden. Das Projekt rechnet ohne sie weiter."
+formular_lastgang_plateau: "Die Reihe zeigt ein Plateau identischer Höchstwerte — sie dürfte bereits gekappt sein. Eine zweite Kappung würde den Verlust doppelt zählen."
+formular_lastgang_unplausibel: "Die Spitzenleistung der Reihe liegt bei {spitze} der Modulspitzenleistung. Das passt nicht zu diesem Projekt — gehört die Reihe zu einer anderen Anlage?"
+projekt_kappung_titel: "**Einspeisegrenze**"
+projekt_kappung_ohne_reihe: "Für dieses Projekt ist keine Stundenreihe hinterlegt. Die Wirkung der Einspeisegrenze lässt sich nur stundenscharf beziffern — sie wird deshalb nicht gerechnet."
+projekt_kappung_summe: "**{menge} durch die Einspeisegrenze verloren** — {anteil} der Erzeugung über die Gesamtlaufzeit. Die Grenze liegt bei {limit} der Modulspitzenleistung, die Anlage erreicht {spitze}."
+projekt_kappung_ohne_wirkung: "Die Einspeisegrenze von {limit} kostet nichts: Die Anlage erreicht höchstens {spitze} der Modulspitzenleistung."
+projekt_kappung_schrumpft: "Der Verlust sinkt von {erst} im ersten Betriebsjahr auf {letzt} im letzten — die Grenze steht fest, die Anlage degradiert."

@@ -17,6 +17,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
+from . import io_lastgang
 from .cashflow import CashflowTimeseries, calculate_cashflow
 from .covenants import KovenantAnalyse, analysiere_kovenanten
 from .energy import calculate_energy_production
@@ -131,6 +132,12 @@ def resolve_assumptions(
         vollbenutzungsstunden_kwh_kwp=project.vollbenutzungsstunden_kwh_kwp,
         degradation_pct_pa=erbe("degradation_pct_pa"),
         sicherheitsabschlag_pct=erbe("sicherheitsabschlag_pct"),
+        einspeiselimit_pct=erbe("einspeiselimit_pct"),
+        # Die Reihe wird hier EINMAL gelesen und wandert dann durch die
+        # ganze Rechnung. io_lastgang cacht sie zusaetzlich - beides
+        # zusammen sorgt dafuer, dass 8.760 Werte nicht je Betriebsjahr
+        # neu von der Platte kommen.
+        lastgang_reihe=io_lastgang.projektreihe(project.lastgang_datei),
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
         eag_foerderdauer_jahre=erbe("eag_foerderdauer_jahre"),
         betriebsdauer_jahre=erbe("betriebsdauer_jahre"),

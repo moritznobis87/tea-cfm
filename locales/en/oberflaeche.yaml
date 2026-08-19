@@ -844,3 +844,22 @@ annahmen_profil_tagesgang_fussnote: "The only view showing something the monthly
 # Rueckverguetung an den Foerdergeber (Reiter Erloese)
 projekt_rueckzahlung_summe: "**Repayment to the funding body: {betrag}** across the full term — {anteil} of revenue. Affected are operating years {jahre}. It is triggered when the reference capture price exceeds the applicable value by more than the tolerance band; a PPA offers no protection, because it is measured against the reference capture price and not the price achieved."
 projekt_rueckzahlung_keine: "No repayment to the funding body: in this price scenario the reference capture price never reaches the over-funding threshold of {grenze}."
+
+# Einspeisegrenze und Stundenreihe
+formular_einspeiselimit_label: "Feed-in limit (% of kWp)"
+formular_einspeiselimit_hilfe: "Maximum permitted feed-in at the grid connection point, as a share of module peak power — 70 % is customary in Austria. Effective only with an hourly series on file: a monthly or annual volume cannot show in which hours output exceeded the limit."
+formular_lastgang_titel: "Hourly feed-in series"
+formular_lastgang_hinweis: "8,760 hourly values from the design simulation. It replaces the mounting type's generation curve with this plant's own profile and is the basis of the clipping calculation."
+formular_lastgang_upload: "Upload series"
+formular_lastgang_upload_hilfe: "CSV, text or Excel — one number per hour, starting 1 January 00:00. Expected is the FEED-IN (behind the inverter), not DC generation."
+formular_lastgang_entfernen: "Remove series"
+formular_lastgang_erst_speichern: "An hourly series can be attached once the project has been saved."
+formular_lastgang_kennzahlen: "{stunden} hours · peak output {spitze} of module peak power. If the feed-in limit sits above that, it costs nothing."
+formular_lastgang_fehlt: "The attached series “{datei}” was not found. The project continues to calculate without it."
+formular_lastgang_plateau: "The series shows a plateau of identical maximum values — it appears to be clipped already. Clipping it again would count the loss twice."
+formular_lastgang_unplausibel: "The series peaks at {spitze} of module peak power. That does not match this project — does the series belong to a different plant?"
+projekt_kappung_titel: "**Feed-in limit**"
+projekt_kappung_ohne_reihe: "No hourly series is attached to this project. The effect of the feed-in limit can only be quantified hour by hour, so it is not calculated."
+projekt_kappung_summe: "**{menge} lost to the feed-in limit** — {anteil} of generation across the full term. The limit sits at {limit} of module peak power, the plant reaches {spitze}."
+projekt_kappung_ohne_wirkung: "The feed-in limit of {limit} costs nothing: the plant reaches at most {spitze} of module peak power."
+projekt_kappung_schrumpft: "The loss falls from {erst} in the first operating year to {letzt} in the last — the limit is fixed while the plant degrades."

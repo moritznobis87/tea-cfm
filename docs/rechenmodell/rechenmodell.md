@@ -832,8 +832,69 @@ Regelfall, sobald für den Standort ein Ertragsgutachten vorliegt –, gilt
 diese für alle Projekte und die Bauform steuert nur noch den Marktwert
 (`engine/pipeline.py`, `_einspeisekurve()`).
 
+## 6.4 Einspeisegrenze (70-%-Kriterium)
+
+Am Netzverknüpfungspunkt darf höchstens ein Anteil $\lambda$ der
+Modulspitzenleistung eingespeist werden – in Österreich üblich 70 %. Was
+darüber liegt, geht verloren.
+
+**Warum das eine Stundenreihe braucht.** Eine Monats- oder Jahresmenge
+verrät nicht, in welchen Stunden die Leistung über der Grenze lag. Ohne
+hinterlegte Stundenreihe $(g_1,\dots,g_{8760})$ wird deshalb nicht
+gekappt.
+
+Sei $\hat g_h = g_h / \sum_i g_i$ die auf 1 normierte Reihe. Dann ist der
+Verlustanteil eines Betriebsjahres
+
+$$ \kappa_t = \sum_{h=1}^{8760} \max\!\left(0,\; \hat g_h - \frac{\lambda}{h_t}\right), \qquad h_t = h \cdot (1-d)^{\,t-1} \cdot (1-\sigma) $$
+
+und die Menge nach Kappung $E_t^{\mathrm{netto}} = E_t \cdot (1 - \kappa_t)$.
+
+**Die Nennleistung kürzt sich heraus.** Mit Limit $= \lambda P$ und
+Jahresmenge $= P h_t$ ist das Limit, ausgedrückt als Anteil der
+Jahresmenge, genau $\lambda / h_t$ – die Leistung $P$ steht in beiden
+Ausdrücken und fällt weg. Zwei Anlagen mit gleicher Profilform und
+gleichen Vollbenutzungsstunden verlieren denselben Prozentsatz,
+unabhängig von ihrer Größe. Nur deshalb lässt sich ein einmal
+ermittelter Befund auf ein anderes Projekt übertragen.
+
+**Der Verlust schrumpft mit der Degradation.** Die Grenze $\lambda$
+steht fest, $h_t$ nicht: Die Spitzenleistung fällt Jahr für Jahr auf die
+Grenze zu und irgendwann darunter – ab da ist $\kappa_t = 0$. Deshalb
+wird je Betriebsjahr neu gerechnet. Für ein Projekt mit 73,3 %
+Spitzenleistung und 0,25 % Degradation:
+
+| Betriebsjahr | Spitzenleistung | $\kappa_t$ |
+| --- | ---: | ---: |
+| 1 | 73,3 % | 0,508 % |
+| 10 | 71,6 % | 0,147 % |
+| 20 | 69,8 % | 0 |
+
+Wer $\kappa_1$ über die Laufzeit fortschreibt, verdreifacht den Verlust.
+
+**Gekappt wird monatsweise**, in beiden Zeitauflösungen: Der Verlust ist
+über das Jahr so ungleich verteilt wie die Erzeugung – er entsteht
+ausschließlich in den Mittagsstunden des Sommerhalbjahrs. Ein
+Jahresmittel verteilte ihn auf den Dezember mit, wo er nie anfällt.
+
+**Zwei Fehlerquellen sind zu beachten.** Stundenmittel *unterschätzen*
+die Kappung: Innerhalb einer Stunde schwankt die Leistung um ihren
+Mittelwert, und was oberhalb der Grenze lag, ist auch dann verloren,
+wenn das Mittel darunter bleibt. $\kappa_t$ ist deshalb eine
+Untergrenze. Und die Reihe muss die *Einspeisung* sein, nicht die
+DC-Erzeugung – ist sie bereits AC-seitig gekappt, würde hier ein zweites
+Mal abgezogen. `engine/clipping.py::plateauverdacht()` prüft darauf:
+Bei echtem Clipping steht die Anlage stundenlang exakt am Limit, bei
+einer freien Reihe ist das Maximum ein Ausreißer (Pult 5 %, Tracker 13 %
+der Spitzenstunden gegenüber über 90 % bei künstlicher Kappung).
+
+**Codestelle.** `engine/clipping.py`, angewendet in
+`engine/energy.py::kappung_je_jahr()`. Die Reihe je Projekt liegt unter
+`data/lastgang/projekte/`, im Projekt steht nur ihr Dateiname
+(`PVProject.lastgang_datei`).
+
 **Ausgang.** $\phi_t$ und $E_t$ (kWh) je Betriebsjahr, in der
-Monatsauflösung zusätzlich $E_{t,j}$.
+Monatsauflösung zusätzlich $E_{t,j}$; dazu die gekappte Menge je Jahr.
 
 # 7 Schritt 3 – Erlöse nach dem Marktprämienmodell
 

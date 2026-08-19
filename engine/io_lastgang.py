@@ -360,6 +360,80 @@ def stundenfenster(bauform: str, monat: int | None = None) -> list[float]:
     return list(stunden[von:bis])
 
 
+# --- Reihen einzelner Projekte ---------------------------------------------
+#
+# Anders als die beiden Bauform-Reihen oben gehoert eine Projektreihe zu
+# genau einer Anlage. Sie liegt als Datei neben dem Projekt und nicht in
+# ihm: 8.760 Zahlen in einer Projekt-YAML machten sie unlesbar und jeden
+# Diff wertlos.
+
+PROJEKT_VERZEICHNIS = LASTGANG_VERZEICHNIS / "projekte"
+
+
+def projektreihe_pfad(dateiname: str) -> Path:
+    """Pfad einer Projektreihe - ohne Verzeichniswechsel.
+
+    `Path(...).name` schneidet alles vor dem letzten Trenner ab. Ein
+    Dateiname aus einer Projektdatei kann damit nie aus dem
+    Lastgangverzeichnis herausfuehren, auch wenn er von Hand auf
+    "../../etc/passwd" gesetzt wurde.
+    """
+    return PROJEKT_VERZEICHNIS / Path(dateiname).name
+
+
+@lru_cache(maxsize=32)
+def projektreihe(dateiname: str | None) -> tuple[float, ...] | None:
+    """Die Stundenreihe eines Projekts, oder None.
+
+    Gibt None zurueck, wenn kein Dateiname hinterlegt ist ODER die Datei
+    fehlt. Eine fehlende Reihe darf die Bewertung nicht abbrechen - sie
+    ist eine Verfeinerung, keine Voraussetzung; das Projekt rechnet dann
+    weiter mit der Kurve seiner Bauform.
+    """
+    if not dateiname:
+        return None
+    pfad = projektreihe_pfad(dateiname)
+    if not pfad.is_file():
+        return None
+    werte = lies_stundenreihe(pfad.read_bytes(), pfad.name)
+    if len(werte) not in (STUNDEN_NORMALJAHR, STUNDEN_SCHALTJAHR):
+        return None
+    return tuple(werte)
+
+
+def speichere_projektreihe(projekt_id: str, werte: list[float]) -> str:
+    """Legt eine Reihe ab und gibt ihren Dateinamen zurueck.
+
+    Der Dateiname folgt der Projekt-Id, damit im Verzeichnis ohne
+    Nachschlagen erkennbar bleibt, wohin eine Reihe gehoert.
+    """
+    if len(werte) not in (STUNDEN_NORMALJAHR, STUNDEN_SCHALTJAHR):
+        raise LastgangFehler(
+            f"Die Reihe hat {len(werte)} Werte – erwartet werden "
+            f"{STUNDEN_NORMALJAHR} Stunden."
+        )
+    PROJEKT_VERZEICHNIS.mkdir(parents=True, exist_ok=True)
+    dateiname = f"{Path(projekt_id).name}.csv"
+    pfad = projektreihe_pfad(dateiname)
+    pfad.write_text(
+        "Einspeisung kW\n" + "\n".join(f"{w:.4f}" for w in werte) + "\n",
+        encoding="utf-8",
+    )
+    # Der Cache haelt die alte Reihe unter demselben Namen fest.
+    projektreihe.cache_clear()
+    return dateiname
+
+
+def loesche_projektreihe(dateiname: str | None) -> None:
+    """Entfernt eine Reihe - beim Loesen der Verknuepfung im Projekt."""
+    if not dateiname:
+        return
+    pfad = projektreihe_pfad(dateiname)
+    if pfad.is_file():
+        pfad.unlink()
+    projektreihe.cache_clear()
+
+
 def tagesindex_monatsgrenzen() -> list[int]:
     """Tagesnummern (0-basiert), an denen ein Monat beginnt - fuer die
     Achsenbeschriftung der Tagesansicht."""

@@ -367,7 +367,14 @@ class TestLoeschen:
             assert not (PROJECTS_DIR / f"{neue}.yaml").exists()
             # Der Standort bleibt geoeffnet - es gibt dort noch eine
             # Rechnung, ein Sprung ins Portfolio waere unnoetig.
-            assert at.session_state[_STATE_ID] == herkunft
+            # Geprueft wird der STANDORT, nicht die einzelne Variante:
+            # Angesteuert wird die Leitvariante, und die muss nicht die
+            # sein, von der aus die neue angelegt wurde.
+            from app import services
+
+            nach_id = {p.id: p for p in services.list_projects()}
+            assert (nach_id[at.session_state[_STATE_ID]].standort
+                    == nach_id[herkunft].standort)
         finally:
             for datei in PROJECTS_DIR.glob("*.yaml"):
                 datei.unlink()

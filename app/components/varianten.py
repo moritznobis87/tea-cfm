@@ -85,6 +85,17 @@ def _vorgabe_pct(wert) -> str:
     return "Vorgabe" if wert is None else _pct(wert)
 
 
+def _lastgang(wert) -> str:
+    """Ob eine Stundenreihe hinterlegt ist - nicht welche.
+
+    Der Dateiname folgt der Projekt-Id und traegt deshalb keine
+    Information, die im Vergleich etwas beitraege. Ob eine Reihe da ist,
+    traegt dagegen viel: Nur mit ihr wird die Einspeisegrenze gerechnet,
+    zwei Varianten koennen sich also allein darin unterscheiden.
+    """
+    return "hinterlegt" if wert else "—"
+
+
 def _text(wert) -> str:
     if isinstance(wert, AnlagenTyp):
         return "Agri-PV" if wert == AnlagenTyp.AGRI_PV else "Konventionell"
@@ -109,6 +120,7 @@ _FELDER: dict[str, tuple[str, callable]] = {
     "nennleistung_kwp": ("Leistung (kWp)", _zahl0),
     "vollbenutzungsstunden_kwh_kwp": ("Vollbenutzungsstunden (kWh/kWp)", _zahl0),
     "bauform": ("Bauform", _text),
+    "lastgang_datei": ("Stundenreihe", _lastgang),
     "pacht_eur_kwp_jahr": ("Pacht (€/kWp/Jahr)", _zahl2),
     "pacht_modus": ("Pachtmodus", _text),
     "pacht_umsatzbeteiligung_pct": ("Umsatzbeteiligung", _pct),
@@ -173,6 +185,7 @@ _FELDER: dict[str, tuple[str, callable]] = {
     "annahmen.degradation_pct_pa": ("Degradation", _vorgabe_pct),
     "annahmen.sicherheitsabschlag_pct": ("Sicherheitsabschlag", _vorgabe_pct),
     "annahmen.betriebsdauer_jahre": ("Betrachtungsdauer (Jahre)", _vorgabe0),
+    "annahmen.einspeiselimit_pct": ("Einspeisegrenze", _vorgabe_pct),
     "annahmen.opex_standard_eur_kwp": (
         "Abweichende Standard-Betriebskosten", _positionen_kurz
     ),

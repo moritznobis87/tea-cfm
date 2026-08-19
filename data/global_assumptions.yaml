@@ -30724,6 +30724,7 @@ negative_stunden_gewichtung_pct: 1.0
 negative_stunden_modus: marktwert
 degradation_pct_pa: 0.0025
 sicherheitsabschlag_pct: 0.0
+einspeiselimit_pct: 0.7
 eag_foerderdauer_jahre: 20
 betriebsdauer_jahre: 30
 kreditlaufzeit_jahre: 20

@@ -29,7 +29,7 @@ import streamlit as st
 
 from app import services
 from app.config import monate, monate_kurz
-from app.formatting import fmt_number
+from app.formatting import fmt_number, fmt_pct
 from engine import (
     AnlagenTyp,
     CapexBreakdown,
@@ -44,8 +44,10 @@ from engine import (
     TaxModus,
     TilgungsArt,
     ZinsMethode,
+    io_lastgang,
 )
 from engine.io_aurora import szenario_auswahl
+from engine.io_lastgang import LastgangFehler
 from engine.models import (
     EINSPEISEKURVEN_JE_BAUFORM,
     Projektannahmen,
@@ -551,6 +553,7 @@ _ABWEICHUNG_LABEL: dict[str, str] = {
     "degradation_pct_pa": "oberflaeche.formular_degradation_label",
     "sicherheitsabschlag_pct": "oberflaeche.formular_sicherheitsabschlag_label",
     "betriebsdauer_jahre": "oberflaeche.formular_betriebsdauer_label",
+    "einspeiselimit_pct": "oberflaeche.formular_einspeiselimit_label",
 }
 
 #: Abweichungsfelder, die die Maske noch nicht anbietet. Sie werden
@@ -799,7 +802,7 @@ def _foerdermodell_felder(
     return werte
 
 
-def _ertrag_felder(form_key: str, global_assumptions, abweichung) -> dict:
+def _ertrag_felder(form_key: str, global_assumptions, abweichung, existing=None) -> dict:
     """Degradation, Sicherheitsabschlag und Betrachtungsdauer.
 
     Sie haengen an Modul, Ertragsgutachten und Pachtvertrag - alles
@@ -829,7 +832,109 @@ def _ertrag_felder(form_key: str, global_assumptions, abweichung) -> dict:
             global_assumptions.betriebsdauer_jahre,
             abweichung.betriebsdauer_jahre, min_value=1,
         ),
+        "einspeiselimit_pct": _erbe_zahl(
+            st, form_key, "abw_einspeiselimit_pct",
+            txt("oberflaeche.formular_einspeiselimit_label"),
+            global_assumptions.einspeiselimit_pct or 0.0,
+            abweichung.einspeiselimit_pct,
+            faktor=100.0, nachkomma=1, min_value=1.0, max_value=100.0, step=1.0,
+            hilfe=txt("oberflaeche.formular_einspeiselimit_hilfe"),
+        ),
+        # Kein Abweichungsfeld, sondern ein Projektdatum - es steht hier,
+        # weil die Grenze ohne Stundenreihe wirkungslos bleibt und beides
+        # deshalb zusammen entschieden wird.
+        "__lastgang": _lastgang_feld(form_key, existing),
     }
+
+
+def _lastgang_feld(form_key: str, existing) -> str | None:
+    """Stundenreihe der Einspeisung hochladen, ansehen, entfernen.
+
+    Nur fuer gespeicherte Projekte: Die Reihe wird als Datei abgelegt und
+    braucht dafuer die Projekt-Id. Das passt auch zur Sache - eine
+    Auslegungssimulation gibt es erst, wenn das Projekt konkret geworden
+    ist.
+
+    Der Upload wirkt SOFORT und nicht erst beim Speichern der Maske. Eine
+    Datei ist kein Formularwert: Sie liegt nach dem Hochladen auf der
+    Platte, und ein Entwurf, der sie nur halb kennt, waere schlechter zu
+    verstehen als einer, der sie ganz hat.
+    """
+    if existing is None:
+        st.caption(txt("oberflaeche.formular_lastgang_erst_speichern"))
+        return None
+
+    schluessel = f"{form_key}_lastgang"
+    aktuell = st.session_state.get(schluessel, existing.lastgang_datei)
+
+    st.markdown(f"**{txt('oberflaeche.formular_lastgang_titel')}**")
+    st.caption(txt("oberflaeche.formular_lastgang_hinweis"))
+
+    if aktuell:
+        reihe = io_lastgang.projektreihe(aktuell)
+        if reihe is None:
+            st.warning(txt("oberflaeche.formular_lastgang_fehlt", datei=aktuell))
+        else:
+            _lastgang_kennzahlen(reihe, existing)
+        if st.button(
+            txt("oberflaeche.formular_lastgang_entfernen"),
+            key=f"{form_key}_lastgang_weg", width="stretch",
+        ):
+            io_lastgang.loesche_projektreihe(aktuell)
+            st.session_state[schluessel] = None
+            st.rerun()
+        return aktuell
+
+    hochgeladen = st.file_uploader(
+        txt("oberflaeche.formular_lastgang_upload"),
+        type=["csv", "txt", "xlsx", "xlsm"],
+        key=f"{form_key}_lastgang_datei",
+        help=txt("oberflaeche.formular_lastgang_upload_hilfe"),
+    )
+    if hochgeladen is None:
+        return None
+
+    try:
+        werte = io_lastgang.lies_stundenreihe(
+            hochgeladen.getvalue(), hochgeladen.name
+        )
+        datei = io_lastgang.speichere_projektreihe(existing.id, werte)
+    except LastgangFehler as fehler:
+        st.error(str(fehler))
+        return None
+
+    st.session_state[schluessel] = datei
+    st.rerun()
+    return datei
+
+
+def _lastgang_kennzahlen(reihe, existing) -> None:
+    """Was die Reihe ueber die Anlage sagt - und ob sie zu ihr passt.
+
+    Die Spitzenleistung im Verhaeltnis zur Modulspitzenleistung ist die
+    entscheidende Zahl: Liegt sie unter der Einspeisegrenze, kostet
+    diese nichts. Sie ergibt sich aus der Reihe und den
+    Vollbenutzungsstunden allein - die Nennleistung kuerzt sich heraus
+    (siehe engine/clipping.py).
+    """
+    from engine.clipping import limit_ohne_verlust, plateauverdacht
+
+    spitze = limit_ohne_verlust(
+        list(reihe), existing.vollbenutzungsstunden_kwh_kwp
+    )
+    st.caption(txt(
+        "oberflaeche.formular_lastgang_kennzahlen",
+        stunden=fmt_number(len(reihe), 0),
+        spitze=fmt_pct(spitze, 1),
+    ))
+    if plateauverdacht(list(reihe)):
+        st.warning(txt("oberflaeche.formular_lastgang_plateau"))
+    if spitze > 1.5 or spitze < 0.3:
+        # Eine Anlage, deren Stundenspitze weit ueber der
+        # Modulspitzenleistung oder weit darunter liegt, passt nicht zu
+        # diesem Projekt - vermutlich die Reihe eines anderen.
+        st.warning(txt("oberflaeche.formular_lastgang_unplausibel",
+                       spitze=fmt_pct(spitze, 0)))
 
 
 def _standard_opex_tabelle(
@@ -1131,8 +1236,9 @@ def _felder(
                     knopf=txt("oberflaeche.formular_ertrag_knopf"),
                     hilfe=txt("oberflaeche.formular_ertrag_hilfe")):
         ertrag = _ertrag_felder(
-            form_key, global_assumptions, gespeicherte_abweichung
+            form_key, global_assumptions, gespeicherte_abweichung, existing
         )
+    lastgang_datei = ertrag.pop("__lastgang", None)
     with ertrag_zeile:
         _abweichungszeile(_beschriftungen(ertrag))
 
@@ -1839,6 +1945,7 @@ def _felder(
         nennleistung_kwp=nennleistung_kwp,
         vollbenutzungsstunden_kwh_kwp=vollbenutzungsstunden,
         bauform=bauform,
+        lastgang_datei=lastgang_datei,
         pacht_eur_kwp_jahr=pacht_eur_kwp_jahr,
         pacht_modus=pacht_modus,
         pacht_umsatzbeteiligung_pct=pacht_umsatzbeteiligung_pct,
