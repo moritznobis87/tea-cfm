@@ -234,6 +234,61 @@ def render_revenue_tab(result, df) -> None:
     section_title(txt("oberflaeche.dashboard_umsatzerloese_jahr"))
     st.plotly_chart(charts.revenue_chart(df), width="stretch")
 
+    if ea.einspeiselimit_pct:
+        _kappungsbox(betrieb, ea)
+
+
+def _kappungsbox(betrieb, ea) -> None:
+    """Was die Einspeisegrenze dieses Projekt kostet.
+
+    Drei Zustaende, und alle drei sind eine Auskunft wert:
+
+    - Keine Stundenreihe: Die Frage ist nicht beantwortbar. Das ist
+      etwas anderes als "kostet nichts" und muss auch so dastehen.
+    - Reihe da, Grenze greift nicht: Die Anlagenspitze bleibt darunter.
+      Ein Ergebnis, kein Nichtereignis.
+    - Reihe da, Grenze greift: Menge, Anteil und der Verlauf ueber die
+      Laufzeit.
+    """
+    st.markdown(txt("oberflaeche.projekt_kappung_titel"))
+    limit = fmt_pct(ea.einspeiselimit_pct, 0)
+
+    if not ea.lastgang_reihe:
+        st.caption(txt("oberflaeche.projekt_kappung_ohne_reihe"))
+        return
+
+    from engine.clipping import limit_ohne_verlust
+
+    spitze = limit_ohne_verlust(
+        list(ea.lastgang_reihe), ea.vollbenutzungsstunden_kwh_kwp
+    )
+    gekappt = float(betrieb["kappung_kwh"].sum())
+    if gekappt <= 0:
+        st.caption(txt("oberflaeche.projekt_kappung_ohne_wirkung",
+                       limit=limit, spitze=fmt_pct(spitze, 1)))
+        return
+
+    erzeugt = float(betrieb["produktion_kwh"].sum())
+    st.warning(txt(
+        "oberflaeche.projekt_kappung_summe",
+        menge=f"{fmt_number(gekappt / 1000, 0)} MWh",
+        anteil=fmt_pct(gekappt / (gekappt + erzeugt) if erzeugt else 0.0, 2),
+        limit=limit,
+        spitze=fmt_pct(spitze, 1),
+    ))
+
+    # Der Verlauf ist die eigentliche Nachricht: Die Grenze steht fest,
+    # die Anlage degradiert - der Verlust schrumpft also Jahr fuer Jahr
+    # und verschwindet irgendwann ganz. Wer den Wert des ersten Jahres
+    # fortschreibt, ueberschaetzt ihn um ein Vielfaches.
+    anteile = (
+        betrieb["kappung_kwh"] / (betrieb["kappung_kwh"] + betrieb["produktion_kwh"])
+    ).tolist()
+    if len(anteile) > 1 and anteile[0] > anteile[-1]:
+        st.caption(txt("oberflaeche.projekt_kappung_schrumpft",
+                       erst=fmt_pct(anteile[0], 2),
+                       letzt=fmt_pct(anteile[-1], 2)))
+
 
 def _rueckzahlung_box(betrieb, ea) -> None:
     """Summe der Rueckvergütung an den Foerdergeber ueber die Laufzeit.

@@ -844,3 +844,22 @@ annahmen_profil_tagesgang_fussnote: "La seule vue qui montre quelque chose d'abs
 # Rueckverguetung an den Foerdergeber (Reiter Erloese)
 projekt_rueckzahlung_summe: "**Reversement à l'organisme de soutien : {betrag}** sur toute la durée — {anteil} des recettes. Années d'exploitation concernées : {jahre}. Il se déclenche lorsque la valeur de marché de référence dépasse la valeur applicable de plus que la bande de tolérance ; un PPA ne protège pas, car le calcul se fait sur la valeur de référence et non sur le prix obtenu."
 projekt_rueckzahlung_keine: "Aucun reversement à l'organisme de soutien : dans ce scénario de prix, la valeur de marché de référence n'atteint jamais le seuil de surcompensation de {grenze}."
+
+# Einspeisegrenze und Stundenreihe
+formular_einspeiselimit_label: "Limite d'injection (% des kWc)"
+formular_einspeiselimit_hilfe: "Injection maximale autorisée au point de raccordement, en part de la puissance crête — 70 % est usuel en Autriche. Effective uniquement avec une série horaire enregistrée : un volume mensuel ou annuel ne dit pas dans quelles heures la puissance a dépassé la limite."
+formular_lastgang_titel: "Série horaire d'injection"
+formular_lastgang_hinweis: "8 760 valeurs horaires issues de la simulation de conception. Elle remplace la courbe du type de montage par le profil propre de cette installation et sert de base au calcul d'écrêtage."
+formular_lastgang_upload: "Téléverser la série"
+formular_lastgang_upload_hilfe: "CSV, texte ou Excel — un nombre par heure, à partir du 1er janvier 00:00. Attendue est l'INJECTION (après onduleur), pas la production DC."
+formular_lastgang_entfernen: "Retirer la série"
+formular_lastgang_erst_speichern: "Une série horaire peut être jointe dès que le projet est enregistré."
+formular_lastgang_kennzahlen: "{stunden} heures · puissance de pointe {spitze} de la puissance crête. Si la limite se situe au-dessus, elle ne coûte rien."
+formular_lastgang_fehlt: "La série jointe « {datei} » est introuvable. Le projet continue de calculer sans elle."
+formular_lastgang_plateau: "La série présente un plateau de valeurs maximales identiques — elle semble déjà écrêtée. L'écrêter à nouveau compterait la perte deux fois."
+formular_lastgang_unplausibel: "La série culmine à {spitze} de la puissance crête. Cela ne correspond pas à ce projet — la série appartient-elle à une autre installation ?"
+projekt_kappung_titel: "**Limite d'injection**"
+projekt_kappung_ohne_reihe: "Aucune série horaire n'est jointe à ce projet. L'effet de la limite d'injection ne se chiffre qu'heure par heure ; il n'est donc pas calculé."
+projekt_kappung_summe: "**{menge} perdus par la limite d'injection** — {anteil} de la production sur toute la durée. La limite est à {limit} de la puissance crête, l'installation atteint {spitze}."
+projekt_kappung_ohne_wirkung: "La limite d'injection de {limit} ne coûte rien : l'installation atteint au plus {spitze} de la puissance crête."
+projekt_kappung_schrumpft: "La perte passe de {erst} la première année à {letzt} la dernière — la limite est fixe, l'installation se dégrade."

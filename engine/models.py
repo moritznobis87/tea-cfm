@@ -455,6 +455,10 @@ class Projektannahmen(BaseModel):
     degradation_pct_pa: float | None = Field(default=None, ge=0)
     sicherheitsabschlag_pct: float | None = Field(default=None, ge=0, le=1)
     betriebsdauer_jahre: int | None = Field(default=None, gt=0)
+    #: Einspeisegrenze dieses Netzanschlusses (Anteil der kWp). Die
+    #: Vorgabe von 70 % ist der Regelfall; ein einzelner Anschluss kann
+    #: anders bemessen sein.
+    einspeiselimit_pct: float | None = Field(default=None, gt=0, le=1)
 
     # --- Foerdermodell und Vermarktung --------------------------------------
     praemien_modell: PraemienModell | None = None
@@ -574,6 +578,18 @@ class PVProject(BaseModel):
     #: Anlagen. Der Migrationsschritt unten holt sie aus Altbestaenden
     #: heraus.
     bauform: str = EINSPEISEKURVE_STANDARD_BAUFORM
+
+    #: Dateiname der hinterlegten Stundenreihe unter
+    #: data/lastgang/projekte/, oder None. Sobald ein Projekt konkret
+    #: genug ist, liegt aus der Auslegungssimulation eine Reihe der
+    #: EINSPEISUNG vor (8.760 Werte). Sie leistet zweierlei: Sie
+    #: ersetzt die Einspeisekurve der Bauform durch die dieser Anlage,
+    #: und sie ist die einzige Grundlage, auf der sich die Wirkung der
+    #: Einspeisegrenze beziffern laesst (siehe engine/clipping.py).
+    #:
+    #: Nur der Dateiname, nicht die Reihe selbst: 8.760 Zahlen in jeder
+    #: Projektdatei machten sie unlesbar und jeden Diff wertlos.
+    lastgang_datei: str | None = None
 
     # Wirtschaftliche Parameter
     pacht_eur_kwp_jahr: float = Field(ge=0)
@@ -1017,6 +1033,16 @@ class GlobalAssumptions(BaseModel):
     degradation_pct_pa: float = 0.0
     sicherheitsabschlag_pct: float = 0.0
 
+    #: Hoechste zulaessige Einspeisung am Netzverknuepfungspunkt, als
+    #: Anteil der Modulspitzenleistung. In Oesterreich ueblich 70 %.
+    #: None heisst: keine Begrenzung.
+    #:
+    #: Wirksam wird sie nur, wenn eine Stundenreihe vorliegt - aus einer
+    #: Monats- oder Jahresmenge laesst sich nicht ablesen, in welchen
+    #: Stunden die Leistung ueber der Grenze lag (siehe
+    #: engine/clipping.py).
+    einspeiselimit_pct: float | None = Field(default=0.70, gt=0, le=1)
+
     # Foerder- und Betrachtungsdauer
     eag_foerderdauer_jahre: int = Field(gt=0, default=20)
     betriebsdauer_jahre: int = Field(gt=0, default=25)
@@ -1124,6 +1150,13 @@ class EffectiveAssumptions(BaseModel):
     vollbenutzungsstunden_kwh_kwp: float
     degradation_pct_pa: float
     sicherheitsabschlag_pct: float
+
+    #: Einspeisegrenze als Anteil der kWp; None heisst unbegrenzt.
+    einspeiselimit_pct: float | None = None
+    #: Stundenreihe der Einspeisung, sofern eine hinterlegt ist. Als
+    #: tuple, weil EffectiveAssumptions gecacht durch die Pipeline
+    #: gereicht wird und eine Liste dort veraenderbar waere.
+    lastgang_reihe: tuple[float, ...] | None = None
 
     eag_zuschlagswert_effektiv_ct_kwh: float
     eag_foerderdauer_jahre: int

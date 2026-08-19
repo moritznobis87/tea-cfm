@@ -844,3 +844,22 @@ annahmen_profil_tagesgang_fussnote: "La única vista que muestra algo que la cur
 # Rueckverguetung an den Foerdergeber (Reiter Erloese)
 projekt_rueckzahlung_summe: "**Reintegro al organismo financiador: {betrag}** durante toda la vida útil — {anteil} de los ingresos. Años de explotación afectados: {jahre}. Se activa cuando el valor de mercado de referencia supera el valor aplicable en más de la banda de tolerancia; un PPA no protege, porque se mide sobre el valor de referencia y no sobre el precio obtenido."
 projekt_rueckzahlung_keine: "Sin reintegro al organismo financiador: en este escenario de precios el valor de mercado de referencia nunca alcanza el umbral de sobrefinanciación de {grenze}."
+
+# Einspeisegrenze und Stundenreihe
+formular_einspeiselimit_label: "Límite de inyección (% de kWp)"
+formular_einspeiselimit_hilfe: "Inyección máxima permitida en el punto de conexión, como cuota de la potencia pico — en Austria es habitual el 70 %. Solo es efectiva con una serie horaria registrada: un volumen mensual o anual no revela en qué horas la potencia superó el límite."
+formular_lastgang_titel: "Serie horaria de inyección"
+formular_lastgang_hinweis: "8.760 valores horarios de la simulación de diseño. Sustituye la curva del tipo de montaje por el perfil propio de esta planta y es la base del cálculo de recorte."
+formular_lastgang_upload: "Subir serie"
+formular_lastgang_upload_hilfe: "CSV, texto o Excel — un número por hora, empezando el 1 de enero a las 00:00. Se espera la INYECCIÓN (tras el inversor), no la generación DC."
+formular_lastgang_entfernen: "Quitar serie"
+formular_lastgang_erst_speichern: "Se puede adjuntar una serie horaria en cuanto el proyecto esté guardado."
+formular_lastgang_kennzahlen: "{stunden} horas · potencia punta {spitze} de la potencia pico. Si el límite queda por encima, no cuesta nada."
+formular_lastgang_fehlt: "No se encontró la serie adjunta «{datei}». El proyecto sigue calculando sin ella."
+formular_lastgang_plateau: "La serie muestra una meseta de valores máximos idénticos — parece ya recortada. Recortarla de nuevo contaría la pérdida dos veces."
+formular_lastgang_unplausibel: "La serie alcanza {spitze} de la potencia pico. Eso no encaja con este proyecto — ¿pertenece la serie a otra planta?"
+projekt_kappung_titel: "**Límite de inyección**"
+projekt_kappung_ohne_reihe: "Este proyecto no tiene serie horaria adjunta. El efecto del límite de inyección solo se puede cifrar hora a hora, por lo que no se calcula."
+projekt_kappung_summe: "**{menge} perdidos por el límite de inyección** — {anteil} de la generación durante toda la vida útil. El límite está en {limit} de la potencia pico; la planta alcanza {spitze}."
+projekt_kappung_ohne_wirkung: "El límite de inyección del {limit} no cuesta nada: la planta alcanza como máximo {spitze} de la potencia pico."
+projekt_kappung_schrumpft: "La pérdida baja de {erst} en el primer año a {letzt} en el último — el límite es fijo y la planta se degrada."
