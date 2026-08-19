@@ -126,8 +126,11 @@ class TestParameterspalte:
         assert not at.exception
 
         assert _leitwert(at) != vorher, "Equity IRR folgt der Eingabe nicht"
-        assert any(":orange[" in m.value and "Änderung" in m.value
-                   for m in at.markdown)
+        # Der offene Stand steht als Marke im Kopf der Parameterspalte -
+        # frueher war es eine eingefaerbte Statuszeile darunter, die in
+        # der schmalen Spalte eine eigene Zeile kostete.
+        assert any('<div class="parameter-kopf"' in m.value
+                   and "parameter-marke" in m.value for m in at.markdown)
         assert any("ungespeicherte Änderung" in m.value for m in at.markdown)
         gesperrt = {
             b.key: b.disabled for b in at.button if b.key and "__" in b.key
