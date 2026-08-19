@@ -32,6 +32,13 @@ def save_project_yaml(project: PVProject, path: str | Path) -> None:
         feld: wert for feld, wert in daten.get("annahmen", {}).items()
         if wert is not None and wert != {}
     }
+    # Aus demselben Grund fallen leere Optionalfelder ganz weg: Ein
+    # `lastgang_datei: null` in siebzehn Dateien sagt nichts, verlaengert
+    # aber jeden Diff. Was fehlt, ist nicht gesetzt - das Modell setzt
+    # beim Laden denselben Standard.
+    for feld in ("annahmen", "lastgang_datei"):
+        if not daten.get(feld):
+            daten.pop(feld, None)
     with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump(daten, f, allow_unicode=True, sort_keys=False)
 

@@ -9,7 +9,7 @@ inbetriebnahme_monat: 4
 anlagentyp: agri_pv
 nennleistung_kwp: 32000.0
 vollbenutzungsstunden_kwh_kwp: 1465.0
-bauform: Pult
+bauform: Tracker
 pacht_eur_kwp_jahr: 3.45
 pacht_modus: fix
 pacht_umsatzbeteiligung_pct: 0.055
