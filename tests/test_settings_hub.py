@@ -64,6 +64,32 @@ def _annahmen(at):
     return at
 
 
+def _uebernimm(at, **felder):
+    """Schreibt Werte in den Entwurf - wie es "Uebernehmen" tut.
+
+    Bewusst am Dialog VORBEI: Ein `st.dialog` laesst sich in AppTest
+    nicht zuverlaessig bedienen, seine Widgets ueberleben den Durchlauf
+    nicht (aus demselben Grund pruefen die Tests des
+    Vermarktungsdialogs den Entwurf direkt, siehe test_inspector.py).
+    Geprueft werden soll hier ohnehin nicht das Widget, sondern die
+    Zustandslogik dahinter - und die haengt am Entwurf, nicht am Weg,
+    auf dem ein Wert hineinkommt. Dass der Dialog aufgeht und nichts
+    veraendert, prueft test_dialog_oeffnen_und_schliessen_bleibt_folgenlos.
+    """
+    entwurf = at.session_state["ga_entwurf"]
+    for name, wert in felder.items():
+        setattr(entwurf, name, wert)
+    at.run()
+    assert not at.exception, at.exception
+    return at
+
+
+def _alles_gesperrt(at) -> bool:
+    """Speichern und Verwerfen gesperrt heisst: nichts ist offen."""
+    gesperrt = {b.key: b.disabled for b in at.button if b.key}
+    return gesperrt["ga_speichern"] and gesperrt["ga_verwerfen"]
+
+
 # ---------------------------------------------------------------------------
 # Datenqualitaet - reine Funktionen, ohne Streamlit
 # ---------------------------------------------------------------------------
@@ -214,13 +240,7 @@ class TestEntwurf:
 
         vorher = load_global_assumptions_yaml(_GA_PFAD).kreditlaufzeit_jahre
         at = _annahmen(_app())
-        [b for b in at.button if b.key == "gakarte_finanzierung"][0].click()
-        at.run()
-        at.session_state["gadlg_kreditlaufzeit_jahre"] = vorher + 3
-        at.run()
-        [b for b in at.button if b.key == "gadlgbtn_finanzierung_ok"][0].click()
-        at.run()
-        assert not at.exception, at.exception
+        _uebernimm(at, kreditlaufzeit_jahre=vorher + 3)
 
         # Gemeldet, aber nicht geschrieben.
         gesperrt = {b.key: b.disabled for b in at.button if b.key}
@@ -236,33 +256,44 @@ class TestEntwurf:
             == vorher + 3
         )
 
-    def test_abbrechen_schreibt_nichts(self, _ga_datei_gesichert):
+    def test_zurueckgesetzter_wert_gilt_nicht_als_aenderung(
+        self, _ga_datei_gesichert
+    ):
+        """Gezaehlt wird feldweise gegen den gespeicherten Stand und
+        nicht "hier wurde etwas angefasst": Wer einen Wert aendert und
+        wieder zuruecksetzt, hat nichts geaendert."""
+        from engine.io_yaml import load_global_assumptions_yaml
+
+        vorher = load_global_assumptions_yaml(_GA_PFAD).kreditlaufzeit_jahre
         at = _annahmen(_app())
-        [b for b in at.button if b.key == "gakarte_finanzierung"][0].click()
-        at.run()
-        at.session_state["gadlg_kreditlaufzeit_jahre"] = 99
-        at.run()
-        [b for b in at.button if b.key == "gadlgbtn_finanzierung_ab"][0].click()
-        at.run()
-        assert not at.exception, at.exception
-        gesperrt = {b.key: b.disabled for b in at.button if b.key}
-        assert gesperrt["ga_speichern"] is True
+        _uebernimm(at, kreditlaufzeit_jahre=vorher + 3)
+        assert not _alles_gesperrt(at)
+
+        _uebernimm(at, kreditlaufzeit_jahre=vorher)
+        assert _alles_gesperrt(at)
 
     def test_verwerfen_stellt_den_gespeicherten_stand_her(
         self, _ga_datei_gesichert
     ):
         at = _annahmen(_app())
-        [b for b in at.button if b.key == "gakarte_finanzierung"][0].click()
-        at.run()
-        at.session_state["gadlg_kreditlaufzeit_jahre"] = 42
-        at.run()
-        [b for b in at.button if b.key == "gadlgbtn_finanzierung_ok"][0].click()
-        at.run()
+        _uebernimm(at, kreditlaufzeit_jahre=42)
+        assert not _alles_gesperrt(at)
+
         [b for b in at.button if b.key == "ga_verwerfen"][0].click()
         at.run()
         assert not at.exception, at.exception
-        gesperrt = {b.key: b.disabled for b in at.button if b.key}
-        assert gesperrt["ga_speichern"] is True
+        assert _alles_gesperrt(at)
+
+    def test_dialog_oeffnen_und_schliessen_bleibt_folgenlos(
+        self, _ga_datei_gesichert
+    ):
+        """Der Weg durch die Oberflaeche: Karte anklicken, Dialog
+        erscheint, Kreuz - und danach ist alles wie vorher."""
+        at = _annahmen(_app())
+        [b for b in at.button if b.key == "gakarte_technik"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+        assert _alles_gesperrt(at)
 
 
 class TestSofortPersistenz:
@@ -308,12 +339,7 @@ class TestSofortPersistenz:
 
         vorher = load_global_assumptions_yaml(_GA_PFAD).kreditlaufzeit_jahre
         at = _annahmen(_app())
-        [b for b in at.button if b.key == "gakarte_finanzierung"][0].click()
-        at.run()
-        at.session_state["gadlg_kreditlaufzeit_jahre"] = vorher + 5
-        at.run()
-        [b for b in at.button if b.key == "gadlgbtn_finanzierung_ok"][0].click()
-        at.run()
+        _uebernimm(at, kreditlaufzeit_jahre=vorher + 5)
 
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
@@ -334,20 +360,14 @@ class TestSofortPersistenz:
 
         vorher = load_global_assumptions_yaml(_GA_PFAD).kreditlaufzeit_jahre
         at = _annahmen(_app())
-        [b for b in at.button if b.key == "gakarte_finanzierung"][0].click()
-        at.run()
-        at.session_state["gadlg_kreditlaufzeit_jahre"] = vorher + 5
-        at.run()
-        [b for b in at.button if b.key == "gadlgbtn_finanzierung_ok"][0].click()
-        at.run()
+        _uebernimm(at, kreditlaufzeit_jahre=vorher + 5)
 
         [b for b in at.button if b.key == "marktsystem_de"][0].click()
         at.run()
         assert not at.exception, at.exception
 
         # Noch offen ...
-        gesperrt = {b.key: b.disabled for b in at.button if b.key}
-        assert gesperrt["ga_speichern"] is False, (
+        assert not _alles_gesperrt(at), (
             "Die offene Aenderung ist der Sofortaktion zum Opfer gefallen"
         )
         # ... und speicherbar.
