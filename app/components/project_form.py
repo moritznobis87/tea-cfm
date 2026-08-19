@@ -99,6 +99,38 @@ def _bereinige_positionen(tabelle: pd.DataFrame) -> list[dict]:
     return eintraege
 
 
+def _einheiten_schalter(ziel, schalter_key: str, key_suffix: str) -> None:
+    """Der Einheiten-Umschalter eines Investkostenfelds.
+
+    Aufbau: die Einheit "aus" links, der Schalter, die Einheit "an"
+    rechts - "(€/kWp)  ◯—  (€)". Die beiden Einheiten stehen damit
+    NEBENEINANDER, und was der Schalter tut, ist ablesbar, ohne den
+    Hilfetext zu oeffnen.
+
+    Frueher trug er die Beschriftung "Gesamtbetrag (€)". Sie war lang
+    genug, um in der schmalen Spalte auf zwei Zeilen zu brechen, und sie
+    nannte nur den einen der beiden Zustaende.
+
+    Warum ein Container mit Flex-Regel und keine drei Spalten: Der
+    Schalter steht im Inspector in einer Quick-Adjust-Zelle, die selbst
+    schon eine Spalte in einer Spalte ist - eine weitere Ebene liesse
+    Streamlit nicht zu. Der Container ordnet stattdessen per CSS in eine
+    Zeile (siehe .st-key-einheit_ in app/theme.py); die rechte Einheit
+    ist die Beschriftung des Schalters und steht ohne Zutun neben ihm.
+    """
+    with ziel.container(key=f"einheit_{key_suffix}"):
+        st.markdown(
+            f'<span class="einheit-marke">'
+            f'{txt("oberflaeche.formular_capex_einheit_spezifisch")}</span>',
+            unsafe_allow_html=True,
+        )
+        st.toggle(
+            txt("oberflaeche.formular_capex_einheit_absolut"),
+            key=schalter_key,
+            help=txt("oberflaeche.formular_capex_toggle_hilfe"),
+        )
+
+
 def _positionstabelle(
     form_key: str,
     schluessel: str,
@@ -1540,7 +1572,6 @@ def _felder(
         default_abs_eur: float,
         key_suffix: str,
         default_eur_kwp: float | None = None,
-        mit_umschalter: bool = True,
     ) -> float:
         """Ein Investkosten-Feld mit eigenem Einheiten-Umschalter.
 
@@ -1593,39 +1624,24 @@ def _felder(
             f"{label} ({einheit_label})", min_value=0.0,
             step=1000.0 if absolut else 1.0, key=key,
         )
-        # Der Umschalter kann anderswo stehen als das Feld: Im
-        # Quick-Adjust-Gitter waere er ein dritter Bedienpunkt in einer
-        # Zelle, in die schon Beschriftung und Zahl kaum passen. Er wird
-        # dann in der Investkosten-Karte erzeugt (siehe epc_umschalter) -
-        # die Umrechnung oben liest ihn ohnehin nur aus dem Zustand.
-        if mit_umschalter:
-            col.toggle(
-                txt("oberflaeche.formular_capex_toggle_absolut"),
-                key=schalter_key,
-                help=txt("oberflaeche.formular_capex_toggle_hilfe"),
-            )
+        # Der Umschalter steht DIREKT unter seinem Feld - er gehoert zu
+        # genau einer Zahl. Als "Gesamtbetrag (€)" stand er zeitweise
+        # ausgelagert am Kopf der Investkosten-Karte; dort war nicht mehr
+        # zu erkennen, auf welches Feld er sich bezieht.
+        _einheiten_schalter(col, schalter_key, key_suffix)
         return eingabe if absolut else eingabe * nennleistung_kwp
-
-    def epc_umschalter() -> None:
-        """Der Einheiten-Schalter des EPC, ausgelagert aus Quick Adjust."""
-        st.toggle(
-            txt("oberflaeche.formular_capex_toggle_absolut"),
-            key=f"{form_key}_epc_absolut",
-            help=txt("oberflaeche.formular_capex_toggle_hilfe"),
-        )
 
     epc_default_eur_kwp = global_assumptions.epc_eur_kwp_vorschlag_je_anlagentyp.get(
         anlagentyp_label, EPC_DEFAULT_EUR_KWP[anlagentyp_label]
     )
 
-    def epc_feld(col, mit_umschalter: bool = True):
+    def epc_feld(col):
         return capex_feld(
             col, "EPC",
             capex_defaults.epc_eur
             if existing
             else nennleistung_kwp * epc_default_eur_kwp,
             "epc",
-            mit_umschalter=mit_umschalter,
         )
 
     def netz_feld(col):
@@ -1683,7 +1699,7 @@ def _felder(
         # wird. Alles Uebrige liegt hinter der Investkosten-Karte;
         # Netzanschluss und Trasse zuerst, weil sie am Anschlusspunkt
         # haengen und sich mit ihm aendern.
-        epc = epc_feld(quick["epc"], mit_umschalter=False)
+        epc = epc_feld(quick["epc"])
         with _abschnitt(
             spaltig,
             knopf=txt("oberflaeche.formular_capex_knopf"),
@@ -1693,7 +1709,6 @@ def _felder(
                 form_key, existing, nennleistung_kwp
             ),
         ):
-            epc_umschalter()
             st.markdown(f"**{txt('oberflaeche.formular_capex_weitere_titel')}**")
             netzanschluss = netz_feld(st)
             trasse = trasse_feld(st)
