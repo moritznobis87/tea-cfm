@@ -144,6 +144,24 @@ def felder_ansaeen(felder: tuple[Feld, ...], e: GlobalAssumptions) -> None:
         st.session_state[_schluessel(f)] = _nach_widget(f, getattr(e, f.name))
 
 
+def _luecken_fuellen(felder: tuple[Feld, ...], e: GlobalAssumptions) -> None:
+    """Ergaenzt fehlende Widget-Zustaende aus dem Entwurf.
+
+    Der Riegel gegen einen Dialog, der ohne `dialog_oeffnen` ins Bild
+    kommt - etwa weil Streamlit den Zustand eines Durchlaufs weggeraeumt
+    hat, in dem der Dialog nicht gezeichnet wurde. Ohne ihn faellt das
+    Einsammeln beim Uebernehmen mit einem KeyError um, und der Nutzer
+    verliert seine Eingaben.
+
+    Nur FEHLENDE Schluessel: Vorhandene sind entweder die Vorbelegung
+    oder eine Eingabe, die gerade gemacht wurde.
+    """
+    for f in felder:
+        schluessel = _schluessel(f)
+        if schluessel not in st.session_state:
+            st.session_state[schluessel] = _nach_widget(f, getattr(e, f.name))
+
+
 def _rendern(
     f: Feld, ziel, gesperrt: bool, praefix: str = DIALOG_PRAEFIX
 ) -> None:
@@ -332,6 +350,7 @@ def render_vermarktung(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_vermarktung"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(VERMARKTUNG, e)
         st.caption(txt("oberflaeche.annahmen_dlg_vermarktung_hinweis"))
         _abschnitt("oberflaeche.annahmen_direktvermarktung_titel")
         _gitter(VERMARKTUNG[:1], 1)
@@ -420,6 +439,7 @@ def render_betriebskosten(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_betriebskosten"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(BETRIEBSKOSTEN, e)
         st.caption(txt("oberflaeche.annahmen_dlg_betriebskosten_hinweis"))
         _abschnitt("oberflaeche.annahmen_standardbetriebskosten_titel")
         tabelle = _opex_tabelle(e)
@@ -469,6 +489,7 @@ def render_technik(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_technik"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(TECHNIK, e)
         st.caption(txt("oberflaeche.annahmen_dlg_technik_hinweis"))
         _abschnitt("oberflaeche.annahmen_dlg_ertragsrechnung")
         _gitter(TECHNIK[:4], 2)
@@ -556,6 +577,7 @@ def render_finanzierung(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_finanzierung"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(FINANZIERUNG, e)
         st.caption(txt("oberflaeche.annahmen_dlg_finanzierung_hinweis"))
         _abschnitt("oberflaeche.annahmen_dlg_kapitalstruktur")
         _gitter(FINANZIERUNG[:2], 2)
@@ -615,6 +637,7 @@ def render_foerderung(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_foerderung"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(FOERDERUNG, e)
         st.caption(txt("oberflaeche.annahmen_dlg_foerderung_hinweis"))
         _abschnitt("oberflaeche.annahmen_praemienmodell_titel",
                    "oberflaeche.annahmen_praemienmodell_hinweis")
@@ -676,6 +699,7 @@ def render_steuern(e: GlobalAssumptions) -> None:
     @st.dialog(txt("oberflaeche.annahmen_karte_steuern"),
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
+        _luecken_fuellen(STEUERN, e)
         st.caption(txt("oberflaeche.annahmen_dlg_steuern_hinweis"))
         _gitter((_STEUER["tax_modus"],), 1)
         modus = st.session_state[_schluessel(_STEUER["tax_modus"])]
