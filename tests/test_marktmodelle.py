@@ -464,19 +464,27 @@ class TestSzenarienPlot:
 
     def test_zahlen_stehen_hinter_einem_schalter(self):
         """Regressionsschutz fuer die Reihenfolge: erst das Bild, dann
-        die Zahlen - und die Tabelle nur, wenn der Schalter an ist."""
-        from pathlib import Path
+        die Zahlen - und die Tabelle nur, wenn der Schalter an ist.
 
-        quelle = (
-            Path(__file__).resolve().parent.parent
-            / "app" / "views" / "assumptions.py"
-        ).read_text(encoding="utf-8")
-        abschnitt = quelle[quelle.index("annahmen_marktpreisszenarien_titel"):]
-        abschnitt = abschnitt[: abschnitt.index("annahmen_neues_szenario_titel")]
-        assert abschnitt.index("szenarien_linien_chart") < abschnitt.index(
-            "kurven_editor_"
+        Seit dem Settings Hub steht der Bereich in eigenen Funktionen;
+        geprueft wird ihre Reihenfolge im Abschnitt und dass der
+        Zahlenteil hinter einer Auswahl liegt.
+        """
+        import inspect
+
+        from app.views import assumptions
+
+        abschnitt = inspect.getsource(assumptions._abschnitt_markt)
+        assert abschnitt.index("_szenarien_charts") < abschnitt.index(
+            "_szenarien_zahlen"
         ), "Das Bild gehoert vor die Tabelle"
-        assert "annahmen_zahlen_zeigen" in abschnitt
+
+        zahlen = inspect.getsource(assumptions._szenarien_zahlen)
+        assert "st.checkbox" in zahlen, "Die Zahlen brauchen einen Schalter"
+        assert "annahmen_zahlen_zeigen_jahrgang" in zahlen
+        assert zahlen.index("st.checkbox") < zahlen.index("st.data_editor"), (
+            "Der Editor darf erst hinter dem Schalter entstehen"
+        )
 
 
 class TestDirektvermarktungskosten:

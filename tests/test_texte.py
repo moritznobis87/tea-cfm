@@ -319,7 +319,12 @@ class TestWeitereSeitenUebersetzt:
         [
             ("es", "neu", "Crear nuevo proyecto"),
             ("es", "auktion", "Simulación de subasta EAG"),
-            ("fr", "annahmen", "Scénarios de prix de marché"),
+            # Seit dem Settings Hub zeigt die Annahmenseite zuerst die
+            # Uebersicht; die Szenarien stehen im Bereich "Marché et
+            # prix". Geprueft wird deshalb der Seitenuntertitel - er
+            # steht auf der Startansicht und ist lang genug, um eine
+            # fehlende Uebersetzung sichtbar zu machen.
+            ("fr", "annahmen", "Paramètres centraux du modèle"),
             ("en", "neu", "Create new project"),
         ],
     )
