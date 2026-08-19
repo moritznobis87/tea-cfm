@@ -157,7 +157,9 @@ class TestSpeicherform:
         pfad = tmp_path / "p.yaml"
         save_project_yaml(_projekt(), pfad)
         daten = yaml.safe_load(pfad.read_text(encoding="utf-8"))
-        del daten["annahmen"]
+        # Seit v5.25 schreibt der Serializer einen leeren Block gar nicht
+        # mehr - der Altbestand ist damit der Normalfall geworden.
+        daten.pop("annahmen", None)
         pfad.write_text(yaml.safe_dump(daten, allow_unicode=True), encoding="utf-8")
 
         assert load_project_yaml(pfad).annahmen.gesetzte_felder == []

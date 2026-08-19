@@ -131,10 +131,19 @@ def render_sidebar() -> None:
     inaktiv_keys: list[str] = []
     for standort, varianten in standorte.items():
         # Ist eine Variante dieses Standorts offen, zeigt der Eintrag auf
-        # genau sie; sonst auf die erste. Andernfalls wuerde ein Klick auf
-        # den ohnehin aktiven Eintrag die offene Variante wechseln.
+        # genau sie; sonst auf die LEITVARIANTE. Andernfalls wuerde ein
+        # Klick auf den ohnehin aktiven Eintrag die offene Variante
+        # wechseln.
+        #
+        # Dieselbe Wahl trifft die Portfoliokachel (app/views/overview.py)
+        # - vorher stand hier varianten[0], also die alphabetisch erste.
+        # Solange der Grundfall auch die Leitvariante war, fiel der
+        # Unterschied nicht auf; sobald ein Standort zwei benannte
+        # Varianten hat, zeigten Leiste und Kachel auf verschiedene
+        # Rechnungen desselben Standorts.
         ziel = next(
-            (v for v in varianten if v.id == offenes_projekt), varianten[0]
+            (v for v in varianten if v.id == offenes_projekt),
+            next((v for v in varianten if v.leitvariante), varianten[0]),
         )
         key = f"projektwahl_{ziel.id}"
         if seite == "projekt" and offenes_projekt in {v.id for v in varianten}:

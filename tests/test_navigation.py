@@ -165,9 +165,21 @@ class TestBetriebskostenblock:
     """
 
     def _spalte(self, at: AppTest) -> tuple[AppTest, str]:
+        """Oeffnet ein Projekt mit FIXER Pacht.
+
+        Bewusst nicht einfach das erste: Bei Umsatzbeteiligung heissen
+        die Wertfelder anders (pacht_umsatz_pct statt pacht_ha), und der
+        Test haette dann an der Datenlage gehangen statt an der Sache.
+        """
+        from app import services
+        from engine import PachtModus
+
+        fix = {p.id for p in services.list_projects()
+               if p.pacht_modus == PachtModus.FIX}
         keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
-        at = _klick(at, keys[0])
-        return at, f"param_{keys[0].removeprefix('open_')}"
+        ziel = next((k for k in keys if k.removeprefix("open_") in fix), keys[0])
+        at = _klick(at, ziel)
+        return at, f"param_{ziel.removeprefix('open_')}"
 
     def test_wert_und_konfiguration_gehoeren_zusammen(self, at: AppTest):
         at, form_key = self._spalte(at)
