@@ -74,6 +74,10 @@ _N = 6
 #: unterhalb jeder wirtschaftlich bedeutsamen Menge.
 _UEBERLAPPUNG_TOLERANZ_MW = 1e-6
 
+#: Winziger Vorzug der Einspeisung gegenueber der Abregelung, um
+#: Gleichstaende bei einem Grenzerloes von exakt null aufzuloesen.
+_GLEICHSTAND_BONUS_EUR_MWH = 1e-6
+
 
 def _auswahl(spalte: int, T: int, faktor: float = 1.0) -> csr_matrix:
     """Matrix, die je Stunde genau eine Variable auswaehlt."""
@@ -183,6 +187,18 @@ def _loese(
     c[_PV_SPEICHER::_N] += halb
     c[_NETZ_SPEICHER::_N] += halb
     c[_ENTLADUNG::_N] += halb
+    # Gleichstand aufloesen: Bei einem Grenzerloes von exakt null bringt
+    # Einspeisen genauso viel wie Abregeln, und der Solver greift
+    # willkuerlich zu. Der Zielwert stimmt dann zwar, die ausgewiesene
+    # Bahn aber nicht - in den Aurora-Reihen stehen tausende Stunden mit
+    # glatt 0,00 EUR/MWh, und sie erschienen samt und sonders als
+    # Abregelung.
+    #
+    # Ein winziger Bonus auf die Einspeisung entscheidet solche Faelle
+    # zugunsten des Einspeisens. Er ist um acht Groessenordnungen
+    # kleiner als ein Marktpreis; falsch entschieden wird damit nur im
+    # Bereich |v| < 1e-6 EUR/MWh, und dort gibt es nichts zu entscheiden.
+    c[_PV_NETZ::_N] -= _GLEICHSTAND_BONUS_EUR_MWH
 
     grenzen = np.zeros((_N * T, 2))
     grenzen[:, 1] = np.inf

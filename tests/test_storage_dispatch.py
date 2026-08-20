@@ -359,3 +359,34 @@ class TestJahreslauf:
         )
         entladen = ergebnis.spalte("speicher_ins_netz_mw")
         assert not ((laden > 1e-6) & (entladen > 1e-6)).any()
+
+
+class TestGleichstand:
+    """Preis exakt null: Einspeisen und Abregeln bringen dasselbe.
+
+    Ohne Aufloesung des Gleichstands greift der Solver willkuerlich zu.
+    In den Aurora-Reihen stehen tausende Stunden mit glatt 0,00 EUR/MWh -
+    an echten Daten erschienen sie samt und sonders als Abregelung, und
+    die ausgewiesene Einspeisung sank um 2.225 MWh, ohne dass sich am
+    Zielwert etwas aenderte.
+    """
+
+    def test_bei_preis_null_wird_eingespeist_statt_abgeregelt(self):
+        pv = _tag([0] * 8 + [5] * 8 + [0] * 8)
+        preis = np.zeros(24)
+        ergebnis = _lauf(pv, preis, _batterie(leistung_mw=0.0, kapazitaet_mwh=0.0))
+        assert ergebnis.spalte("abregelung_mw").sum() == pytest.approx(0.0, abs=1e-6)
+        assert ergebnis.spalte("pv_ins_netz_mw").sum() == pytest.approx(
+            pv.sum(), rel=1e-9
+        )
+
+    def test_bei_negativem_preis_wird_weiterhin_abgeregelt(self):
+        """Die Aufloesung darf nur den Gleichstand treffen, nicht den
+        Fall, in dem Einspeisen tatsaechlich Geld kostet."""
+        pv = _tag([0] * 8 + [5] * 8 + [0] * 8)
+        preis = np.full(24, -0.5)
+        ergebnis = _lauf(pv, preis, _batterie(leistung_mw=0.0, kapazitaet_mwh=0.0))
+        assert ergebnis.spalte("pv_ins_netz_mw").sum() == pytest.approx(0.0, abs=1e-6)
+        assert ergebnis.spalte("abregelung_mw").sum() == pytest.approx(
+            pv.sum(), rel=1e-9
+        )
