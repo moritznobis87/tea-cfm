@@ -32,6 +32,7 @@ CASHFLOW_COLUMNS = [
     "verguetungssatz_ct_kwh",
     "erloes_eur",
     "erloes_markt_eur",
+    "erloes_speicher_eur",
     "erloes_praemie_eur",
     "erloes_ppa_eur",
     "erloes_merchant_eur",
@@ -132,6 +133,15 @@ def calculate_cashflow(
             "erloes_merchant_eur": revenue["erloes_merchant_eur"].to_numpy(),
             "rueckzahlung_eur": revenue["rueckzahlung_eur"].to_numpy(),
             "baseload_nominal_ct_kwh": revenue["baseload_nominal_ct_kwh"].to_numpy(),
+            # Der Speicherbeitrag steckt bereits in erloes_eur - hier
+            # steht er noch einmal einzeln, damit die Auswertung ihn
+            # herausloesen kann, ohne ihn neu zu rechnen. Ohne Speicher
+            # ist die Spalte null (siehe pipeline._speicher_einbauen).
+            "erloes_speicher_eur": (
+                revenue["erloes_speicher_eur"].to_numpy()
+                if "erloes_speicher_eur" in revenue.columns
+                else np.zeros(len(revenue))
+            ),
             "opex_gesamt_eur": opex["opex_gesamt_eur"].to_numpy(),
             "gemeindeabgabe_eur": opex["gemeindeabgabe_eur"].to_numpy(),
             "direktvermarktungskosten_eur": opex["direktvermarktungskosten_eur"].to_numpy(),
@@ -169,6 +179,7 @@ def calculate_cashflow(
                 "verguetungssatz_ct_kwh": 0.0,
                 "erloes_eur": 0.0,
                 "erloes_markt_eur": 0.0,
+                "erloes_speicher_eur": 0.0,
                 "erloes_praemie_eur": 0.0,
                 "erloes_ppa_eur": 0.0,
                 "erloes_merchant_eur": 0.0,
