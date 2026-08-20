@@ -10,6 +10,7 @@ anlagentyp: agri_pv
 nennleistung_kwp: 2840.0
 vollbenutzungsstunden_kwh_kwp: 1386.27
 bauform: Tracker
+battery: null
 pacht_eur_kwp_jahr: 4.225352112676056
 pacht_modus: umsatzbeteiligung
 pacht_umsatzbeteiligung_pct: 0.051

@@ -198,3 +198,50 @@ class TestMehrjahreslauf:
         )
         assert beitrag.wertbeitrag_gesamt_eur == 0.0
         assert beitrag.hinweise, "Das fehlende Jahr muss gemeldet werden"
+
+
+class TestVariantenvergleich:
+    """Der Speicher gehoert in die Unterschiedstabelle.
+
+    Zwei Varianten desselben Standorts koennen sich allein im Speicher
+    unterscheiden - dann ist er der EINZIGE Unterschied, und die
+    Tabelle muss ihn zeigen. Ein neu ergaenztes Projektfeld faellt sonst
+    still aus dem Vergleich (siehe varianten.geprueft_alle_felder).
+    """
+
+    def test_speicher_erscheint_als_unterschied(self, project):
+        from app.components.varianten import unterschiede
+
+        ohne = project.model_copy(deep=True)
+        ohne.id, ohne.variante = "a", "ohne"
+        mit = project.model_copy(deep=True)
+        mit.id, mit.variante = "b", "mit"
+        mit.battery = BatteryConfig(
+            modus=SpeicherModus.GRAUSTROM, leistung_mw=5.0, kapazitaet_mwh=10.0
+        )
+
+        gefunden = unterschiede([ohne, mit], ohne)
+        speicher = [u for u in gefunden if u.feld == "battery"]
+        assert speicher, "Der Speicher fehlt in der Unterschiedstabelle"
+        assert speicher[0].werte[0] == "—"
+        assert "5,0 MW" in speicher[0].werte[1]
+        assert "Graustrom" in speicher[0].werte[1]
+
+    def test_gleicher_speicher_ist_kein_unterschied(self, project):
+        from app.components.varianten import unterschiede
+
+        a = project.model_copy(deep=True)
+        a.id, a.variante = "a", "eins"
+        b = project.model_copy(deep=True)
+        b.id, b.variante = "b", "zwei"
+        for p in (a, b):
+            p.battery = BatteryConfig(leistung_mw=5.0, kapazitaet_mwh=10.0)
+        assert not [u for u in unterschiede([a, b], a) if u.feld == "battery"]
+
+    def test_abgeschalteter_speicher_zaehlt_wie_keiner(self, project):
+        """`aktiv=False` ist kein Speicher - die Tabelle darf keine
+        Auslegung zeigen, die nicht rechnet."""
+        from app.components.varianten import _speicher
+
+        aus = BatteryConfig(aktiv=False, leistung_mw=5.0, kapazitaet_mwh=10.0)
+        assert _speicher(aus) == "—"

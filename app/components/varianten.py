@@ -96,6 +96,43 @@ def _lastgang(wert) -> str:
     return "hinterlegt" if wert else "—"
 
 
+def _speicher(wert) -> str:
+    """Die Speicherauslegung in einer Zeile.
+
+    Leistung, Kapazitaet und Betriebsart zusammen, weil sie nur zusammen
+    etwas aussagen: 5 MW / 10 MWh ist ein anderer Speicher als 5 MW /
+    20 MWh, und ein Graustromspeicher ein anderer als ein
+    Gruenstromspeicher gleicher Groesse. Drei Zeilen in der
+    Unterschiedstabelle waeren dieselbe Auskunft, nur auseinandergerissen.
+
+    Die Wirtschaftlichkeitsparameter (CAPEX, Degradationskosten) bleiben
+    draussen: Sie unterscheiden Varianten selten und blaehten die Zeile
+    auf.
+    """
+    if wert is None:
+        return "—"
+    if isinstance(wert, dict):
+        aktiv = wert.get("aktiv", True)
+        leistung = wert.get("leistung_mw", 0.0)
+        kapazitaet = wert.get("kapazitaet_mwh", 0.0)
+        modus = wert.get("modus", "")
+    else:
+        aktiv = wert.aktiv
+        leistung = wert.leistung_mw
+        kapazitaet = wert.kapazitaet_mwh
+        modus = wert.modus
+    if not aktiv or (leistung <= 0 and kapazitaet <= 0):
+        return "—"
+    modus_text = getattr(modus, "value", str(modus))
+    beschriftung = {
+        "gruenstrom": "Grünstrom", "graustrom": "Graustrom",
+    }.get(modus_text, modus_text)
+    return (
+        f"{fmt_number(leistung, 1)} MW · {fmt_number(kapazitaet, 1)} MWh"
+        f" · {beschriftung}"
+    )
+
+
 def _text(wert) -> str:
     if isinstance(wert, AnlagenTyp):
         return "Agri-PV" if wert == AnlagenTyp.AGRI_PV else "Konventionell"
@@ -121,6 +158,7 @@ _FELDER: dict[str, tuple[str, callable]] = {
     "vollbenutzungsstunden_kwh_kwp": ("Vollbenutzungsstunden (kWh/kWp)", _zahl0),
     "bauform": ("Bauform", _text),
     "lastgang_datei": ("Stundenreihe", _lastgang),
+    "battery": ("Speicher", _speicher),
     "pacht_eur_kwp_jahr": ("Pacht (€/kWp/Jahr)", _zahl2),
     "pacht_modus": ("Pachtmodus", _text),
     "pacht_umsatzbeteiligung_pct": ("Umsatzbeteiligung", _pct),
