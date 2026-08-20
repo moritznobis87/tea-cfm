@@ -89,6 +89,15 @@ REVENUE_COLUMNS = [
     # Modus RELATIV_GROSSHANDEL - und im Diagramm der Abstand, aus dem
     # sich die Kannibalisierung ablesen laesst.
     "baseload_nominal_ct_kwh",
+    # Anteil der Jahresmenge, der noch in der Foerderdauer liegt (0 bis 1).
+    # Er steckt bereits in erloes_praemie_eur; als eigene Spalte steht er
+    # hier, weil der Speicherdispatch ihn braucht: Innerhalb der
+    # Foerderdauer bemisst sich die Marktpraemie am REFERENZmarktwert und
+    # nicht am erzielten Preis, danach zaehlt der Preis selbst - zwei
+    # verschiedene Grenzerloese je Stunde (siehe
+    # engine/storage/economics.py). Ohne diese Spalte muesste die
+    # Foerderdauer ein zweites Mal hergeleitet werden.
+    "foerderanteil",
 ]
 
 
@@ -363,6 +372,7 @@ def calculate_revenue(
     # Frage "was ist eine Kilowattstunde wert?" und wird in Diagramm und
     # Bericht gegen den Marktwert gestellt.
     df["verguetungssatz_ct_kwh"] = mw + praemie_je_kwh - rueckzahlung_je_kwh
+    df["foerderanteil"] = innerhalb_foerderdauer
 
     # Verdichtet wird, sobald Monatsscheiben im Spiel sind - in der
     # Monatsaufloesung ueberall, in der Jahresaufloesung nur im
@@ -403,7 +413,13 @@ def _verdichte_auf_jahre(df: pd.DataFrame) -> pd.DataFrame:
         rueckzahlung_eur=("rueckzahlung_eur", "sum"),
         menge_vermarktet_kwh=("menge_vermarktet_kwh", "sum"),
     )
+    # Der Foerderanteil wird mengengewichtet gemittelt wie die Preise und
+    # nicht summiert: Er ist ein ANTEIL an der Jahresmenge. Im letzten
+    # Foerderjahr steht damit derselbe Wert wie in der Jahresrechnung -
+    # der mit der Einspeisekurve gewichtete Anteil der gefoerderten
+    # Monate (siehe _foerderanteil).
     for spalte in ("marktwert_real_ct_kwh", "marktwert_nominal_ct_kwh",
-                   "verguetungssatz_ct_kwh", "baseload_nominal_ct_kwh"):
+                   "verguetungssatz_ct_kwh", "baseload_nominal_ct_kwh",
+                   "foerderanteil"):
         jahre[spalte] = _gewichtet(spalte).to_numpy()
     return jahre[REVENUE_COLUMNS]

@@ -16,8 +16,8 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from app.formatting import fmt_number, fmt_pct
-from engine.io_aurora import zerlege_szenarioname
 from app.theme import Colors, mit_alpha
+from engine.io_aurora import zerlege_szenarioname
 from texte import txt
 
 _EUR_HOVER = "%{y:,.0f} €"
@@ -1525,5 +1525,156 @@ def erloesmix_balken(anteile: dict[str, float]) -> go.Figure:
         legend=dict(orientation="h", yanchor="top", y=-0.15, x=0,
                     font=dict(size=11)),
         showlegend=True,
+    )
+    return fig
+
+
+# --- Speicher ---------------------------------------------------------------
+
+
+def speicher_dispatch_chart(
+    bahn: pd.DataFrame, von: int, bis: int
+) -> go.Figure:
+    """Der Speicherbetrieb einer Woche, Stunde fuer Stunde.
+
+    Zwei Felder uebereinander mit gemeinsamer Zeitachse:
+
+        oben   die Leistungsfluesse. Nach OBEN, was ins Netz geht (PV
+               direkt und aus dem Speicher), nach UNTEN, was das Netz
+               nicht erreicht (Laden und Abregelung). Die Nulllinie
+               trennt damit Einspeisung von Nicht-Einspeisung - man sieht
+               auf einen Blick, wann der Speicher Energie aufnimmt und
+               wann er sie zurueckgibt.
+        unten  der Preis und der Fuellstand. Sie gehoeren zusammen: Der
+               Fuellstand ist die ANTWORT auf den Preisverlauf, und
+               uebereinander gezeichnet ist zu sehen, ob der Speicher
+               tatsaechlich billig laedt und teuer entlaedt.
+
+    Warum nicht alles in ein Feld: Leistung (MW), Preis (EUR/MWh) und
+    Fuellstand (MWh) sind drei Groessen mit drei Einheiten. In einem
+    Feld braeuchte es drei Achsen, und die Kurven laegen uebereinander,
+    ohne dass eine davon lesbar bliebe.
+    """
+    from plotly.subplots import make_subplots
+
+    ausschnitt = bahn.iloc[von:bis]
+    x = ausschnitt["stunde"]
+
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True, row_heights=[0.62, 0.38],
+        vertical_spacing=0.07,
+        specs=[[{}], [{"secondary_y": True}]],
+    )
+
+    def flaeche(spalte: str, name: str, farbe: str, vorzeichen: int = 1):
+        fig.add_trace(
+            go.Bar(
+                x=x, y=ausschnitt[spalte] * vorzeichen, name=name,
+                marker_color=farbe,
+                hovertemplate=f"{name}<br>%{{y:,.2f}} MW<extra></extra>",
+            ),
+            row=1, col=1,
+        )
+
+    # Die Farbwahl folgt der Bedeutung, nicht der Reihenfolge: Was aus
+    # dem Speicher kommt oder in ihn hineingeht, traegt die Markenfarbe
+    # in zwei Helligkeiten; PV direkt ins Netz bleibt neutrales Navy.
+    # Frueher standen "PV direkt ins Netz" und "Laden aus dem Netz" beide
+    # in Navytoenen und waren in der Legende nicht auseinanderzuhalten -
+    # ausgerechnet die beiden Reihen, die in entgegengesetzte Richtungen
+    # zeigen.
+    flaeche("pv_ins_netz_mw", txt("diagramme.speicher_pv_ins_netz"),
+            Colors.SERIES[0])
+    flaeche("speicher_ins_netz_mw", txt("diagramme.speicher_entladung"),
+            Colors.BRAND)
+    flaeche("pv_in_speicher_mw", txt("diagramme.speicher_ladung_pv"),
+            Colors.SOFT, -1)
+    flaeche("netz_in_speicher_mw", txt("diagramme.speicher_ladung_netz"),
+            Colors.MUTED, -1)
+    flaeche("abregelung_mw", txt("diagramme.speicher_abregelung"),
+            Colors.NEGATIVE, -1)
+
+    fig.add_trace(
+        go.Scatter(
+            x=x, y=ausschnitt["preis_eur_mwh"],
+            name=txt("diagramme.speicher_preis"),
+            mode="lines", line=dict(color=Colors.INK, width=1.5),
+            hovertemplate="%{y:,.1f} €/MWh<extra></extra>",
+        ),
+        row=2, col=1, secondary_y=False,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x, y=ausschnitt["soc_mwh"],
+            name=txt("diagramme.speicher_fuellstand"),
+            mode="lines", line=dict(color=Colors.BRAND, width=2, dash="dot"),
+            hovertemplate="%{y:,.2f} MWh<extra></extra>",
+        ),
+        row=2, col=1, secondary_y=True,
+    )
+
+    fig.update_layout(
+        barmode="relative", height=580,
+        # Die Legende steht UNTEN und nicht oben wie sonst in dieser
+        # App. Oben sitzt die Werkzeugleiste von Plotly in derselben
+        # Zeile am rechten Rand, und sieben Legendenmarken sind breiter
+        # als der Platz daneben - die letzte lief unter die Symbole.
+        # Unterhalb der Achse gibt es diesen Wettbewerb nicht.
+        margin=dict(t=10, b=64, l=0, r=0),
+        legend=dict(orientation="h", yanchor="top", y=-0.14, x=0,
+                    xanchor="left", font=dict(size=11)),
+        bargap=0,
+    )
+    fig.update_yaxes(title_text="MW", row=1, col=1)
+    fig.update_yaxes(title_text="€/MWh", row=2, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="MWh", row=2, col=1, secondary_y=True,
+                     showgrid=False)
+    fig.update_xaxes(title_text=txt("diagramme.achse_stunde_im_jahr"), row=2, col=1)
+    # Die Nulllinie oben traegt die Aussage des Diagramms und muss
+    # deshalb sichtbar sein - ohne sie ist "nach unten" nur eine Lage.
+    fig.add_hline(y=0, row=1, col=1, line=dict(color=Colors.MUTED, width=1))
+    return fig
+
+
+def speicher_wertbeitrag_chart(jahreswerte: pd.DataFrame) -> go.Figure:
+    """Der Deckungsbeitrag des Speichers je Betriebsjahr.
+
+    Gestapelt aus seinen drei Bestandteilen, weil die Summe allein die
+    Frage nicht beantwortet, WORAN der Beitrag haengt: Ein Speicher,
+    dessen Mehrerloes von Netzbezug und Verschleiss weitgehend
+    aufgezehrt wird, sieht in der Summe aus wie einer, der wenig
+    verdient - es ist aber ein anderer Befund.
+    """
+    fig = go.Figure()
+    fig.add_bar(
+        x=jahreswerte["jahr"], y=jahreswerte["mehrerloes_eur"],
+        name=txt("diagramme.speicher_mehrerloes"),
+        marker_color=Colors.BRAND,
+        hovertemplate=_EUR_HOVER + "<extra>%{fullData.name}</extra>",
+    )
+    for spalte, schluessel, farbe in (
+        ("netzbezugskosten_eur", "diagramme.speicher_netzbezugskosten",
+         Colors.INK_SOFT),
+        ("degradationskosten_eur", "diagramme.speicher_degradationskosten",
+         Colors.NEUTRAL),
+    ):
+        fig.add_bar(
+            x=jahreswerte["jahr"], y=-jahreswerte[spalte],
+            name=txt(schluessel), marker_color=farbe,
+            hovertemplate=_EUR_HOVER + "<extra>%{fullData.name}</extra>",
+        )
+    fig.add_scatter(
+        x=jahreswerte["jahr"], y=jahreswerte["deckungsbeitrag_eur"],
+        name=txt("diagramme.speicher_deckungsbeitrag"),
+        mode="lines+markers",
+        line=dict(color=Colors.INK, width=2),
+        hovertemplate=_EUR_HOVER + "<extra>%{fullData.name}</extra>",
+    )
+    fig.update_layout(
+        barmode="relative", height=340,
+        yaxis_title="€", xaxis_title=txt("diagramme.achse_betriebsjahr"),
+        margin=dict(t=10, b=0, l=0, r=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
+                    font=dict(size=11)),
     )
     return fig

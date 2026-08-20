@@ -115,3 +115,16 @@ achse_anteil_tageserzeugung: "Cuota de la generación diaria"
 # Erloesmix (Vermarktungsdialog)
 serie_ppa: "PPA"
 serie_merchant: "Mercado"
+
+# Speicher-Dispatch
+speicher_pv_ins_netz: "FV directo a la red"
+speicher_entladung: "Desde el almacenamiento"
+speicher_ladung_pv: "Carga desde FV"
+speicher_ladung_netz: "Carga desde la red"
+speicher_abregelung: "Vertido"
+speicher_preis: "Precio day-ahead"
+speicher_fuellstand: "Estado de carga"
+speicher_mehrerloes: "Ingreso adicional"
+speicher_netzbezugskosten: "Coste del consumo de red"
+speicher_degradationskosten: "Desgaste"
+speicher_deckungsbeitrag: "Aportación neta"

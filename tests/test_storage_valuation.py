@@ -245,3 +245,109 @@ class TestVariantenvergleich:
 
         aus = BatteryConfig(aktiv=False, leistung_mw=5.0, kapazitaet_mwh=10.0)
         assert _speicher(aus) == "—"
+
+
+class TestSchaltjahr:
+    """Ein Schaltjahr darf den Speicher nicht entwerten.
+
+    Der Anlass ist ein gemessener Fehler. Die Erzeugungsform liegt als
+    8.760er-Reihe vor, ein Schaltjahr hat 8.784 Stunden. Wurde die Reihe
+    darauf GESTRECKT, verschob sich jede Stunde gegenueber ihrer
+    Tageszeit, und die Verschiebung summierte sich ueber das Jahr auf
+    volle 24 Stunden - ab der Jahresmitte lag die Mittagsspitze der
+    Erzeugung mitten in der Nacht der Preisreihe.
+
+    Fuer den PV-Cashflow faellt so etwas nicht auf, die Jahresmenge
+    stimmt ja. Fuer den Speicher war es fatal: Sein Wertbeitrag brach in
+    den Schaltjahren auf gut die Haelfte ein (130 statt 248 Tsd. EUR im
+    Lauf, der den Fehler zutage foerderte), obwohl der Preisspread
+    dieser Jahre unveraendert war.
+    """
+
+    def test_eingefuegter_tag_haelt_jede_andere_stunde_an_ihrem_platz(self):
+        from engine.storage.valuation import _stundenform
+
+        form = list(np.arange(8760, dtype=float))
+        lang = _stundenform(form, 8784)
+        assert len(lang) == 8784
+        schalttag_ab = (31 + 28) * 24
+        # Alles vor dem 29. Februar steht unveraendert.
+        assert np.array_equal(lang[:schalttag_ab], form[:schalttag_ab])
+        # Der eingefuegte Tag ist die Kopie des 28. Februar.
+        assert np.array_equal(
+            lang[schalttag_ab:schalttag_ab + 24],
+            form[schalttag_ab - 24:schalttag_ab],
+        )
+        # Und alles danach ist nur um genau einen Tag verschoben - nicht
+        # um einen wachsenden Bruchteil.
+        assert np.array_equal(lang[schalttag_ab + 24:], form[schalttag_ab:])
+
+    def test_die_rueckrichtung_entfernt_denselben_tag(self):
+        from engine.storage.valuation import _stundenform
+
+        form = list(np.arange(8784, dtype=float))
+        kurz = _stundenform(form, 8760)
+        assert len(kurz) == 8760
+        schalttag_ab = (31 + 28) * 24
+        assert np.array_equal(kurz[:schalttag_ab], form[:schalttag_ab])
+        assert np.array_equal(kurz[schalttag_ab:], form[schalttag_ab + 24:])
+
+    def test_tagesgang_bleibt_in_phase(self):
+        """Die Eigenschaft, an der der Fehler haftete.
+
+        Geprueft wird nicht die Umformung, sondern ihre WIRKUNG: Jede
+        Stunde der langen Reihe muss dieselbe Tageszeit tragen wie in
+        der kurzen. Beim Strecken war das ab der Jahresmitte nicht mehr
+        so - und genau das kostete den Speicher seinen Wert.
+        """
+        from engine.storage.valuation import _stundenform
+
+        # Ein sauberer Tagesgang: mittags eins, nachts null.
+        tag = [0.0] * 6 + [1.0] * 8 + [0.0] * 10
+        form = tag * 365
+        lang = _stundenform(form, 8784)
+        mittags = lang.reshape(366, 24)[:, 6:14]
+        nachts = np.delete(lang.reshape(366, 24), slice(6, 14), axis=1)
+        assert mittags.min() == 1.0, "Eine Mittagsstunde ist keine mehr"
+        assert nachts.max() == 0.0, "Es wird nachts erzeugt"
+
+    def test_schaltjahr_traegt_denselben_beitrag(
+        self, project, global_assumptions
+    ):
+        """Der Test am Ergebnis: Zwei Jahre mit identischen Preisen und
+        identischer Erzeugung muessen denselben Beitrag liefern - auch
+        wenn eines davon ein Schaltjahr ist."""
+        project.nennleistung_kwp = 10_000.0
+        project.inbetriebnahme_jahr = 2027
+        global_assumptions.betriebsdauer_jahre = 2
+        global_assumptions.degradation_pct_pa = 0.0
+        a = resolve_assumptions(project, global_assumptions)
+        tl = build_timeline(date(a.inbetriebnahme_jahr, a.inbetriebnahme_monat, 1), 2)
+        energy = calculate_energy_production(tl, a)
+        revenue = calculate_revenue(tl, energy, a)
+
+        # Derselbe Tagesgang in beiden Jahren, nur die Laenge
+        # unterscheidet sich: 2027 ist ein Normal-, 2028 ein Schaltjahr.
+        preismuster = [20.0] * 6 + [30.0] * 6 + [20.0] * 6 + [120.0] * 6
+        preise = {
+            2027: tuple(preismuster * 365),
+            2028: tuple(preismuster * 366),
+        }
+        form = ([0.0] * 6 + [1.0] * 8 + [0.0] * 10) * 365
+
+        beitrag = dispatch_mehrjahr(
+            a, BatteryConfig(
+                modus=SpeicherModus.GRUENSTROM, leistung_mw=2.0,
+                kapazitaet_mwh=4.0, degradationskosten_eur_mwh=0.0,
+            ),
+            energy=energy, revenue=revenue,
+            preise_je_jahr=preise, form=form,
+        )
+        normal, schalt = beitrag.wertbeitrag_eur_je_jahr
+        assert normal > 0
+        # Das Schaltjahr hat einen Tag mehr Erzeugung und einen Tag mehr
+        # Preisspread - es darf also leicht darueber liegen, aber nicht
+        # zusammenbrechen. Beim Strecken lag es bei rund der Haelfte.
+        assert schalt == pytest.approx(normal, rel=0.05), (
+            f"Schaltjahr {schalt:,.0f} gegen Normaljahr {normal:,.0f}"
+        )

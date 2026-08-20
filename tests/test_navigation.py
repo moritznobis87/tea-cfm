@@ -258,21 +258,31 @@ class TestBetriebskostenblock:
 
 class TestVierAnsichten:
     def test_segmentwahl_bietet_die_gleichrangigen_sichten(self, at: AppTest):
-        """Vier Sichten auf das Projekt, dazu der Variantenvergleich.
+        """Die gleichrangigen Sichten auf dasselbe Projekt.
 
-        Der Vergleich ist die fuenfte gleichrangige Sicht: Er zeigt
-        denselben Standort, nur alle seine Rechnungen nebeneinander.
+        Der Vergleich ist eine davon: Er zeigt denselben Standort, nur
+        alle seine Rechnungen nebeneinander. Der Speicher ebenso - sein
+        Ergebnis ist eine Bewertung und keine Bandbreite, er gehoert
+        deshalb neben die Finanzierung und nicht unter das Risiko.
+
+        Geprueft wird gegen die Reiterliste der Seite und nicht gegen
+        eine hier abgeschriebene Reihenfolge: Sonst muesste dieser Test
+        bei jedem neuen Reiter nachgezogen werden, statt einen echten
+        Unterschied zu melden. Die Vollstaendigkeit gegen den Router
+        haelt test_tabs_stimmen_mit_dem_router_ueberein.
         """
+        from app.views.project_page import _TABS
+        from texte import txt
+
         keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]
         at = _klick(at, keys[0])
         wahl = at.get("button_group")[0]
-        assert wahl.options == [
-            "Ergebnis", "Finanzierung", "Risiko", "Annahmen", "Vergleich",
-        ]
+        assert wahl.options == [txt(schluessel) for _, schluessel in _TABS]
+        assert "Speicher" in wahl.options
         assert wahl.value == "Ergebnis"
 
     @pytest.mark.parametrize(
-        "sicht", ["Finanzierung", "Risiko", "Annahmen"]
+        "sicht", ["Finanzierung", "Speicher", "Risiko", "Annahmen"]
     )
     def test_jede_sicht_rendert(self, at: AppTest, sicht: str):
         keys = [b.key for b in at.button if b.key and b.key.startswith("open_")]

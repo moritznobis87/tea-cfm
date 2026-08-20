@@ -250,6 +250,34 @@ def verfuegbare_preisreihen() -> list[str]:
     return sorted(p.name for p in PREIS_VERZEICHNIS.glob("*.csv.gz"))
 
 
+def reihe_fuer_szenario(szenarioname: str) -> str | None:
+    """Die Stundenpreisreihe eines Marktpreisszenarios - oder None.
+
+    Verbunden wird ueber den NAMEN und nicht ueber ein Feld am Szenario.
+    Der Grund ist derselbe, aus dem die Reihe ueberhaupt eine eigene
+    Datei ist: Sie gehoert zu einem Aurora-Jahrgang, nicht zu einer
+    einzelnen Kurve. `speichere_preisreihe` legt sie unter dem
+    slugifizierten Namen ab, hier wird derselbe Name wieder gebildet.
+
+    Die BAUFORM faellt dabei weg. Der Day-Ahead-Preis ist eine
+    Eigenschaft des Marktes und nicht der Modulaufstaenderung - Pult und
+    Tracker desselben Jahrgangs teilen sich eine Reihe, genau wie sie
+    sich den Baseload teilen. Zwei getrennte Dateien mit identischem
+    Inhalt waeren zwei Wahrheiten ueber denselben Markt.
+
+    Gibt es keine Datei, ist das kein Fehler: Aeltere Jahrgaenge fuehren
+    keine Stundenpreise. Dann laesst sich fuer dieses Szenario eben kein
+    Speicher rechnen, und die Oberflaeche sagt das (siehe
+    app/speicher.py).
+    """
+    if not szenarioname:
+        return None
+    from .io_aurora import ohne_bauform
+
+    name = _dateiname(ohne_bauform(szenarioname)).name
+    return name if (PREIS_VERZEICHNIS / name).is_file() else None
+
+
 def stunden_fuer_jahr(
     dateiname: str | None, kalenderjahr: int
 ) -> tuple[float, ...] | None:

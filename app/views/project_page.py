@@ -25,8 +25,8 @@ import html
 
 import streamlit as st
 
-from app import router, services
-from app.components import project_dialogs
+from app import router, services, speicher
+from app.components import project_dialogs, storage_dialog
 from app.components.kpi import Kennzahl, render_kennzahlen
 from app.components.project_form import render_parameter_spalte, verwirf_entwurf
 from app.config import STATE_DELETE_CANDIDATE, monate_kurz
@@ -48,6 +48,7 @@ from app.views.project_detail import (
     render_scenario_tab,
     render_sensitivity_tab,
 )
+from app.views.speicher_tab import render_speicher_tab
 from app.views.vergleich import render_vergleich
 from engine import AnlagenTyp, MarktSystem, PVProject
 from engine.kpis import npv_at
@@ -59,6 +60,11 @@ _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _TABS = (
     ("ergebnis", "oberflaeche.projekt_tab_ergebnis"),
     ("finanzierung", "oberflaeche.projekt_tab_finanzierung"),
+    # Der Speicher steht zwischen Finanzierung und Risiko: Er ist eine
+    # eigene Sicht auf dasselbe Projekt (Regel der Gliederung, siehe
+    # _analyse_tabs) und keine Risikofrage - sein Ergebnis ist eine
+    # Bewertung, keine Bandbreite.
+    ("speicher", "oberflaeche.projekt_tab_speicher"),
     ("risiko", "oberflaeche.projekt_tab_risiko"),
     ("annahmen", "oberflaeche.projekt_tab_annahmen"),
     ("vergleich", "oberflaeche.projekt_tab_vergleich"),
@@ -286,19 +292,38 @@ def render_project_page() -> None:
     # darf nicht in einem Popover stehen, und der Dialog braucht den
     # fertigen Entwurf, den die Maske erst am Ende zurueckgibt.
     offener_dialog = st.session_state.pop(f"{form_key}__dialog", None)
-    if offener_dialog == "vermarktung":
+    if offener_dialog:
         # Beim OEFFNEN leeren, nicht beim Schliessen: Nur so startet der
         # Dialog garantiert aus dem aktuellen Entwurf - auch dann, wenn
         # er beim letzten Mal ueber das Kreuz verlassen wurde.
-        project_dialogs.dialog_state_setzen(form_key, aktiv)
-        st.session_state[f"{form_key}__dialog_offen"] = True
+        if offener_dialog == storage_dialog.DIALOG:
+            storage_dialog.dialog_state_setzen(form_key, aktiv)
+        else:
+            project_dialogs.dialog_state_setzen(form_key, aktiv)
+        st.session_state[f"{form_key}__dialog_offen"] = offener_dialog
     # Die Marke bleibt gesetzt, solange der Dialog offen ist: Jede
     # Eingabe auf der Seite loest einen vollen Durchlauf aus, und ohne
     # die Marke waere der Dialog danach zu. Geloescht wird sie von den
-    # Knoepfen im Dialog und vom Kreuz (on_dismiss).
-    if st.session_state.get(f"{form_key}__dialog_offen"):
+    # Knoepfen im Dialog und vom Kreuz (on_dismiss). Sie traegt jetzt die
+    # KENNUNG des offenen Dialogs statt nur True: Mit zwei Dialogen an
+    # derselben Maske sagt ein blosses True nicht mehr, welcher gemeint
+    # ist - beide gingen auf.
+    offen = st.session_state.get(f"{form_key}__dialog_offen")
+    if offen == storage_dialog.DIALOG:
+        storage_dialog.render_speicher_dialog(aktiv, form_key)
+    elif offen:
         project_dialogs.render_vermarktung_dialog(aktiv, gespeichert, form_key)
-    result = services.get_valuation_fuer(aktiv)
+
+    # Der Speicherbeitrag fliesst nur in die Kennzahlen ein, wenn ein
+    # GUELTIGER Dispatchlauf vorliegt - siehe app/speicher.py. Solange
+    # keiner da oder er veraltet ist, zeigt die Seite die reine
+    # PV-Bewertung und sagt das im Speicher-Reiter auch.
+    speicher_beitrag = speicher.beitrag(aktiv, global_assumptions)
+    result = services.get_valuation_fuer(
+        aktiv, speicher_beitrag,
+        speicher.fingerabdruck(aktiv, global_assumptions)
+        if speicher_beitrag else "",
+    )
     geaendert = _geaenderte_felder(aktiv, gespeichert) if entwurf else []
     aenderungen = len(geaendert)
 
@@ -671,6 +696,13 @@ def _loeschbestaetigung(project: PVProject, pfad) -> None:
         geschwister = [v for v in services.varianten_von(project)
                        if v.id != project.id]
         services.delete_project(project.id)
+        # Der gemerkte Dispatchlauf gehoert zu einem Projekt, das es
+        # nicht mehr gibt. Er wuerde niemandem mehr angezeigt - die
+        # Kennung enthaelt die Projekt-ID -, laege aber bis zum Ende der
+        # Sitzung im Speicher. Aufgeraeumt wird hier und nicht in
+        # services.delete_project: Die Dienstschicht des Speichers baut
+        # auf services auf, umgekehrt waere es ein Ringschluss.
+        speicher.vergessen(project.id)
         st.session_state.pop(STATE_DELETE_CANDIDATE, None)
         if geschwister:
             # Die Leitvariante zuerst: Sie ist die Rechnung, die fuer
@@ -719,6 +751,8 @@ def _analyse_tabs(result, project: PVProject, projekt_id: str,
         render_revenue_tab(result, df)
     elif gewaehlt == "finanzierung":
         render_financing_tab(result, df, project)
+    elif gewaehlt == "speicher":
+        render_speicher_tab(project, result)
     elif gewaehlt == "risiko":
         if aenderungen:
             st.info(txt("oberflaeche.risiko_gespeicherter_stand"))
