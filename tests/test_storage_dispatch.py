@@ -390,3 +390,46 @@ class TestGleichstand:
         assert ergebnis.spalte("abregelung_mw").sum() == pytest.approx(
             pv.sum(), rel=1e-9
         )
+
+
+class TestWirkungsgradLoestEsNicht:
+    """Ein hoher Wirkungsgrad beseitigt die Entartung NICHT.
+
+    Naheliegender Gedanke: Wenn der Roundtrip-Verlust das Problem ist,
+    dann behebt ihn ein besserer Wirkungsgrad. Das Gegenteil ist der
+    Fall - es ist gerade der VERLUST, der die Gelegenheit schafft. Bei
+    negativem Preis wird man fuer den Verbrauch bezahlt, und der Verlust
+    IST der Verbrauch. Der Scheingewinn ist proportional zu (1 - RTE):
+
+        RTE 80 %  -> 1.200 EUR, 21 von 24 Stunden ueberlappend
+        RTE 90 %  ->   600 EUR, 23
+        RTE 98 %  ->   120 EUR, 24
+        RTE 100 % ->     0 EUR,  0
+
+    Ein besserer Wirkungsgrad macht das Geschaeft also kleiner, nie
+    unmoeglich - und bei 98 % ueberlappen sogar MEHR Stunden als bei
+    90 %, weil der Trick mit weniger Verlust in mehr Stunden passt.
+
+    Geprueft wird deshalb, dass der Waechter auch bei einem sehr guten
+    Wirkungsgrad noch gebraucht wird und sein Ergebnis sauber ist.
+    """
+
+    @pytest.mark.parametrize("rte", [0.90, 0.98])
+    def test_waechter_haelt_auch_bei_gutem_wirkungsgrad(self, rte):
+        pv = np.zeros(24)
+        preis = np.full(24, -50.0)
+        ergebnis = _lauf(
+            pv, preis,
+            _batterie(modus=SpeicherModus.GRAUSTROM, netzbezug_limit_mw=10.0,
+                      soc_start_pct=0.95, roundtrip_wirkungsgrad=rte),
+        )
+        laden = (
+            ergebnis.spalte("pv_in_speicher_mw")
+            + ergebnis.spalte("netz_in_speicher_mw")
+        )
+        entladen = ergebnis.spalte("speicher_ins_netz_mw")
+        assert not ((laden > 1e-6) & (entladen > 1e-6)).any()
+        assert ergebnis.hinweise, (
+            "Der Waechter hat nicht angeschlagen - die nackte LP haette "
+            "hier gleichzeitig geladen und entladen"
+        )
