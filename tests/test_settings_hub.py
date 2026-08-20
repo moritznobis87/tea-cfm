@@ -23,6 +23,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH  # noqa: E402
 from engine import (  # noqa: E402
     GlobalAssumptions,
     MarktpreisSzenario,
@@ -33,7 +34,7 @@ from engine import (  # noqa: E402
     Zeitaufloesung,
 )
 
-_GA_PFAD = ROOT / "data" / "global_assumptions.yaml"
+_GA_PFAD = GLOBAL_ASSUMPTIONS_PATH
 
 
 @pytest.fixture

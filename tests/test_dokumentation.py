@@ -28,6 +28,7 @@ import pytest
 WURZEL = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WURZEL))
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH, PROJECTS_DIR  # noqa: E402
 from engine import run_valuation  # noqa: E402
 from engine.io_yaml import (  # noqa: E402
     load_global_assumptions_yaml,
@@ -35,8 +36,8 @@ from engine.io_yaml import (  # noqa: E402
 )
 
 DOKUMENT = WURZEL / "docs" / "rechenmodell" / "rechenmodell.md"
-PROJEKT = WURZEL / "data" / "projects" / "template-agri.yaml"
-ANNAHMEN = WURZEL / "data" / "global_assumptions.yaml"
+PROJEKT = PROJECTS_DIR / "template-agri.yaml"
+ANNAHMEN = GLOBAL_ASSUMPTIONS_PATH
 
 HINWEIS = (
     "Kapitel 13 der Rechenweg-Dokumentation passt nicht mehr zum "

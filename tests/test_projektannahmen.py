@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH  # noqa: E402
 from engine.models import (
     AnlagenTyp,
     CapexBreakdown,
@@ -387,7 +388,7 @@ class TestAuswahlOhneVorgabeOption:
         from engine.io_yaml import load_global_assumptions_yaml
 
         at, form_key = spalte
-        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         radios = self._radios(at, form_key)
         assert radios["tilgungsart"].value == _lesbar(ga.tilgungsart)
         assert radios["zinsmethode"].value == _lesbar(ga.zinsmethode)
@@ -399,7 +400,7 @@ class TestAuswahlOhneVorgabeOption:
         from engine.io_yaml import load_global_assumptions_yaml
 
         at, form_key = spalte
-        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(ga.tilgungsart))
         at.run()
         assert not at.exception, at.exception
@@ -411,7 +412,7 @@ class TestAuswahlOhneVorgabeOption:
         from engine.models import TilgungsArt
 
         at, form_key = spalte
-        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         andere = next(w for w in TilgungsArt if w != ga.tilgungsart)
         self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(andere))
         at.run()
@@ -427,7 +428,7 @@ class TestAuswahlOhneVorgabeOption:
         from engine.models import TilgungsArt
 
         at, form_key = spalte
-        ga = load_global_assumptions_yaml(_ROOT / "data" / "global_assumptions.yaml")
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         andere = next(w for w in TilgungsArt if w != ga.tilgungsart)
 
         self._radios(at, form_key)["tilgungsart"].set_value(_lesbar(andere))

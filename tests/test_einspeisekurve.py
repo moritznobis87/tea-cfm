@@ -34,7 +34,9 @@ from engine.models import (
 )
 
 _ROOT = Path(__file__).resolve().parent.parent
-_GA_PFAD = _ROOT / "data" / "global_assumptions.yaml"
+from app.config import GLOBAL_ASSUMPTIONS_PATH  # noqa: E402
+
+_GA_PFAD = GLOBAL_ASSUMPTIONS_PATH
 
 
 class TestRohwerte:
@@ -155,7 +157,7 @@ class TestKurven:
 
     def test_standard_ist_die_pult_kurve(self):
         assert EINSPEISEKURVE_STANDARD_BAUFORM == "Pult"
-        assert EINSPEISEKURVE_STANDARD_PCT == EINSPEISEKURVEN_JE_BAUFORM["Pult"]
+        assert EINSPEISEKURVEN_JE_BAUFORM["Pult"] == EINSPEISEKURVE_STANDARD_PCT
 
     def test_sommer_traegt_die_erzeugung(self):
         """April bis August tragen die Haelfte, Januar ist der
@@ -535,14 +537,10 @@ class TestBauformAlsProjektfeld:
     def test_bauform_waehlt_die_marktwertkurve(self):
         """Beide Kurven eines Jahrgangs liegen nebeneinander - welche
         gerechnet wird, entscheidet das Projekt."""
-        from pathlib import Path as _P
-
         from engine.io_yaml import load_global_assumptions_yaml
         from engine.pipeline import resolve_assumptions
 
-        ga = load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        ga = load_global_assumptions_yaml(_GA_PFAD)
         namen = {
             bauform: resolve_assumptions(
                 self._projekt(bauform=bauform,
@@ -559,14 +557,10 @@ class TestBauformAlsProjektfeld:
     def test_auswahl_zeigt_jeden_jahrgang_einmal(self):
         """Aus Pult- und Tracker-Variante wird ein Eintrag - die Bauform
         steht im Projekt."""
-        from pathlib import Path as _P
-
         from engine.io_aurora import szenario_auswahl
         from engine.io_yaml import load_global_assumptions_yaml
 
-        ga = load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        ga = load_global_assumptions_yaml(_GA_PFAD)
         auswahl = szenario_auswahl(ga)
         assert auswahl[0] == "Aurora Q3/26 · Central"
         assert all("Pult" not in n and "Tracker" not in n for n in auswahl)
