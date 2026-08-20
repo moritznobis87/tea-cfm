@@ -114,3 +114,16 @@ achse_anteil_tageserzeugung: "Share of daily generation"
 # Erloesmix (Vermarktungsdialog)
 serie_ppa: "PPA"
 serie_merchant: "Market"
+
+# Speicher-Dispatch
+speicher_pv_ins_netz: "PV straight to grid"
+speicher_entladung: "From storage"
+speicher_ladung_pv: "Charging from PV"
+speicher_ladung_netz: "Charging from grid"
+speicher_abregelung: "Curtailment"
+speicher_preis: "Day-ahead price"
+speicher_fuellstand: "State of charge"
+speicher_mehrerloes: "Extra revenue"
+speicher_netzbezugskosten: "Grid draw cost"
+speicher_degradationskosten: "Wear"
+speicher_deckungsbeitrag: "Net contribution"

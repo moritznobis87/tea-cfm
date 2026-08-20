@@ -28,13 +28,14 @@ import pandas as pd
 import streamlit as st
 
 from app import services
-from app.config import monate, monate_kurz
+from app.components import storage_dialog
 from app.components.project_inspector import (
     abschnittstitel,
     kurzfassung,
     overlay_wert,
     summary_card,
 )
+from app.config import monate, monate_kurz
 from app.formatting import fmt_number, fmt_pct
 from engine import (
     AnlagenTyp,
@@ -2150,6 +2151,28 @@ def _felder(
                 st.session_state[f"{form_key}__dialog"] = "vermarktung"
                 st.rerun()
 
+        # Der Speicher steht direkt neben der Vermarktung: Beide
+        # beantworten dieselbe Frage - wofuer bekommt das Projekt sein
+        # Geld -, und beide liegen aus demselben Grund hinter einem
+        # Dialog statt einem Popover. Was der Speicher WERT ist, steht
+        # nicht hier, sondern im Speicher-Reiter: Es braucht einen
+        # Dispatchlauf und laesst sich nicht nebenbei anzeigen.
+        with summary_card(
+            txt("oberflaeche.speicher_karte_titel"),
+            storage_dialog.zusammenfassung(overlay_wert(
+                form_key, storage_dialog.SPEICHER_FELD,
+                existing.battery if existing else None,
+            )),
+            key="speicher",
+        ):
+            if st.button(
+                txt("oberflaeche.inspector_oeffnen"),
+                key=f"{form_key}__dlg_speicher",
+                help=txt("oberflaeche.speicher_karte_hilfe"),
+            ):
+                st.session_state[f"{form_key}__dialog"] = storage_dialog.DIALOG
+                st.rerun()
+
     # --- Finanzierung -------------------------------------------------------
     # Kapitalstruktur und Zins sind die letzte offene Frage, wenn Kosten
     # und Erloese stehen. Der Block liegt - wie inzwischen alle -
@@ -2348,5 +2371,14 @@ def _felder(
                 CapexPosition(name=eintrag["Position"], betrag_eur=eintrag["Wert"])
                 for eintrag in zusatz_capex
             ],
+        ),
+        # Die Speicherauslegung wird ausschliesslich im Dialog gesetzt und
+        # liegt deshalb im Overlay, nicht in Widgets. Sie MUSS hier stehen:
+        # Ohne diese Zeile faellt `battery` beim Bauen des Entwurfs auf
+        # None zurueck, und jedes Speichern aus der Parameterspalte
+        # loeschte einen eingerichteten Speicher stillschweigend - auch
+        # dann, wenn der Nutzer eine ganz andere Zahl geaendert hat.
+        battery=overlay_wert(
+            form_key, "battery", existing.battery if existing else None
         ),
     )

@@ -77,18 +77,133 @@ class SpeicherBeitrag:
         return sum(j.vollzyklen for j in self.jahreswerte) / len(self.jahreswerte)
 
 
+#: Erste Stunde des 29. Februar: 31 Tage Januar + 28 Tage Februar.
+_SCHALTTAG_AB = (31 + 28) * 24
+_TAG = 24
+
+
 def _stundenform(form: Sequence[float], stunden: int) -> np.ndarray:
     """Die Erzeugungsform auf die Stundenzahl DIESES Jahres bringen.
 
     Ein Schaltjahr hat 8.784 Stunden, die hinterlegte Reihe meist 8.760.
-    Gestreckt statt abgeschnitten: Ein abgeschnittener Dezember verschoebe
-    die Jahresmenge in den Sommer.
+    Eingefuegt wird deshalb EIN TAG an der Stelle des 29. Februar - eine
+    Kopie des 28. Februar.
+
+    Warum nicht strecken
+    --------------------
+    Der naheliegende Weg waere, die Reihe linear auf 8.784 Punkte zu
+    interpolieren. Das haelt die Jahressumme und die Jahreszeiten und
+    zerstoert trotzdem genau das, worauf es hier ankommt: den TAGESGANG.
+
+    Streckt man 8.760 auf 8.784, verschiebt sich jede Stunde gegenueber
+    ihrer Tageszeit um 8.784/8.760, und die Verschiebung summiert sich
+    ueber das Jahr auf volle 24 Stunden. Ab der Jahresmitte "scheint die
+    Sonne" in der gestreckten Reihe also mitten in der Nacht der
+    Preisreihe. Fuer den Cashflow einer PV-Anlage faellt das kaum auf -
+    die Jahresmenge stimmt. Fuer einen Speicher ist es fatal: Sein
+    ganzer Wert entsteht aus dem Zusammenspiel von Erzeugung und Preis
+    INNERHALB eines Tages.
+
+    Gemessen an einem echten Lauf: Mit Streckung brach der Wertbeitrag
+    der Schaltjahre auf gut die Haelfte der Nachbarjahre ein (130 statt
+    248 Tsd. EUR, 196 statt 265 Vollzyklen), obwohl der Preisspread
+    dieser Jahre unveraendert war. Mit eingefuegtem Tag liegen sie in
+    der Reihe ihrer Nachbarn.
+
+    Die Kopie des Vortages ist eine Annahme, aber eine kleine und
+    offensichtliche: Sie betrifft einen von 366 Tagen und haelt jede
+    andere Stunde des Jahres exakt an ihrem Platz.
     """
     werte = np.asarray(form, dtype=float)
     if len(werte) == stunden:
         return werte
+    if stunden == len(werte) + _TAG:
+        return np.concatenate([
+            werte[:_SCHALTTAG_AB],
+            werte[_SCHALTTAG_AB - _TAG:_SCHALTTAG_AB],
+            werte[_SCHALTTAG_AB:],
+        ])
+    if stunden == len(werte) - _TAG:
+        return np.concatenate([
+            werte[:_SCHALTTAG_AB], werte[_SCHALTTAG_AB + _TAG:]
+        ])
+    # Weder Normal- noch Schaltjahr: eine Reihe, die nicht zu einem
+    # Kalenderjahr passt. Dann bleibt nur das Strecken - mit allen oben
+    # beschriebenen Nachteilen, aber besser als ein Abbruch.
     ziel = np.linspace(0, len(werte) - 1, stunden)
     return np.interp(ziel, np.arange(len(werte)), werte)
+
+
+@dataclass(frozen=True)
+class Jahreseingabe:
+    """Was der Optimierer fuer EIN Betriebsjahr braucht.
+
+    Eigenes Objekt, weil es zwei Aufrufer gibt: den Mehrjahreslauf und
+    die Oberflaeche, die ein einzelnes Jahr nachrechnet, um seine
+    Stundenbahn zu zeichnen. Beide muessen dieselben Zahlen sehen - eine
+    zweite Herleitung derselben Eingaben waere eine zweite Wahrheit, und
+    ein Diagramm, das etwas anderes zeigt als der Cashflow rechnet, ist
+    schlimmer als kein Diagramm.
+    """
+
+    jahr: int
+    kalenderjahr: int
+    #: PV-Erzeugung je Stunde in MW, VOR der Abregelung.
+    pv_mw: np.ndarray
+    #: Day-Ahead-Preise je Stunde, nominal.
+    preise_eur_mwh: np.ndarray
+    #: Erloes einer zusaetzlich verschobenen MWh in dieser Stunde.
+    grenzerloes_eur_mwh: np.ndarray
+    export_limit_mw: float
+
+
+def jahreseingabe(
+    assumptions: EffectiveAssumptions,
+    *,
+    energy: pd.DataFrame,
+    revenue: pd.DataFrame,
+    preise_je_jahr: dict[int, tuple[float, ...]],
+    form: Sequence[float],
+    i: int,
+    foerderdauer_anteil: Sequence[float] | None = None,
+) -> Jahreseingabe | None:
+    """Die Eingaben des i-ten Betriebsjahres - None ohne Preisreihe."""
+    jahr = int(energy["jahr"].to_numpy()[i])
+    kalenderjahr = assumptions.inbetriebnahme_jahr + jahr - 1
+    preise_real = preise_je_jahr.get(kalenderjahr)
+    if preise_real is None:
+        preise_real = _naechstes_jahr(preise_je_jahr, kalenderjahr)
+    if preise_real is None:
+        return None
+
+    stunden = len(preise_real)
+    # Nominal wie im uebrigen Modell: Die Aurora-Reihen sind reale
+    # Preise auf der Preisbasis des Szenarios (siehe revenue.py).
+    faktor = (1 + assumptions.marktpreis_inflation_pct_pa) ** (
+        kalenderjahr - assumptions.marktpreis_inflation_basisjahr
+    )
+    preise = np.asarray(preise_real, dtype=float) * faktor
+
+    zeile = energy.iloc[i]
+    menge_mwh = (
+        float(zeile["produktion_kwh"]) + float(zeile.get("kappung_kwh", 0.0))
+    ) / 1000.0
+    form_jahr = _stundenform(form, stunden)
+    summe = form_jahr.sum()
+    pv = form_jahr / summe * menge_mwh if summe > 0 else np.zeros(stunden)
+
+    referenz = float(revenue.iloc[i]["marktwert_nominal_ct_kwh"])
+    anteil = 1.0 if foerderdauer_anteil is None else float(foerderdauer_anteil[i])
+    return Jahreseingabe(
+        jahr=jahr,
+        kalenderjahr=kalenderjahr,
+        pv_mw=pv,
+        preise_eur_mwh=preise,
+        grenzerloes_eur_mwh=grenzerloes_je_stunde(
+            preise, referenz, assumptions, in_foerderdauer=anteil > 0.5
+        ),
+        export_limit_mw=_exportlimit_mw(assumptions),
+    )
 
 
 def dispatch_mehrjahr(
@@ -114,50 +229,30 @@ def dispatch_mehrjahr(
     der Optimierer selbst anhand des Exportlimits. Waere sie schon
     abgezogen, zaehlte sie doppelt.
     """
-    export_limit_mw = _exportlimit_mw(assumptions)
     jahre = [int(j) for j in energy["jahr"].to_numpy()]
     wertbeitrag: list[float] = []
     jahreswerte: list[StorageJahreswert] = []
     hinweise: list[str] = []
 
     for i, jahr in enumerate(jahre):
-        kalenderjahr = assumptions.inbetriebnahme_jahr + jahr - 1
-        preise_real = preise_je_jahr.get(kalenderjahr)
-        if preise_real is None:
-            preise_real = _naechstes_jahr(preise_je_jahr, kalenderjahr)
-        if preise_real is None:
+        eingabe = jahreseingabe(
+            assumptions, energy=energy, revenue=revenue,
+            preise_je_jahr=preise_je_jahr, form=form, i=i,
+            foerderdauer_anteil=foerderdauer_anteil,
+        )
+        if eingabe is None:
             hinweise.append(
-                f"Fuer {kalenderjahr} liegt keine Stundenpreisreihe vor - "
-                "das Jahr bleibt ohne Speicherbeitrag."
+                f"Fuer {assumptions.inbetriebnahme_jahr + jahr - 1} liegt "
+                "keine Stundenpreisreihe vor - das Jahr bleibt ohne "
+                "Speicherbeitrag."
             )
             wertbeitrag.append(0.0)
             continue
 
-        stunden = len(preise_real)
-        # Nominal wie im uebrigen Modell: Die Aurora-Reihen sind reale
-        # Preise auf der Preisbasis des Szenarios (siehe revenue.py).
-        faktor = (1 + assumptions.marktpreis_inflation_pct_pa) ** (
-            kalenderjahr - assumptions.marktpreis_inflation_basisjahr
-        )
-        preise = np.asarray(preise_real, dtype=float) * faktor
-
-        zeile = energy.iloc[i]
-        menge_mwh = (
-            float(zeile["produktion_kwh"]) + float(zeile.get("kappung_kwh", 0.0))
-        ) / 1000.0
-        form_jahr = _stundenform(form, stunden)
-        summe = form_jahr.sum()
-        pv = form_jahr / summe * menge_mwh if summe > 0 else np.zeros(stunden)
-
-        referenz = float(revenue.iloc[i]["marktwert_nominal_ct_kwh"])
-        anteil = 1.0 if foerderdauer_anteil is None else float(foerderdauer_anteil[i])
-        grenzerloes = grenzerloes_je_stunde(
-            preise, referenz, assumptions, in_foerderdauer=anteil > 0.5
-        )
-
         ergebnis = dispatch_jahr(
-            pv, preise, grenzerloes, batterie, export_limit_mw,
-            jahr=jahr, kalenderjahr=kalenderjahr,
+            eingabe.pv_mw, eingabe.preise_eur_mwh, eingabe.grenzerloes_eur_mwh,
+            batterie, eingabe.export_limit_mw,
+            jahr=jahr, kalenderjahr=eingabe.kalenderjahr,
         )
         wertbeitrag.append(ergebnis.wertbeitrag_eur)
         jahreswerte.append(

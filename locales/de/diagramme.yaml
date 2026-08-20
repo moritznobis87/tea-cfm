@@ -116,3 +116,16 @@ achse_anteil_tageserzeugung: "Anteil der Tageserzeugung"
 # Erloesmix (Vermarktungsdialog)
 serie_ppa: "PPA"
 serie_merchant: "Markt"
+
+# Speicher-Dispatch
+speicher_pv_ins_netz: "PV direkt ins Netz"
+speicher_entladung: "Aus dem Speicher"
+speicher_ladung_pv: "Laden aus PV"
+speicher_ladung_netz: "Laden aus dem Netz"
+speicher_abregelung: "Abregelung"
+speicher_preis: "Day-Ahead-Preis"
+speicher_fuellstand: "Füllstand"
+speicher_mehrerloes: "Mehrerlös"
+speicher_netzbezugskosten: "Netzbezugskosten"
+speicher_degradationskosten: "Verschleiß"
+speicher_deckungsbeitrag: "Beitrag netto"

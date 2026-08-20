@@ -115,3 +115,16 @@ achse_anteil_tageserzeugung: "Part de la production journalière"
 # Erloesmix (Vermarktungsdialog)
 serie_ppa: "PPA"
 serie_merchant: "Marché"
+
+# Speicher-Dispatch
+speicher_pv_ins_netz: "PV directement au réseau"
+speicher_entladung: "Depuis le stockage"
+speicher_ladung_pv: "Charge depuis le PV"
+speicher_ladung_netz: "Charge depuis le réseau"
+speicher_abregelung: "Écrêtage"
+speicher_preis: "Prix day-ahead"
+speicher_fuellstand: "État de charge"
+speicher_mehrerloes: "Recette supplémentaire"
+speicher_netzbezugskosten: "Coût du soutirage"
+speicher_degradationskosten: "Usure"
+speicher_deckungsbeitrag: "Apport net"

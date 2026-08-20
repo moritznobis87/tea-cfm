@@ -35,6 +35,7 @@ from engine.io_yaml import (
     save_global_assumptions_yaml,
     save_project_yaml,
 )
+from engine.pipeline import resolve_assumptions, run_valuation_from_assumptions
 
 from .config import (
     DOKUMENTATION_PDF_PATH,
@@ -299,23 +300,43 @@ def get_valuation(project_id: str) -> ValuationResult | None:
 
 @st.cache_data(show_spinner=False)
 def _run_valuation_entwurf_cached(
-    projekt_json: str, ga_mtime: float
+    projekt_json: str, ga_mtime: float, speicher_kennung: str, _speicher
 ) -> ValuationResult:
-    return run_valuation(
-        PVProject.model_validate_json(projekt_json), get_global_assumptions()
+    projekt = PVProject.model_validate_json(projekt_json)
+    if _speicher is None:
+        return run_valuation(projekt, get_global_assumptions())
+    return run_valuation_from_assumptions(
+        resolve_assumptions(projekt, get_global_assumptions()),
+        projekt.id,
+        speicher=_speicher,
     )
 
 
-def get_valuation_fuer(project: PVProject) -> ValuationResult:
+def get_valuation_fuer(
+    project: PVProject, speicher=None, speicher_kennung: str = ""
+) -> ValuationResult:
     """Bewertung eines (auch ungespeicherten) Projekts.
 
     Grundlage der sofortigen Neuberechnung neben der Parameterspalte: Der
     Entwurf liegt nicht auf der Platte, der Cache-Schluessel ist deshalb
     seine JSON-Fassung statt eines Dateizeitstempels. Gleiche Eingaben
     liefern damit weiterhin ein gecachtes Ergebnis.
+
+    `speicher` ist der Beitrag eines gerechneten Dispatchlaufs (siehe
+    app/speicher.py) oder None. Er wird von aussen hereingereicht und
+    hier NICHT gerechnet: Ein Dispatch dauert rund zwanzig Sekunden,
+    diese Funktion laeuft bei jedem Tastendruck. `speicher_kennung` ist
+    der Fingerabdruck dieses Beitrags und traegt ihn im Cache-Schluessel
+    - das Objekt selbst geht als `_speicher` daran vorbei, weil ein
+    Dataclass mit numpy-Feldern sich nicht zuverlaessig hashen laesst.
+
+    Ohne Speicher ist das Ergebnis Zeile fuer Zeile das bisherige.
     """
     return _run_valuation_entwurf_cached(
-        project.model_dump_json(), GLOBAL_ASSUMPTIONS_PATH.stat().st_mtime
+        project.model_dump_json(),
+        GLOBAL_ASSUMPTIONS_PATH.stat().st_mtime,
+        speicher_kennung,
+        speicher,
     )
 
 
