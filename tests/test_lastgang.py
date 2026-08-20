@@ -46,7 +46,9 @@ from engine.io_lastgang import (
 )
 
 _ROOT = Path(__file__).resolve().parent.parent
-_GA_PFAD = _ROOT / "data" / "global_assumptions.yaml"
+from app.config import GLOBAL_ASSUMPTIONS_PATH  # noqa: E402
+
+_GA_PFAD = GLOBAL_ASSUMPTIONS_PATH
 
 #: Stunden je Monat im Normaljahr - dieselbe Aufteilung wie im Modul,
 #: hier bewusst noch einmal ausgeschrieben: Waere sie im Modul falsch,

@@ -20,6 +20,8 @@ sys.path.insert(0, str(ROOT))
 
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
+from app.config import PROJECTS_DIR  # noqa: E402
+
 
 @pytest.fixture
 def at() -> AppTest:
@@ -312,7 +314,7 @@ class TestAlphabetischeReihenfolge:
         from app import services
         from engine.io_yaml import load_project_yaml, save_project_yaml
 
-        vorlage = load_project_yaml(ROOT / "data" / "projects" / "template-agri.yaml")
+        vorlage = load_project_yaml(PROJECTS_DIR / "template-agri.yaml")
         # Dateinamen (= IDs) bewusst gegenlaeufig zur Anzeige waehlen.
         for pid, name in [
             ("aaa", "Zwentendorf Nord"),

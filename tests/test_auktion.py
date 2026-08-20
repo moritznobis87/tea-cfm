@@ -8,11 +8,10 @@ Prognose sowie die Integration in die Monte-Carlo-Simulation.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
+from app.config import DATA_DIR  # noqa: E402
 from engine.auktion import (
     EPS_MIN,
     FAMILIEN,
@@ -27,7 +26,7 @@ from engine.auktion import (
     vergleiche_familien,
 )
 
-DATEN = Path(__file__).parent.parent / "data" / "ausschreibungen.yaml"
+DATEN = DATA_DIR / "ausschreibungen.yaml"
 
 
 @pytest.fixture(scope="module")

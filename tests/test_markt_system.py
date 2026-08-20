@@ -9,11 +9,11 @@ Zuschlagswert, ausgegrautes empirisches Modell).
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH
 from engine import (
     GlobalAssumptions,
     MarktSystem,
@@ -23,7 +23,7 @@ from engine import (
 )
 
 _ROOT = Path(__file__).resolve().parent.parent
-_GA_PFAD = _ROOT / "data" / "global_assumptions.yaml"
+_GA_PFAD = GLOBAL_ASSUMPTIONS_PATH
 
 
 @pytest.fixture()
@@ -50,7 +50,7 @@ def _navigiere(at, key: str):
     return at
 
 
-def _app() -> "AppTest":  # noqa: F821
+def _app() -> AppTest:  # noqa: F821
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(str(_ROOT / "streamlit_app.py"), default_timeout=300)

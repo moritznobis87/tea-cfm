@@ -19,10 +19,10 @@ Hand nachvollziehbar.
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 
 import pytest
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH, PROJECTS_DIR  # noqa: E402
 from engine.energy import calculate_energy_production
 from engine.models import (
     EINSPEISEKURVE_STANDARD_PCT,
@@ -670,11 +670,8 @@ class TestRueckzahlungSummeInDerOberflaeche:
         from engine.io_yaml import load_global_assumptions_yaml, load_project_yaml
         from engine.pipeline import run_valuation
 
-        wurzel = Path(__file__).resolve().parent.parent
-        ga = load_global_assumptions_yaml(wurzel / "data" / "global_assumptions.yaml")
-        projekt = load_project_yaml(
-            wurzel / "data" / "projects" / "template-konventionell.yaml"
-        )
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
+        projekt = load_project_yaml(PROJECTS_DIR / "template-konventionell.yaml")
         return run_valuation(projekt, ga)
 
     def test_ausgeliefertes_projekt_reisst_das_band(self):

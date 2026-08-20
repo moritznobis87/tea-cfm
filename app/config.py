@@ -8,12 +8,30 @@ gibt es genau eine Stelle, an der z.B. ein Wechsel des Datenverzeichnisses
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 #: Wurzelverzeichnis des Repositories (Ordner, der streamlit_app.py enthaelt).
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
-DATA_DIR = ROOT_DIR / "data"
+#: Name der Umgebungsvariablen, die das Datenverzeichnis umlenkt.
+DATA_DIR_ENV = "VALYZE_DATA_DIR"
+
+#: Datenverzeichnis - umlenkbar ueber VALYZE_DATA_DIR.
+#:
+#: Die Umlenkung ist kein Komfort, sondern ein Schutz. Alles unter DATA_DIR
+#: wird zur Laufzeit GESCHRIEBEN: die globalen Annahmen, die Projektdateien,
+#: die Ausschreibungsdaten. Die Testsuite fuehrt genau diese Schreibwege vor
+#: (Aurora-Import, Speichern-Knopf, Varianten anlegen) und muss dafuer auf
+#: eine Kopie zeigen koennen. Sicherungsfixtures, die die echte Datei
+#: hinterher zurueckschreiben, reichen dafuer nicht: Bricht ein Lauf hart ab,
+#: laeuft ihr finally nie, und der Testzustand bleibt im Repository stehen.
+#: Genau so sind schon einmal synthetische Preise in die ausgelieferten
+#: Marktdaten geraten.
+#:
+#: Zweiter Nutzen: ein Deployment mit persistentem Volume ausserhalb des
+#: Repositories.
+DATA_DIR = Path(os.environ.get(DATA_DIR_ENV) or ROOT_DIR / "data")
 PROJECTS_DIR = DATA_DIR / "projects"
 GLOBAL_ASSUMPTIONS_PATH = DATA_DIR / "global_assumptions.yaml"
 

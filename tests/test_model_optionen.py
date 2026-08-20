@@ -11,6 +11,7 @@ from datetime import date
 
 import pytest
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH  # noqa: E402
 from engine import (
     NegativeStundenModus,
     NegativeStundenRegel,
@@ -267,13 +268,9 @@ class TestAusgelieferteSzenarien:
 
     @pytest.fixture
     def ausgeliefert(self):
-        from pathlib import Path as _P
-
         from engine.io_yaml import load_global_assumptions_yaml
 
-        return load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        return load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
 
     def test_standardszenario_ist_der_aktuelle_jahrgang(self, ausgeliefert):
         assert (ausgeliefert.marktpreisszenarien[0].name
@@ -326,13 +323,9 @@ class TestAuroraQ326Szenarien:
 
     @pytest.fixture
     def ausgeliefert(self):
-        from pathlib import Path as _P
-
         from engine.io_yaml import load_global_assumptions_yaml
 
-        return load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        return load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
 
     def test_sechs_kombinationen(self, ausgeliefert):
         namen = {s.name for s in ausgeliefert.marktpreisszenarien}
@@ -395,13 +388,9 @@ class TestAuroraJahrgaenge:
 
     @pytest.fixture
     def ausgeliefert(self):
-        from pathlib import Path as _P
-
         from engine.io_yaml import load_global_assumptions_yaml
 
-        return load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        return load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
 
     JAHRGAENGE = ["Q1/25", "Q2/25", "Q4/25", "Q1/26", "Q2/26", "Q3/26"]
 
@@ -491,14 +480,10 @@ class TestUebersichtsauswahl:
     def test_ausgelieferte_sammlung_schrumpft_auf_ein_drittel(self):
         """Zwanzig Szenarien, aber nur sechs Jahrgangskurven plus die
         vier alten Bestaende."""
-        from pathlib import Path as _P
-
         from engine.io_aurora import ist_leitszenario
         from engine.io_yaml import load_global_assumptions_yaml
 
-        ga = load_global_assumptions_yaml(
-            _P(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         gezeigt = [s for s in ga.marktpreisszenarien if ist_leitszenario(s.name)]
         assert len(gezeigt) == 7
         assert len(ga.marktpreisszenarien) == 17
@@ -573,7 +558,6 @@ class TestKostenInflation:
         )
 
     def test_excel_roundtrip_und_auslieferung(self, global_assumptions):
-        from pathlib import Path
 
         from engine.io_excel import (
             excel_to_global_assumptions,
@@ -586,9 +570,7 @@ class TestKostenInflation:
         geladen = excel_to_global_assumptions(global_assumptions_to_excel(ga))
         assert geladen.kosten_inflation_pct_pa == pytest.approx(0.025)
 
-        ausgeliefert = load_global_assumptions_yaml(
-            Path(__file__).parent.parent / "data" / "global_assumptions.yaml"
-        )
+        ausgeliefert = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         assert ausgeliefert.kosten_inflation_pct_pa == pytest.approx(0.02)
         # Alle Standard-OPEX-Positionen konsistent indexiert (2 %/a ab Jahr 1)
         for item in ausgeliefert.opex_standard:

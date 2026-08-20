@@ -22,6 +22,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from app.config import GLOBAL_ASSUMPTIONS_PATH, PROJECTS_DIR  # noqa: E402
 from engine import PVProject  # noqa: E402
 from engine.io_excel import (  # noqa: E402
     OPTIONALE_PROJEKT_SPALTEN,
@@ -31,7 +32,7 @@ from engine.io_excel import (  # noqa: E402
 )
 from engine.io_yaml import load_project_yaml, save_project_yaml  # noqa: E402
 
-VORLAGE = ROOT / "data" / "projects" / "template-agri.yaml"
+VORLAGE = PROJECTS_DIR / "template-agri.yaml"
 
 
 def _projekt(name: str, variante: str = "", pid: str | None = None) -> PVProject:
@@ -77,9 +78,7 @@ class TestModell:
         from engine import run_valuation
         from engine.io_yaml import load_global_assumptions_yaml
 
-        ga = load_global_assumptions_yaml(
-            ROOT / "data" / "global_assumptions.yaml"
-        )
+        ga = load_global_assumptions_yaml(GLOBAL_ASSUMPTIONS_PATH)
         ohne = run_valuation(_projekt("Sonnenfeld"), ga)
         mit = run_valuation(_projekt("Sonnenfeld", "Netz high"), ga)
         assert ohne.kpis.equity_irr == mit.kpis.equity_irr

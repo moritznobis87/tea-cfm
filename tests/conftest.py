@@ -4,19 +4,91 @@ Gemeinsame Fixtures fuer die Engine-Tests.
 Die Fixtures bilden ein kleines, vollstaendig deterministisches
 Beispielprojekt ab, dessen Erwartungswerte sich von Hand nachrechnen
 lassen - keine Abhaengigkeit von den (aenderbaren) YAML-Beispieldaten.
+
+Ausserdem wird hier das Datenverzeichnis umgelenkt - siehe unten.
 """
 
 from __future__ import annotations
 
+import atexit
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
+_WURZEL = Path(__file__).resolve().parent.parent
+
 # Repository-Wurzel in den Importpfad aufnehmen, damit `import engine`
 # auch ohne editierbare Installation funktioniert (z.B. `pytest` direkt
 # im frisch geklonten Repo).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(_WURZEL))
+
+
+def _daten_umlenken() -> Path:
+    """Die Tests auf eine Kopie von data/ zeigen lassen.
+
+    Ein Teil der Suite fuehrt die echten Schreibwege vor: den
+    Aurora-Import, den Speichern-Knopf der globalen Annahmen, das Anlegen
+    von Varianten. Diese Tests SOLLEN schreiben - nur eben nicht in die
+    ausgelieferten Daten.
+
+    Bisher sicherten Fixtures die Datei vorher und schrieben sie im
+    finally zurueck. Das haelt, solange der Lauf ordentlich endet. Wird er
+    hart abgebrochen - Zeitueberschreitung, Strg-C, ein zweiter Prozess
+    daneben -, laeuft kein finally, und der Testzustand bleibt im
+    Arbeitsverzeichnis stehen. Beim naechsten Commit wandert er mit.
+    Genau so haben synthetische Preise (8,0/9,0/10,0 ct/kWh) einmal die
+    echte Aurora-Baseloadreihe des meistgenutzten Szenarios ersetzt.
+
+    Die Kopie kann das nicht: Es gibt keinen Zustand, aus dem heraus ein
+    Test die echte Datei anfassen koennte. Sie entsteht VOR dem Import
+    der Testmodule - `app.config` liest die Variable beim Import, und
+    `app.services` bindet die Pfade dann als Modulkonstanten.
+
+    Eine von aussen gesetzte Variable gewinnt: Wer bewusst gegen ein
+    anderes Verzeichnis testen will, soll das koennen.
+
+    Der Name der Variablen steht hier woertlich und nicht als Import aus
+    app.config: Ein Import von app.config wuerde dessen Modulcode
+    ausfuehren, und der liest die Variable - bevor sie gesetzt waere.
+    Gegen ein Auseinanderdriften der beiden Stellen sichert die
+    Gegenprobe unten, die beim Einsammeln der Tests laut scheitert.
+    """
+    name = "VALYZE_DATA_DIR"
+    if os.environ.get(name):
+        return Path(os.environ[name])
+
+    ziel = Path(tempfile.mkdtemp(prefix="valyze-daten-"))
+    shutil.copytree(_WURZEL / "data", ziel, dirs_exist_ok=True)
+    os.environ[name] = str(ziel)
+    atexit.register(shutil.rmtree, ziel, True)
+    return ziel
+
+
+#: Das Datenverzeichnis DIESES Laufs. Testmodule, die Pfade brauchen,
+#: nehmen sie von hier oder aus app.config - niemals selbst gebaut.
+DATEN_DIR = _daten_umlenken()
+
+from app.config import (  # noqa: E402
+    DATA_DIR as _KONFIGURIERTES_DATENVERZEICHNIS,
+)
+from app.config import (
+    DATA_DIR_ENV as _DATA_DIR_ENV,
+)
+
+# Gegenprobe: Die Umlenkung muss angekommen sein. Schlaegt sie fehl,
+# zeigen die Tests auf die ausgelieferten Daten und wuerden sie
+# beschreiben - dann soll die Suite gar nicht erst anlaufen.
+assert _DATA_DIR_ENV == "VALYZE_DATA_DIR", (
+    "app.config.DATA_DIR_ENV heisst anders als in conftest gesetzt"
+)
+assert _KONFIGURIERTES_DATENVERZEICHNIS == DATEN_DIR, (
+    f"app.config zeigt auf {_KONFIGURIERTES_DATENVERZEICHNIS}, "
+    f"erwartet war {DATEN_DIR} - wurde app.config zu frueh importiert?"
+)
 
 from engine import (  # noqa: E402
     AnlagenTyp,
