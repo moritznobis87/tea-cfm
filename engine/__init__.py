@@ -36,6 +36,7 @@ from .covenants import KovenantAnalyse, analysiere_kovenanten
 from .io_ergebnis_excel import pipeline_ergebnis_excel
 from .models import (
     AnlagenTyp,
+    BatteryConfig,
     CapexBreakdown,
     CapexPosition,
     DirektvermarktungsModus,
@@ -50,6 +51,7 @@ from .models import (
     PachtModus,
     PraemienModell,
     PVProject,
+    SpeicherModus,
     TaxModus,
     TilgungsArt,
     Zeitaufloesung,
@@ -89,6 +91,7 @@ __all__ = [
     "run_tornado",
     "run_valuation_from_assumptions",
     "AnlagenTyp",
+    "BatteryConfig",
     "CapexBreakdown",
     "CapexPosition",
     "DirektvermarktungsModus",
@@ -105,6 +108,7 @@ __all__ = [
     "PVProject",
     "PachtModus",
     "PraemienModell",
+    "SpeicherModus",
     "TaxModus",
     "TilgungsArt",
     "ValuationResult",

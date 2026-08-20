@@ -14,7 +14,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from . import io_lastgang
@@ -35,6 +37,9 @@ from .opex import calculate_opex
 from .revenue import calculate_revenue
 from .tax import calculate_tax
 from .timeline import build_timeline, erstjahr_zins_pro_rata
+
+if TYPE_CHECKING:  # nur fuer die Typpruefung - zur Laufzeit ungenutzt
+    from .storage.valuation import SpeicherBeitrag, erstjahr_zins_pro_rata
 
 
 def _opex_items(
@@ -219,15 +224,64 @@ def run_valuation(
     return run_valuation_from_assumptions(assumptions, project.id)
 
 
+#: Beschriftung der Speicher-Betriebskosten in der OPEX-Aufschluesselung.
+SPEICHER_OPEX_POSTEN = "Speicher"
+
+
+def _speicher_einbauen(
+    revenue: pd.DataFrame, opex: pd.DataFrame, speicher: SpeicherBeitrag
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Traegt Speichererloes und Speicher-OPEX in die beiden Zeitreihen ein.
+
+    Der Erloes wandert in `erloes_eur` UND steht als eigene Spalte
+    daneben: In `erloes_eur` muss er stehen, damit Steuer und Cashflow
+    ihn sehen; als eigene Spalte, damit die Auswertung ihn wieder
+    herausloesen kann, ohne ihn ein zweites Mal zu rechnen.
+
+    Beide Reihen sind nach Betriebsjahr indiziert und koennen kuerzer
+    sein als die Bewertung lang ist - etwa wenn fuer spaete Jahre keine
+    Stundenpreise vorlagen. Fehlende Jahre bekommen null.
+    """
+    def auffuellen(werte: tuple[float, ...], laenge: int) -> np.ndarray:
+        reihe = np.zeros(laenge)
+        reihe[: min(len(werte), laenge)] = werte[:laenge]
+        return reihe
+
+    revenue = revenue.copy()
+    opex = opex.copy()
+    erloes = auffuellen(speicher.wertbeitrag_eur_je_jahr, len(revenue))
+    kosten = auffuellen(speicher.opex_eur_je_jahr, len(opex))
+
+    revenue["erloes_speicher_eur"] = erloes
+    revenue["erloes_eur"] = revenue["erloes_eur"].to_numpy() + erloes
+    # Klartextname wie bei den uebrigen OPEX-Posten ("Pacht",
+    # "Technische Betriebsfuehrung", ...): Die Spaltennamen sind in
+    # dieser Zeitreihe zugleich die Beschriftungen der Aufschluesselung
+    # (siehe engine/cashflow.py::opex_posten_spalten).
+    opex[SPEICHER_OPEX_POSTEN] = kosten
+    opex["opex_gesamt_eur"] = opex["opex_gesamt_eur"].to_numpy() + kosten
+    return revenue, opex
+
+
 def run_valuation_from_assumptions(
     assumptions: EffectiveAssumptions,
     project_id: str,
     compute_npv_curve: bool = True,
+    speicher: SpeicherBeitrag | None = None,
 ) -> ValuationResult:
     """Bewertung direkt aus einem (ggf. modifizierten) aufgeloesten
     Parametersatz - Grundlage fuer Sensitivitaeten, Heatmaps und
     Monte-Carlo-Simulationen, die viele Varianten rechnen und dabei den
-    Merge-Schritt und (optional) die NPV-Kurve einsparen wollen."""
+    Merge-Schritt und (optional) die NPV-Kurve einsparen wollen.
+
+    `speicher` ist der Beitrag eines Batteriespeichers (siehe
+    engine/storage/valuation.py). Er wird von aussen hereingereicht und
+    NICHT hier gerechnet: Ein Dispatch ueber 30 Jahre dauert knapp
+    zwanzig Sekunden, und diese Funktion laeuft bei jeder Sensitivitaet
+    und jedem Rerun der Oberflaeche. Wer den Speicherwert will, rechnet
+    ihn einmal und reicht ihn durch (siehe app/services.py).
+
+    Ohne `speicher` ist das Ergebnis Zeile fuer Zeile das bisherige."""
     inbetriebnahme_datum = date(
         assumptions.inbetriebnahme_jahr, assumptions.inbetriebnahme_monat, 1
     )
@@ -258,9 +312,25 @@ def run_valuation_from_assumptions(
         erloes_eur=revenue["erloes_eur"].to_numpy(),
         menge_vermarktet_kwh=revenue["menge_vermarktet_kwh"].to_numpy(),
     )
+
+    # Der Speicher kommt NACH der OPEX-Rechnung dazu, und das ist eine
+    # fachliche Entscheidung: Die Umsatzpacht bemisst sich damit
+    # weiterhin allein am PV-Erloes.
+    #
+    # Ob eine Umsatzbeteiligung auch die Arbitrageerloese eines
+    # mitgebauten Speichers erfasst, steht im Pachtvertrag und nicht im
+    # Modell - der Prozentsatz wurde fuer die PV-Anlage verhandelt. Ihn
+    # stillschweigend auf den Speicher auszudehnen, aenderte einen
+    # bestehenden Vertrag per Rechenannahme. Steuer und Cashflow sehen
+    # den Speichererloes dagegen vollstaendig.
+    capex_total_eur = assumptions.capex_total_eur
+    if speicher is not None:
+        capex_total_eur += speicher.capex_eur
+        revenue, opex = _speicher_einbauen(revenue, opex, speicher)
+
     financing = calculate_financing(
         timeline,
-        assumptions.capex_total_eur,
+        capex_total_eur,
         assumptions.eigenkapitalquote_pct,
         assumptions.fremdkapitalzins_pct,
         assumptions.kreditlaufzeit_jahre,
@@ -272,7 +342,7 @@ def run_valuation_from_assumptions(
         revenue,
         opex,
         financing,
-        assumptions.capex_total_eur,
+        capex_total_eur,
         assumptions.tax_modus,
         assumptions.steuersatz_pct,
         assumptions.afa_nutzungsdauer_jahre,
@@ -290,7 +360,7 @@ def run_valuation_from_assumptions(
         opex=opex,
         financing=financing,
         tax=tax,
-        capex_total_eur=assumptions.capex_total_eur,
+        capex_total_eur=capex_total_eur,
         eigenkapitalquote_pct=assumptions.eigenkapitalquote_pct,
         inbetriebnahme_datum=inbetriebnahme_datum,
         project_id=project_id,

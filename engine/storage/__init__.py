@@ -28,6 +28,7 @@ from .models import (
     StorageDispatchResult,
     StorageJahreswert,
 )
+from .valuation import SpeicherBeitrag, dispatch_mehrjahr
 
 __all__ = [
     "BAHN_SPALTEN",
@@ -35,9 +36,11 @@ __all__ = [
     "SolverFehler",
     "SpeicherModus",
     "StorageDispatchResult",
+    "SpeicherBeitrag",
     "StorageJahreswert",
     "Wertzerlegung",
     "dispatch_jahr",
+    "dispatch_mehrjahr",
     "grenzerloes_je_stunde",
     "jahreswert",
     "negativstunden_maske",

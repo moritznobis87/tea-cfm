@@ -280,11 +280,17 @@ def dispatch_jahr(
             export_limit_mw, entladung_gesperrt=betroffen,
         )
 
+    # Der Vergleichsfall: dieselben Preise, dieselben Foerderregeln,
+    # dasselbe Exportlimit - nur ohne Speicher. Ohne ihn gaebe es keinen
+    # Massstab fuer den Wertbeitrag.
     ohne = batterie.model_copy(update={"aktiv": False})
     bahn_ohne, zielwert_ohne = _loese(
         pv_mw, grenzerloes_eur_mwh, preis_eur_mwh, ohne, export_limit_mw
     )
-    del bahn_ohne
+    # Die Abregelung dieses Laufs ist der Bezugspunkt der
+    # Rueckgewinnung - sie muss mit heraus, sonst waere sie spaeter nur
+    # durch einen zweiten Lauf zu bekommen.
+    abregelung_ohne = float(bahn_ohne[:, _ABREGELUNG].sum())
 
     vollstaendig = np.column_stack([
         pv_mw,
@@ -305,5 +311,6 @@ def dispatch_jahr(
         bahn=vollstaendig,
         zielwert_eur=zielwert,
         zielwert_pv_only_eur=zielwert_ohne,
+        abregelung_pv_only_mwh=abregelung_ohne,
         hinweise=hinweise,
     )

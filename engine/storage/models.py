@@ -14,144 +14,23 @@ sie gezeichnet werden kann, wandert aber nicht durch die Bewertung.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from enum import Enum
 
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
 
+# Die Auslegung gehoert zum Projekt und steht deshalb in engine/models.py
+# (siehe dort). Hier wird sie nur weitergereicht, damit
+# `from engine.storage import BatteryConfig` weiterhin traegt.
+from ..models import BatteryConfig, SpeicherModus
 
-class SpeicherModus(str, Enum):
-    """Woraus der Speicher geladen werden darf.
-
-    Die Unterscheidung ist keine Feinheit, sondern der Kern der
-    wirtschaftlichen Bewertung: Ein Gruenstromspeicher hebt PV-Energie
-    aus billigen in teure Stunden und holt Abregelung zurueck. Ein
-    Graustromspeicher kann zusaetzlich Arbitrage am Day-Ahead-Markt
-    fahren - und traegt dafuer die Frage, ob die aus dem Netz bezogene
-    und wieder eingespeiste Energie foerderfaehig ist (sie ist es
-    nicht, siehe economics.py).
-    """
-
-    #: Laden ausschliesslich aus der PV-Anlage.
-    GRUENSTROM = "gruenstrom"
-    #: Laden aus PV und Netz.
-    GRAUSTROM = "graustrom"
-
-
-class BatteryConfig(BaseModel):
-    """Speicherauslegung eines Projekts - optional, siehe PVProject.
-
-    Bestandsprojekte fuehren kein `battery`-Feld; sie laden unveraendert
-    und rechnen wie bisher. Ein Speicher entsteht erst, wenn er
-    ausdruecklich angelegt wird.
-
-    Leistung und Kapazitaet stehen GETRENNT, und die Kosten ebenso
-    (`capex_energie_eur_kwh` / `capex_leistung_eur_kw`): Ein Speicher
-    mit 5 MW / 10 MWh und einer mit 5 MW / 20 MWh unterscheiden sich nur
-    in der Energie, und die Kostenrechnung muss das abbilden koennen.
-    """
-
-    aktiv: bool = True
-    modus: SpeicherModus = SpeicherModus.GRUENSTROM
-
-    #: Dauerleistung in MW, symmetrisch fuer Laden und Entladen.
-    leistung_mw: float = Field(ge=0, default=5.0)
-    #: Nutzbare Bruttokapazitaet in MWh. Der tatsaechlich nutzbare Hub
-    #: ergibt sich daraus mit soc_min/soc_max.
-    kapazitaet_mwh: float = Field(ge=0, default=10.0)
-
-    #: Roundtrip-Wirkungsgrad (AC-seitig, 0-1). Er wird symmetrisch auf
-    #: Laden und Entladen aufgeteilt: eta_lade = eta_entlade = sqrt(RTE).
-    #: Das ist die uebliche Konvention, wenn nur ein Gesamtwirkungsgrad
-    #: bekannt ist - sie unterstellt, dass Verluste je zur Haelfte beim
-    #: Laden und beim Entladen anfallen.
-    roundtrip_wirkungsgrad: float = Field(gt=0, le=1, default=0.90)
-
-    soc_min_pct: float = Field(ge=0, le=1, default=0.05)
-    soc_max_pct: float = Field(ge=0, le=1, default=0.95)
-    #: Fuellstand zu Jahresbeginn UND -ende (zyklischer Abschluss, siehe
-    #: dispatch.py). Ohne ihn leerte der Optimierer den Speicher am
-    #: Jahresende und buchte den Erloes als Zusatzwert, der in Wahrheit
-    #: aus dem Anfangsbestand stammt.
-    soc_start_pct: float = Field(ge=0, le=1, default=0.50)
-
-    #: Verschleisskosten je MWh Durchsatz. Sie halten den Speicher davon
-    #: ab, fuer minimale Preisspreads zu zyklieren. Durchsatz ist hier
-    #: definiert als 0,5 x (Ladeenergie + Entladeenergie) - so zaehlt ein
-    #: voller Zyklus (rein und wieder raus) einmal und nicht zweimal.
-    degradationskosten_eur_mwh: float = Field(ge=0, default=2.0)
-
-    #: Hoechster Netzbezug in MW. Beim Gruenstromspeicher wirkungslos -
-    #: dort ist der Netzbezug ohnehin null (siehe dispatch.py).
-    netzbezug_limit_mw: float = Field(ge=0, default=0.0)
-
-    #: Investitionskosten, getrennt nach Energie und Leistung.
-    capex_energie_eur_kwh: float = Field(ge=0, default=0.0)
-    capex_leistung_eur_kw: float = Field(ge=0, default=0.0)
-    #: Feste Betriebskosten je kW und Jahr.
-    opex_eur_kw_jahr: float = Field(ge=0, default=0.0)
-
-    @model_validator(mode="after")
-    def _grenzen_pruefen(self) -> BatteryConfig:
-        if self.soc_min_pct >= self.soc_max_pct:
-            raise ValueError(
-                "soc_min_pct muss kleiner als soc_max_pct sein"
-            )
-        return self
-
-    # --- abgeleitete Groessen ---------------------------------------
-
-    @property
-    def eta_lade(self) -> float:
-        return math.sqrt(self.roundtrip_wirkungsgrad)
-
-    @property
-    def eta_entlade(self) -> float:
-        return math.sqrt(self.roundtrip_wirkungsgrad)
-
-    @property
-    def nutzbare_kapazitaet_mwh(self) -> float:
-        """Der Hub zwischen unterer und oberer Grenze.
-
-        Bezugsgroesse der Vollzyklen: Ein Zyklus ist das einmalige
-        Durchfahren des NUTZBAREN Hubs, nicht der Bruttokapazitaet.
-        """
-        return self.kapazitaet_mwh * (self.soc_max_pct - self.soc_min_pct)
-
-    @property
-    def dauer_h(self) -> float:
-        """C-Rate als Dauer: Wie lange haelt der volle Hub bei Nennleistung?"""
-        if self.leistung_mw <= 0:
-            return 0.0
-        return self.nutzbare_kapazitaet_mwh / self.leistung_mw
-
-    @property
-    def wirksam(self) -> bool:
-        """Ein Speicher ohne Leistung oder ohne Kapazitaet ist keiner.
-
-        Wichtig fuer den Vergleichsfall: Der PV-only-Lauf ist derselbe
-        Optimierer mit einem unwirksamen Speicher - dieselben Preise,
-        dieselben Foerderregeln, dasselbe Exportlimit (siehe
-        dispatch.pv_only).
-        """
-        return (
-            self.aktiv
-            and self.leistung_mw > 0
-            and self.nutzbare_kapazitaet_mwh > 0
-        )
-
-    @property
-    def capex_gesamt_eur(self) -> float:
-        return (
-            self.kapazitaet_mwh * 1000 * self.capex_energie_eur_kwh
-            + self.leistung_mw * 1000 * self.capex_leistung_eur_kw
-        )
-
-    @property
-    def opex_jahr_eur(self) -> float:
-        return self.leistung_mw * 1000 * self.opex_eur_kw_jahr
+__all__ = [
+    "BAHN_SPALTEN",
+    "BatteryConfig",
+    "SolverFehler",
+    "SpeicherModus",
+    "StorageDispatchResult",
+    "StorageJahreswert",
+]
 
 
 # --- Ergebnis ---------------------------------------------------------------
@@ -230,6 +109,11 @@ class StorageDispatchResult:
     zielwert_eur: float
     #: Derselbe Wert fuer den Vergleichslauf ohne Speicher.
     zielwert_pv_only_eur: float
+    #: Abregelung des Vergleichslaufs in MWh - Bezugspunkt der
+    #: Rueckgewinnung. Sie steht hier und nicht in der Bahn, weil sie zu
+    #: einem ANDEREN Lauf gehoert; in einer Spalte neben den Stunden des
+    #: optimierten Laufs waere sie irrefuehrend.
+    abregelung_pv_only_mwh: float = 0.0
     #: Diskretisierungsabstand zur stetigen Schranke, sofern gerechnet -
     #: siehe dispatch.schranke_lp. None heisst: nicht geprueft.
     abstand_zur_schranke_pct: float | None = None

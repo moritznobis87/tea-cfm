@@ -1,5 +1,5 @@
 gueltig_ab: 2026-07
-markt_system: oesterreich
+markt_system: deutschland
 de_marktpraemie_erwartet_ct_kwh: 5.0
 marktpreisszenarien:
 - name: Aurora Q3/26 · Pult · Central
@@ -30638,7 +30638,7 @@ marktpreisszenarien:
 marktpreis_inflation_pct_pa: 0.02
 marktpreis_inflation_basisjahr: 2025
 kosten_inflation_pct_pa: 0.02
-negative_stunden_regel: 6h
+negative_stunden_regel: 1h
 zeitaufloesung: jahr
 einspeisekurve_pct_je_monat:
 - 0.02163
@@ -30681,7 +30681,7 @@ einspeisekurven_je_bauform:
   - 0.026408
   - 0.037032
 einspeisekurve_bauform: Pult
-praemien_modell: eag_toleranzband
+praemien_modell: einseitig_cfd
 eag_rueckzahlung_ab_mw: 5.0
 eag_rueckzahlung_toleranzband_pct: 0.4
 eag_rueckzahlung_anteil_pct: 0.66
@@ -30738,10 +30738,10 @@ betriebsdauer_jahre: 30
 kreditlaufzeit_jahre: 20
 tilgungsart: annuitaet
 tilgungsfreies_anlaufjahr: false
-zinsmethode: oesterreich_act_365
+zinsmethode: deutsch_30_360
 dscr_cash_trap: 1.1
 dscr_event_of_default: 1.05
-tax_modus: afa_koerperschaftsteuer
+tax_modus: gewerbesteuer_de
 steuersatz_pct: 0.23
 afa_nutzungsdauer_jahre: 20
 freibetrag_eur: 0.0
