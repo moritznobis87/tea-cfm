@@ -1353,3 +1353,288 @@ class TestMitoptimierung:
 
         assert "optimum" in Rasterergebnis.__dataclass_fields__
         assert "optimum_punkt" in Rasterergebnis.__dataclass_fields__
+
+
+class TestNurDauer:
+    """Feste Leistung, gesucht ist allein die Dauer.
+
+    Der Fall des Graustromspeichers: Was aus dem Netz bezogen werden
+    darf, steht im Netzanschlussvertrag. Die Leistung ist dann keine
+    Entwurfsgroesse mehr, sondern eine Eingabe - und aus dem
+    zweidimensionalen Problem wird ein eindimensionales, das der
+    Optimierer exakt loest.
+    """
+
+    _GEWICHT = 600.0
+
+    def _eingabe(self, stunden: int = 168):
+        import numpy as np
+
+        from engine.storage.valuation import Jahreseingabe
+
+        pv, preis = _kurzes_jahr(stunden)
+        return Jahreseingabe(
+            jahr=1, kalenderjahr=2030,
+            pv_mw=np.asarray(pv), preise_eur_mwh=np.asarray(preis),
+            grenzerloes_eur_mwh=np.asarray(preis),
+            export_limit_mw=3.0,
+        )
+
+    def _optimum(self, assumptions, fest: float):
+        from engine.storage import optimum_stetig
+
+        return optimum_stetig(
+            assumptions, _mit_speicher(), [self._eingabe()],
+            [(self._GEWICHT, self._GEWICHT)],
+            betriebsjahre=20, leistung_fest_mw=fest,
+        )
+
+    def test_die_leistung_bleibt_exakt_stehen(
+        self, project, global_assumptions
+    ):
+        from engine.pipeline import resolve_assumptions
+
+        a = resolve_assumptions(project, global_assumptions)
+        for fest in (0.8, 2.0, 2.5):
+            optimum = self._optimum(a, fest)
+            assert optimum.leistung_mw == pytest.approx(fest)
+            assert optimum.kapazitaet_mwh > 0
+
+    def test_eine_feste_leistung_ist_kein_deckel(
+        self, project, global_assumptions
+    ):
+        """`am_deckel` meldet, dass der Netzanschluss die Auslegung
+        beschneidet. Bei vorgegebener Leistung gibt es nichts zu
+        beschneiden - die Meldung waere dort schlicht falsch."""
+        from engine.pipeline import resolve_assumptions
+
+        a = resolve_assumptions(project, global_assumptions)
+        optimum = self._optimum(a, 2.0)
+        assert optimum.leistung_fest
+        assert not optimum.am_deckel
+        assert optimum.leistung_deckel_mw is None
+
+    def test_keine_kapazitaet_schlaegt_die_gefundene(
+        self, project, global_assumptions
+    ):
+        """Dieselbe definierende Eigenschaft wie in zwei Dimensionen,
+        hier in einer: Bei fester Leistung gibt es keine bessere
+        Kapazitaet als die gefundene."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import dispatch_jahr
+        from engine.storage.optimum import _barwertfaktoren
+
+        a = resolve_assumptions(project, global_assumptions)
+        fest = 2.0
+        optimum = self._optimum(a, fest)
+        assert optimum.wirksam
+
+        barwert_opex, schild = _barwertfaktoren(a, 20, 0.08)
+        eingabe = self._eingabe()
+        for faktor in (0.25, 0.5, 0.8, 1.25, 2.0, 4.0):
+            kapazitaet = optimum.kapazitaet_mwh * faktor
+            ergebnis = dispatch_jahr(
+                eingabe.pv_mw, eingabe.preise_eur_mwh,
+                eingabe.grenzerloes_eur_mwh,
+                _mit_speicher(leistung_mw=fest, kapazitaet_mwh=kapazitaet),
+                eingabe.export_limit_mw,
+            )
+            kosten = 1000.0 * (
+                fest * (
+                    a.speicher_capex_leistung_eur_kw * (1.0 - schild)
+                    + a.speicher_opex_eur_kw_jahr * barwert_opex
+                )
+                + kapazitaet
+                * a.speicher_capex_energie_eur_kwh * (1.0 - schild)
+            )
+            wert = (
+                (1.0 - a.steuersatz_pct) * self._GEWICHT
+                * ergebnis.wertbeitrag_eur - kosten
+            )
+            assert optimum.barwert_eur >= wert - 1.0, (
+                f"{kapazitaet:.2f} MWh ist besser ({wert:,.0f} statt "
+                f"{optimum.barwert_eur:,.0f})"
+            )
+
+    def test_die_leistung_zaehlt_jetzt_im_abdruck(
+        self, project, global_assumptions
+    ):
+        """Der Unterschied zum zweidimensionalen Modus, und er ist
+        wesentlich: Dort ERSETZT das Raster die Leistung und darf sie
+        deshalb ignorieren. Hier ist sie Eingabe - wer sie aendert,
+        stellt eine andere Frage, und die alte Antwort veraltet."""
+        from app import speicher
+
+        project.battery = _mit_speicher(leistung_mw=3.0)
+        vorher = speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_NUR_DAUER,
+        )
+        project.battery = _mit_speicher(leistung_mw=5.0)
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_NUR_DAUER,
+        ) != vorher
+
+    def test_die_kapazitaet_zaehlt_weiterhin_nicht(
+        self, project, global_assumptions
+    ):
+        """Sie ist auch hier das, was die Suche ersetzt."""
+        from app import speicher
+
+        project.battery = _mit_speicher(leistung_mw=3.0, kapazitaet_mwh=6.0)
+        vorher = speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_NUR_DAUER,
+        )
+        project.battery = _mit_speicher(leistung_mw=3.0, kapazitaet_mwh=30.0)
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_NUR_DAUER,
+        ) == vorher
+
+    def test_der_modus_selbst_zaehlt(self, project, global_assumptions):
+        """Zwei Modi sind zwei Fragen - ihre Antworten duerfen sich
+        nicht denselben Platz teilen."""
+        from app import speicher
+
+        project.battery = _mit_speicher()
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_BEIDES,
+        ) != speicher.raster_abdruck(
+            project, global_assumptions, (1.0,), (2, 4), 4,
+            speicher.MODUS_NUR_DAUER,
+        )
+
+
+@pytest.fixture()
+def graustromprojekt():
+    """Ein Graustromspeicher am ausgelieferten Vorlagenprojekt."""
+    pfad = PROJECTS_DIR / "template-agri.yaml"
+    sicherung = pfad.read_bytes()
+    projekt = load_project_yaml(pfad)
+    projekt.battery = _mit_speicher(
+        modus=SpeicherModus.GRAUSTROM, leistung_mw=3.0, kapazitaet_mwh=12.0,
+        netzbezug_limit_mw=3.0,
+    )
+    save_project_yaml(projekt, pfad)
+    try:
+        yield projekt
+    finally:
+        pfad.write_bytes(sicherung)
+
+
+class TestNurDauerImReiter:
+    def test_graustrom_sucht_von_sich_aus_nur_die_dauer(
+        self, graustromprojekt
+    ):
+        """Vorbelegt nach der Betriebsart: Beim Graustromspeicher steht
+        die Leistung im Netzanschlussvertrag."""
+        from app import speicher
+
+        at, _ = _app_mit_projekt("template-agri")
+        _zum_speicherreiter(at)
+        modus = [r for r in at.radio if r.key == "raster_modus_template-agri"]
+        assert modus and modus[0].value == speicher.MODUS_NUR_DAUER
+        # Kein Leistungsregler - die Leistung ist hier Eingabe.
+        assert not [m for m in at.multiselect
+                    if m.key == "raster_anteile_template-agri"]
+        assert [m for m in at.metric if m.label == "Feste Leistung"]
+
+    def test_gruenstrom_sucht_beides(self, projekt_mit_speicher):
+        from app import speicher
+
+        at, _ = _app_mit_projekt("template-agri")
+        _zum_speicherreiter(at)
+        modus = [r for r in at.radio if r.key == "raster_modus_template-agri"]
+        assert modus and modus[0].value == speicher.MODUS_BEIDES
+        assert [m for m in at.multiselect
+                if m.key == "raster_anteile_template-agri"]
+
+    def test_ohne_leistung_kein_knopf(self, graustromprojekt):
+        """Ein Knopf, der nur eine Fehlermeldung erzeugen kann, sollte
+        gar nicht erst anklickbar sein - dieselbe Regel wie beim
+        Dispatch."""
+        pfad = PROJECTS_DIR / "template-agri.yaml"
+        projekt = load_project_yaml(pfad)
+        projekt.battery = _mit_speicher(
+            modus=SpeicherModus.GRAUSTROM, leistung_mw=0.0,
+        )
+        save_project_yaml(projekt, pfad)
+
+        at, _ = _app_mit_projekt("template-agri")
+        _zum_speicherreiter(at)
+        assert not [b for b in at.button
+                    if b.key == "raster_rechnen_template-agri"]
+
+    def test_der_lauf_haelt_die_leistung_fest(self, graustromprojekt):
+        """Der ganze Weg: Jeder Rasterpunkt und das Optimum tragen
+        dieselbe, vorgegebene Leistung."""
+        at, _ = _app_mit_projekt("template-agri")
+        at.session_state["tabwahl_template-agri"] = txt(
+            "oberflaeche.projekt_tab_speicher"
+        )
+        at.session_state["raster_dauern_template-agri"] = [2, 4]
+        at.session_state["raster_stuetzjahre_template-agri"] = 2
+        at.run()
+        assert not at.exception, at.exception
+        [b for b in at.button if b.key == "raster_rechnen_template-agri"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+
+        laeufe = at.session_state["speicher_raster"]["template-agri"]
+        ergebnis = list(laeufe.values())[-1]
+        assert [p.kandidat.dauer_h for p in ergebnis.punkte] == [2, 4]
+        for punkt in ergebnis.punkte:
+            assert punkt.kandidat.leistung_mw == pytest.approx(3.0)
+        assert ergebnis.optimum is not None
+        assert ergebnis.optimum.leistung_mw == pytest.approx(3.0)
+        assert ergebnis.optimum.leistung_fest
+
+
+class TestModuswechsel:
+    """Was passiert, wenn nach einem Lauf der Modus wechselt.
+
+    Der Lauf bleibt sichtbar - als veraltet gekennzeichnet, denn er
+    beantwortet jetzt eine andere Frage als die gestellte. Gezeichnet
+    werden muss er aber nach SEINER Frage: Ein Raster mit vier Leistungen
+    ist eine Flaeche, auch wenn der Schalter darueber inzwischen auf
+    "nur die Dauer" steht. Anders herum entstuende eine Linie ueber der
+    Dauer, die je Dauer vier Werte haette.
+    """
+
+    def test_die_darstellung_folgt_dem_ergebnis_nicht_dem_schalter(
+        self, graustromprojekt
+    ):
+        from engine.storage.auslegung import Kandidat
+
+        at, _ = _app_mit_projekt("template-agri")
+        at.session_state["tabwahl_template-agri"] = txt(
+            "oberflaeche.projekt_tab_speicher"
+        )
+        at.session_state["raster_dauern_template-agri"] = [2, 4]
+        at.session_state["raster_stuetzjahre_template-agri"] = 2
+        at.run()
+        [b for b in at.button if b.key == "raster_rechnen_template-agri"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+
+        # Jetzt auf "Leistung und Dauer" umstellen - das Ergebnis
+        # stammt aus dem anderen Modus und muss trotzdem zeichenbar
+        # bleiben.
+        from app import speicher
+
+        at.session_state["raster_modus_template-agri"] = speicher.MODUS_BEIDES
+        at.run()
+        assert not at.exception, at.exception
+        assert [w for w in at.warning if "seit dem Rasterlauf" in (w.value or "")]
+
+        # Und die Ableitung selbst: eine Leistung heisst Kurve, mehrere
+        # heissen Flaeche.
+        eine = [Kandidat(leistungsanteil=1.0, leistung_mw=3.0, dauer_h=d)
+                for d in (2, 4)]
+        mehrere = [Kandidat(leistungsanteil=a, leistung_mw=3.0 * a, dauer_h=2)
+                   for a in (0.5, 1.0)]
+        assert len({k.leistung_mw for k in eine}) == 1
+        assert len({k.leistung_mw for k in mehrere}) > 1

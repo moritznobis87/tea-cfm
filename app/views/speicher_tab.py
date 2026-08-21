@@ -32,7 +32,12 @@ from app.components.project_inspector import overlay_setzen
 from app.components.storage_dialog import zusammenfassung
 from app.formatting import fmt_eur, fmt_eur_kompakt, fmt_number, fmt_pct
 from engine import PVProject
-from engine.storage import BatteryConfig, SolverFehler, auslegung
+from engine.storage import (
+    BatteryConfig,
+    SolverFehler,
+    SpeicherModus,
+    auslegung,
+)
 from texte import txt
 
 
@@ -366,17 +371,62 @@ def _dauerschaetzung(punkte: int, stuetzjahre: int) -> str:
     )
 
 
-def _rasterwahl(projekt: PVProject) -> tuple[list[float], list[int], int]:
-    """Die drei Regler ueber dem Knopf."""
-    spalten = st.columns([0.42, 0.35, 0.23])
-    anteile = spalten[0].multiselect(
-        txt("oberflaeche.speicher_auslegung_leistungen_label"),
-        list(auslegung.LEISTUNGSANTEILE),
-        default=list(auslegung.LEISTUNGSANTEILE_STANDARD),
-        format_func=lambda a: f"{a * 100:.0f} %".replace(".", ","),
-        key=f"raster_anteile_{projekt.id}",
-        help=txt("oberflaeche.speicher_auslegung_leistungen_hilfe"),
+def _suchmodus(projekt: PVProject) -> str:
+    """Wird die Leistung mitgesucht oder ist sie gegeben?
+
+    Vorbelegt nach der Betriebsart, und das ist mehr als Bequemlichkeit:
+    Beim GRAUSTROMSPEICHER ist die Leistung keine Entwurfsgroesse,
+    sondern das Ergebnis einer Vereinbarung - was aus dem Netz bezogen
+    werden darf, steht im Netzanschlussvertrag. Gesucht ist dann nur
+    noch, wie viele Stunden der Speicher damit durchhalten soll.
+
+    Umstellen laesst sich beides trotzdem: Wer den Vertrag noch
+    verhandelt, will sehr wohl wissen, welche Leistung sich lohnte.
+    """
+    graustrom = (
+        projekt.battery is not None
+        and projekt.battery.modus == SpeicherModus.GRAUSTROM
     )
+    schluessel = f"raster_modus_{projekt.id}"
+    st.session_state.setdefault(
+        schluessel,
+        speicher.MODUS_NUR_DAUER if graustrom else speicher.MODUS_BEIDES,
+    )
+    return st.radio(
+        txt("oberflaeche.speicher_auslegung_modus_label"),
+        [speicher.MODUS_BEIDES, speicher.MODUS_NUR_DAUER],
+        format_func=lambda m: txt(f"oberflaeche.speicher_auslegung_modus_{m}"),
+        horizontal=True, key=schluessel,
+        help=txt("oberflaeche.speicher_auslegung_modus_hilfe"),
+    )
+
+
+def _rasterwahl(
+    projekt: PVProject, modus: str
+) -> tuple[list[float], list[int], int]:
+    """Die Regler ueber dem Knopf."""
+    nur_dauer = modus == speicher.MODUS_NUR_DAUER
+    spalten = st.columns([0.42, 0.35, 0.23])
+    if nur_dauer:
+        # Kein Regler, sondern die Angabe, WORAUF gerechnet wird. Die
+        # Leistung ist hier Eingabe; sie zu wiederholen, waere ein
+        # Bedienelement, das nichts bedient.
+        spalten[0].metric(
+            txt("oberflaeche.speicher_auslegung_feste_leistung"),
+            txt("oberflaeche.speicher_auslegung_mw_wert",
+                wert=fmt_number(speicher.feste_leistung_mw(projekt), 2)),
+            help=txt("oberflaeche.speicher_auslegung_feste_leistung_hilfe"),
+        )
+        anteile = [1.0]
+    else:
+        anteile = spalten[0].multiselect(
+            txt("oberflaeche.speicher_auslegung_leistungen_label"),
+            list(auslegung.LEISTUNGSANTEILE),
+            default=list(auslegung.LEISTUNGSANTEILE_STANDARD),
+            format_func=lambda a: f"{a * 100:.0f} %".replace(".", ","),
+            key=f"raster_anteile_{projekt.id}",
+            help=txt("oberflaeche.speicher_auslegung_leistungen_hilfe"),
+        )
     dauern = spalten[1].multiselect(
         txt("oberflaeche.speicher_auslegung_dauern_label"),
         list(auslegung.DAUERN_STUNDEN),
@@ -411,14 +461,22 @@ def _auslegung(projekt: PVProject, ga, form_key: str) -> None:
             kapazitaet=fmt_number(kapazitaet, 2),
         ))
 
-    anteile, dauern, stuetzjahre = _rasterwahl(projekt)
+    modus = _suchmodus(projekt)
+    nur_dauer = modus == speicher.MODUS_NUR_DAUER
+    if nur_dauer and speicher.feste_leistung_mw(projekt) <= 0:
+        st.info(txt("oberflaeche.speicher_auslegung_ohne_leistung"))
+        return
+
+    anteile, dauern, stuetzjahre = _rasterwahl(projekt, modus)
     if not anteile or not dauern:
         st.info(txt("oberflaeche.speicher_auslegung_leer"))
         return
 
     punkte = len(anteile) * len(dauern)
     ergebnis, gerechnet = speicher.letztes_raster(projekt)
-    aktuell = speicher.raster_abdruck(projekt, ga, anteile, dauern, stuetzjahre)
+    aktuell = speicher.raster_abdruck(
+        projekt, ga, anteile, dauern, stuetzjahre, modus
+    )
     ist_veraltet = ergebnis is not None and gerechnet != aktuell
 
     col_knopf, col_status = st.columns([0.28, 0.72], vertical_alignment="center")
@@ -444,7 +502,7 @@ def _auslegung(projekt: PVProject, ga, form_key: str) -> None:
             speicher.raster_rechnen(
                 projekt, ga,
                 leistungsanteile=anteile, dauern=dauern,
-                stuetzjahre=stuetzjahre,
+                stuetzjahre=stuetzjahre, modus=modus,
                 fortschritt=lambda n, gesamt: balken.progress(
                     n / gesamt,
                     text=txt("oberflaeche.speicher_auslegung_rechnet",
@@ -467,6 +525,15 @@ def _auslegung(projekt: PVProject, ga, form_key: str) -> None:
 def _rasterergebnis(
     projekt: PVProject, ergebnis, form_key: str, ist_veraltet: bool
 ) -> None:
+    # Ob die Leistung fest stand, wird am ERGEBNIS abgelesen und nicht am
+    # Schalter darueber. Wer nach einem Lauf den Modus wechselt, sieht
+    # weiterhin das alte Ergebnis (als veraltet gekennzeichnet) - und es
+    # dann nach der neuen Frage zu zeichnen, ergaebe ein Bild, das es
+    # nicht gibt: eine Linie ueber der Dauer, die je Dauer vier Werte
+    # hat. Ein Raster mit nur einer Leistung ist eine Kurve, eines mit
+    # mehreren eine Flaeche; das steht in den Punkten selbst.
+    nur_dauer = len({p.kandidat.leistung_mw for p in ergebnis.punkte}) == 1
+
     st.caption(txt(
         "oberflaeche.speicher_auslegung_gerechnet",
         anzahl=len(ergebnis.stuetzjahre),
@@ -492,20 +559,34 @@ def _rasterergebnis(
         label_visibility="collapsed",
     )
     gezeigt = nach_rendite if ansicht == "equity_irr" else nach_barwert
-    st.plotly_chart(
-        charts.speicher_auslegung_chart(
-            ergebnis.tabelle(), ansicht,
-            ergebnis.equity_irr_ohne if ansicht == "equity_irr"
-            else ergebnis.npv_eur_ohne,
+    referenz = (
+        ergebnis.equity_irr_ohne if ansicht == "equity_irr"
+        else ergebnis.npv_eur_ohne
+    )
+    # Steht die Leistung fest, hat die Flaeche nur eine Zeile - und eine
+    # einzeilige Heatmap ist eine Linie mit schlechterer Ablesbarkeit.
+    bild = (
+        charts.speicher_dauerkurve_chart(
+            ergebnis.tabelle(), ansicht, referenz,
+            optimum_dauer=(
+                ergebnis.optimum.dauer_h if ergebnis.optimum
+                and ergebnis.optimum.wirksam else None
+            ),
+        )
+        if nur_dauer
+        else charts.speicher_auslegung_chart(
+            ergebnis.tabelle(), ansicht, referenz,
             optimum=(
                 (gezeigt.kandidat.leistungsanteil, gezeigt.kandidat.dauer_h)
                 if gezeigt else None
             ),
-        ),
-        width="stretch", key=f"raster_flaeche_{projekt.id}",
+        )
     )
+    st.plotly_chart(bild, width="stretch", key=f"raster_flaeche_{projekt.id}")
 
     _randhinweis(ergebnis, gezeigt)
+    if nur_dauer:
+        st.caption(txt("oberflaeche.speicher_auslegung_nur_dauer_hinweis"))
     st.caption(txt("oberflaeche.speicher_auslegung_genauigkeit"))
 
     if form_key and not ist_veraltet:
@@ -513,7 +594,8 @@ def _rasterergebnis(
 
     with st.expander(txt("oberflaeche.speicher_auslegung_tabelle")):
         st.dataframe(
-            _rastertabelle(ergebnis), width="stretch", hide_index=True,
+            _rastertabelle(ergebnis, nur_dauer),
+            width="stretch", hide_index=True,
         )
 
 
@@ -697,8 +779,13 @@ def _uebernehmen(projekt: PVProject, ergebnis, nach_rendite, nach_barwert,
     st.rerun()
 
 
-def _rastertabelle(ergebnis):
-    """Das Raster in lesbaren Spalten, nach Rendite absteigend."""
+def _rastertabelle(ergebnis, nur_dauer: bool = False):
+    """Das Raster in lesbaren Spalten, nach Rendite absteigend.
+
+    Bei fester Leistung faellt die Anteilsspalte weg. Sie stuende dort
+    in jeder Zeile auf 100 Prozent und beantwortete eine Frage, die gar
+    nicht gestellt wurde.
+    """
     tabelle = ergebnis.tabelle().sort_values("equity_irr", ascending=False)
     tabelle["anteil"] = tabelle["leistungsanteil"].map(lambda a: fmt_pct(a, 0))
     spalten = {
@@ -714,6 +801,8 @@ def _rastertabelle(ergebnis):
         "dscr_min": txt("oberflaeche.speicher_auslegung_spalte_dscr"),
         "vollzyklen": txt("oberflaeche.speicher_auslegung_spalte_vollzyklen"),
     }
+    if nur_dauer:
+        spalten.pop("anteil")
     tabelle = tabelle[list(spalten)].rename(columns=spalten)
     for name in ("capex_eur", "wertbeitrag_eur", "npv_eur"):
         tabelle[spalten[name]] = tabelle[spalten[name]].map(fmt_eur_kompakt)

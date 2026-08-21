@@ -472,43 +472,71 @@ def einspeiseleistung_mw(projekt: PVProject, ga: GlobalAssumptions) -> float:
     return _exportlimit_mw(resolve_assumptions(projekt, ga))
 
 
+#: Suchmodus: Leistung UND Dauer werden gesucht.
+MODUS_BEIDES = "beides"
+#: Suchmodus: Die Leistung steht fest, gesucht ist nur die Dauer.
+MODUS_NUR_DAUER = "nur_dauer"
+
+
 def raster_abdruck(
     projekt: PVProject,
     ga: GlobalAssumptions,
     leistungsanteile: Sequence[float],
     dauern: Sequence[int],
     stuetzjahre: int,
+    modus: str = MODUS_BEIDES,
 ) -> str:
     """Kennung eines Rasterlaufs.
 
-    Wie der Fingerabdruck des Dispatchs, mit einer Ausnahme: Leistung und
-    Kapazitaet des eingestellten Speichers werden herausgerechnet. Genau
-    diese beiden Groessen ERSETZT das Raster ja - ein Lauf, der fuer
-    3 MW / 12 MWh gerechnet wurde, gilt unveraendert, wenn der Nutzer
-    danach 4 MW / 16 MWh einstellt. Die Ausnahme ist eng und benannt;
-    alles Uebrige am Speicher (Betriebsart, Wirkungsgrad, Verschleiss,
-    Fuellstandsgrenzen) bewegt den Abdruck weiterhin, denn es geht in
-    jeden einzelnen Rasterpunkt ein.
+    Wie der Fingerabdruck des Dispatchs, mit einer Ausnahme: Was die
+    Suche ERSETZT, wird herausgerechnet. Ein Lauf, der fuer 3 MW /
+    12 MWh gerechnet wurde, gilt unveraendert, wenn der Nutzer danach
+    4 MW / 16 MWh einstellt - sonst waere die Suche in der Praxis
+    unbrauchbar: Ihr erster Nutzen ist, die gefundene Auslegung zu
+    uebernehmen, und genau das erklaerte ihr eigenes Ergebnis fuer
+    veraltet.
 
-    Ohne diese Ausnahme waere die Suche in der Praxis unbrauchbar: Ihr
-    erster Nutzen ist, die gefundene Auslegung zu uebernehmen - und genau
-    das erklaerte ihr eigenes Ergebnis fuer veraltet.
+    Was herausfaellt, haengt am Suchmodus, und diese Unterscheidung ist
+    keine Feinheit:
+
+        MODUS_BEIDES      Leistung UND Kapazitaet fallen heraus.
+        MODUS_NUR_DAUER   Nur die Kapazitaet. Die Leistung ist hier
+                          EINGABE und keine gesuchte Groesse - aendert
+                          der Nutzer sie, gehoert der Lauf zu einer
+                          anderen Frage und muss veralten.
+
+    Alles Uebrige am Speicher (Betriebsart, Wirkungsgrad, Verschleiss,
+    Fuellstandsgrenzen) bewegt den Abdruck in beiden Modi, denn es geht
+    in jeden einzelnen Rasterpunkt ein.
     """
     entwurf = projekt.model_copy(deep=True)
     if entwurf.battery is not None:
-        entwurf.battery = entwurf.battery.model_copy(
-            update={"leistung_mw": 0.0, "kapazitaet_mwh": 0.0}
-        )
+        heraus = {"kapazitaet_mwh": 0.0}
+        if modus == MODUS_BEIDES:
+            heraus["leistung_mw"] = 0.0
+        entwurf.battery = entwurf.battery.model_copy(update=heraus)
     raster_text = (
         ",".join(f"{float(a):.4f}" for a in sorted(set(leistungsanteile)))
         + "|" + ",".join(str(int(d)) for d in sorted(set(dauern)))
         + "|" + str(int(stuetzjahre))
+        + "|" + modus
     )
     return fingerabdruck(entwurf, ga, raster_text)
 
 
 def _raster_abgelegte(projekt_id: str) -> dict[str, Rasterergebnis]:
     return st.session_state.setdefault(_RASTER, {}).setdefault(projekt_id, {})
+
+
+def feste_leistung_mw(projekt: PVProject) -> float:
+    """Die eingestellte Speicherleistung - Eingabe der Dauersuche.
+
+    Beim Graustromspeicher ist sie keine Entwurfsgroesse, sondern das
+    Ergebnis einer Vereinbarung: Was aus dem Netz bezogen werden darf,
+    steht im Netzanschlussvertrag. Gesucht ist dann nur noch, wie viele
+    Stunden der Speicher damit durchhalten soll.
+    """
+    return projekt.battery.leistung_mw if projekt.battery else 0.0
 
 
 def raster_rechnen(
@@ -518,28 +546,42 @@ def raster_rechnen(
     leistungsanteile: Sequence[float],
     dauern: Sequence[int],
     stuetzjahre: int = STUETZJAHRE_STANDARD,
+    modus: str = MODUS_BEIDES,
     fortschritt=None,
 ) -> Rasterergebnis:
     """Rechnet die Auslegungssuche und legt sie ab.
 
     Der Speicher des Projekts dient als VORLAGE: Betriebsart,
     Wirkungsgrad, Fuellstandsgrenzen und Verschleiss gelten fuer jeden
-    Rasterpunkt, nur Leistung und Kapazitaet werden variiert. Ist noch
-    kein Speicher eingerichtet, gilt die Vorbelegung von BatteryConfig -
-    sonst liesse sich die Frage "lohnt sich hier ueberhaupt einer?" gar
-    nicht erst stellen.
+    Rasterpunkt. Ist noch kein Speicher eingerichtet, gilt die
+    Vorbelegung von BatteryConfig - sonst liesse sich die Frage "lohnt
+    sich hier ueberhaupt einer?" gar nicht erst stellen.
+
+    Zwei Suchmodi, und sie stellen verschiedene Fragen:
+
+        MODUS_BEIDES      Leistung und Dauer werden gesucht. Bezug der
+                          Leistung ist die Einspeiseleistung.
+        MODUS_NUR_DAUER   Die Leistung steht fest (die eingestellte),
+                          gesucht ist nur die Dauer. Aus dem
+                          zweidimensionalen Problem wird ein
+                          eindimensionales - und der Optimierer loest es
+                          exakt, statt es zu rastern.
     """
-    kennung = raster_abdruck(projekt, ga, leistungsanteile, dauern, stuetzjahre)
+    kennung = raster_abdruck(
+        projekt, ga, leistungsanteile, dauern, stuetzjahre, modus
+    )
     abgelegt = _raster_abgelegte(projekt.id)
     ergebnis = abgelegt.get(kennung)
     if ergebnis is None:
         assumptions, energy, revenue = _eingaben(projekt, ga)
         reihen = preisreihe(preisreihe_datei(projekt, ga)) or {}
-        bezug = einspeiseleistung_mw(projekt, ga)
+        nur_dauer = modus == MODUS_NUR_DAUER
+        fest = feste_leistung_mw(projekt) if nur_dauer else None
+        bezug = fest if nur_dauer else einspeiseleistung_mw(projekt, ga)
         ergebnis = rasterlauf(
             assumptions, projekt.id,
             projekt.battery or BatteryConfig(),
-            raster(bezug, leistungsanteile, dauern),
+            raster(bezug, (1.0,) if nur_dauer else leistungsanteile, dauern),
             energy=energy, revenue=revenue, preise_je_jahr=reihen,
             form=stundenform(projekt),
             foerderdauer_anteil=revenue["foerderanteil"].to_numpy(),
@@ -550,7 +592,8 @@ def raster_rechnen(
             # solange die Preisspreizung traegt, schoepft er sie aus.
             # Eine Leistung, die das Netz nicht abnimmt, waere aber
             # keine Auslegung, sondern ein Rechenartefakt.
-            leistung_hoechstens_mw=bezug,
+            leistung_hoechstens_mw=None if nur_dauer else bezug,
+            leistung_fest_mw=fest,
             fortschritt=fortschritt,
         )
 
