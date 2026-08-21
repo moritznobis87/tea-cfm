@@ -238,17 +238,32 @@ class TestParameterspalte:
 
     def test_alle_abweichungsfelder_sind_erreichbar(self):
         """Regressionsschutz: Ein spaeter ergaenztes Abweichungsfeld darf
-        nicht still unerreichbar bleiben."""
-        from app.components.project_form import _ABWEICHUNG_LABEL
+        nicht still unerreichbar bleiben.
 
+        "Erreichbar" heisst nicht zwingend "in der Parameterspalte": Die
+        Speicherpreise werden im Speicherdialog gesetzt, dort, wo die
+        Auslegung danebensteht. Sie werden deshalb nicht einfach
+        ausgenommen, sondern gegen die Feldliste JENES Dialogs geprueft -
+        sonst waere die Ausnahme ein Loch statt einer Zuordnung.
+        """
+        from app.components.project_form import _ABWEICHUNG_LABEL
+        from app.components.storage_dialog import PREISFELDER
+
+        im_speicherdialog = set(PREISFELDER.values())
         offen = (
             set(Projektannahmen.model_fields)
             - set(_ABWEICHUNG_LABEL)
             # Die Betriebskosten stehen als Tabelle in der Maske, nicht
             # als Einzelfeld - sie haben deshalb keine Beschriftung hier.
             - {"opex_standard_eur_kwp"}
+            - im_speicherdialog
         )
         assert offen == set()
+        # Und die Ausnahme muss auch wirklich eine Zuordnung sein.
+        assert im_speicherdialog <= set(Projektannahmen.model_fields)
+        assert not im_speicherdialog & set(_ABWEICHUNG_LABEL), (
+            "Ein Feld darf nicht in der Spalte UND im Dialog stehen"
+        )
 
     def test_wenige_optionen_stehen_als_radio(self):
         """Keiner dieser Parameter hat mehr als drei Optionen. Ein

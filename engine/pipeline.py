@@ -143,6 +143,8 @@ def resolve_assumptions(
         # zusammen sorgt dafuer, dass 8.760 Werte nicht je Betriebsjahr
         # neu von der Platte kommen.
         lastgang_reihe=io_lastgang.projektreihe(project.lastgang_datei),
+        speicher_capex_eur_kw=erbe("speicher_capex_eur_kw"),
+        speicher_opex_eur_kw_jahr=erbe("speicher_opex_eur_kw_jahr"),
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
         eag_foerderdauer_jahre=erbe("eag_foerderdauer_jahre"),
         betriebsdauer_jahre=erbe("betriebsdauer_jahre"),

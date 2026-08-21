@@ -461,6 +461,20 @@ class Projektannahmen(BaseModel):
     #: anders bemessen sein.
     einspeiselimit_pct: float | None = Field(default=None, gt=0, le=1)
 
+    # --- Speicherpreise -----------------------------------------------------
+    # Die Auslegung eines Speichers (Leistung, Kapazitaet, Betriebsart)
+    # gehoert zum Projekt und steht in PVProject.battery. Was er KOSTET,
+    # gehoert nicht dorthin: Batteriepreise sind eine Marktannahme, keine
+    # Projekteigenschaft, und sie fallen Jahr fuer Jahr spuerbar. Stuenden
+    # sie an der Auslegung, muesste eine Preissenkung in jedem einzelnen
+    # Projekt nachgetragen werden.
+    #
+    # Hier gilt deshalb wie ueberall in diesem Block: None heisst "folgt
+    # der Vorgabe". Liegt fuer ein Projekt ein Angebot vor, weicht es ab -
+    # alle uebrigen folgen dem zentral gepflegten Marktpreis.
+    speicher_capex_eur_kw: float | None = Field(default=None, ge=0)
+    speicher_opex_eur_kw_jahr: float | None = Field(default=None, ge=0)
+
     # --- Foerdermodell und Vermarktung --------------------------------------
     praemien_modell: PraemienModell | None = None
     eag_foerderdauer_jahre: int | None = Field(default=None, gt=0)
@@ -560,11 +574,30 @@ class BatteryConfig(BaseModel):
     und rechnen wie bisher. Ein Speicher entsteht erst, wenn er
     ausdruecklich angelegt wird.
 
-    Leistung und Kapazitaet stehen GETRENNT, und die Kosten ebenso
-    (`capex_energie_eur_kwh` / `capex_leistung_eur_kw`): Ein Speicher
-    mit 5 MW / 10 MWh und einer mit 5 MW / 20 MWh unterscheiden sich nur
-    in der Energie, und die Kostenrechnung muss das abbilden koennen.
+    Was hier steht - und was nicht
+    -----------------------------
+    Hier steht, WIE der Speicher gebaut ist: Leistung, Kapazitaet,
+    Betriebsart, Wirkungsgrad, Fuellstandsgrenzen, Verschleiss. Alles
+    davon ist eine Eigenschaft dieser Anlage.
+
+    Was er KOSTET, steht nicht hier, sondern in den Annahmen
+    (Projektannahmen.speicher_capex_energie_eur_kwh und die globale
+    Vorgabe dahinter). Batteriepreise sind eine Marktannahme, und sie
+    fallen Jahr fuer Jahr spuerbar; an der Auslegung festgemacht,
+    muesste eine Preissenkung in jedem Projekt einzeln nachgetragen
+    werden. Die Rechnung steht in engine/storage/kosten.py.
+
+    Leistung und Kapazitaet stehen GETRENNT, und die Preise ebenso
+    (je kWh und je kW): Ein Speicher mit 5 MW / 10 MWh und einer mit
+    5 MW / 20 MWh unterscheiden sich nur in der Energie, und die
+    Kostenrechnung muss das abbilden koennen.
+
+    `extra="forbid"`: Eine aeltere Projektdatei, die noch
+    `capex_energie_eur_kwh` unter `battery` fuehrt, soll beim Laden
+    scheitern und nicht stillschweigend einen gesetzten Preis verlieren.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     aktiv: bool = True
     modus: SpeicherModus = SpeicherModus.GRUENSTROM
@@ -599,12 +632,6 @@ class BatteryConfig(BaseModel):
     #: Hoechster Netzbezug in MW. Beim Gruenstromspeicher wirkungslos -
     #: dort ist der Netzbezug ohnehin null (siehe dispatch.py).
     netzbezug_limit_mw: float = Field(ge=0, default=0.0)
-
-    #: Investitionskosten, getrennt nach Energie und Leistung.
-    capex_energie_eur_kwh: float = Field(ge=0, default=0.0)
-    capex_leistung_eur_kw: float = Field(ge=0, default=0.0)
-    #: Feste Betriebskosten je kW und Jahr.
-    opex_eur_kw_jahr: float = Field(ge=0, default=0.0)
 
     @model_validator(mode="after")
     def _grenzen_pruefen(self) -> BatteryConfig:
@@ -655,16 +682,9 @@ class BatteryConfig(BaseModel):
             and self.nutzbare_kapazitaet_mwh > 0
         )
 
-    @property
-    def capex_gesamt_eur(self) -> float:
-        return (
-            self.kapazitaet_mwh * 1000 * self.capex_energie_eur_kwh
-            + self.leistung_mw * 1000 * self.capex_leistung_eur_kw
-        )
-
-    @property
-    def opex_jahr_eur(self) -> float:
-        return self.leistung_mw * 1000 * self.opex_eur_kw_jahr
+    # Investition und Betriebskosten sind KEINE Eigenschaften dieses
+    # Objekts mehr - sie haengen an Preisen, die in den Annahmen stehen.
+    # Die Rechnung dazu: engine/storage/kosten.py.
 
 
 class PVProject(BaseModel):
@@ -1197,6 +1217,24 @@ class GlobalAssumptions(BaseModel):
     #: engine/clipping.py).
     einspeiselimit_pct: float | None = Field(default=0.70, gt=0, le=1)
 
+    # Speicherpreise (Co-Location). Zentral gepflegt, weil sie eine
+    # Marktannahme sind und keine Projekteigenschaft - siehe
+    # Projektannahmen.speicher_capex_energie_eur_kwh. Ein Projekt mit
+    # vorliegendem Angebot weicht dort ab.
+    #
+    # Die Vorgabewerte sind Groessenordnungen fuer einen
+    # Zwei-Stunden-Speicher und ausdruecklich zum Nachpflegen gedacht:
+    # Batteriepreise fallen schneller, als eine Modellvorgabe altert.
+    #
+    # Bemessen wird an der LEISTUNG, nicht an der Kapazitaet. Das ist
+    # eine bewusste Vereinfachung mit einer Folge, die man kennen muss:
+    # Ein 5-MW-Speicher kostet damit gleich viel, ob er zwei oder vier
+    # Stunden durchhaelt. Wer eine andere Speicherdauer rechnet, traegt
+    # den Preis je kW entsprechend nach - oder gibt im Projekt den
+    # Gesamtbetrag direkt ein (siehe Projektannahmen).
+    speicher_capex_eur_kw: float = Field(ge=0, default=450.0)
+    speicher_opex_eur_kw_jahr: float = Field(ge=0, default=8.0)
+
     # Foerder- und Betrachtungsdauer
     eag_foerderdauer_jahre: int = Field(gt=0, default=20)
     betriebsdauer_jahre: int = Field(gt=0, default=25)
@@ -1311,6 +1349,13 @@ class EffectiveAssumptions(BaseModel):
     #: tuple, weil EffectiveAssumptions gecacht durch die Pipeline
     #: gereicht wird und eine Liste dort veraenderbar waere.
     lastgang_reihe: tuple[float, ...] | None = None
+
+    # Aufgeloeste Speicherpreise. Sie stehen hier und nicht an
+    # BatteryConfig, damit es genau EINE Stelle gibt, an der feststeht,
+    # welcher Preis fuer dieses Projekt gilt - siehe
+    # engine/storage/kosten.py.
+    speicher_capex_eur_kw: float = 0.0
+    speicher_opex_eur_kw_jahr: float = 0.0
 
     eag_zuschlagswert_effektiv_ct_kwh: float
     eag_foerderdauer_jahre: int

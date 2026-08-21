@@ -20,6 +20,7 @@ from .economics import (
     vollzyklen,
     zerlegung,
 )
+from .kosten import capex_eur, opex_jahr_eur
 from .models import (
     BAHN_SPALTEN,
     BatteryConfig,
@@ -45,9 +46,11 @@ __all__ = [
     "SpeicherBeitrag",
     "StorageJahreswert",
     "Wertzerlegung",
+    "capex_eur",
     "dispatch_jahr",
     "dispatch_mehrjahr",
     "jahreseingabe",
+    "opex_jahr_eur",
     "grenzerloes_je_stunde",
     "jahreswert",
     "negativstunden_maske",

@@ -27,11 +27,19 @@ Wirkung auf den Speicher-Reiter, wo der Dispatch auf Knopfdruck laeuft.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import streamlit as st
 
-from app.components.project_inspector import overlay_setzen, overlay_wert
+from app import services
+from app.components.project_inspector import (
+    einheiten_schalter,
+    overlay_setzen,
+    overlay_wert,
+)
 from app.formatting import fmt_eur_kompakt, fmt_number
-from engine import BatteryConfig, PVProject, SpeicherModus
+from engine import BatteryConfig, GlobalAssumptions, PVProject, SpeicherModus
+from engine.storage import kosten
 from texte import txt
 
 #: Das Feld, das dieser Dialog verantwortet.
@@ -48,6 +56,33 @@ def _dlg_key(form_key: str, feld: str) -> str:
 def auslegung(entwurf: PVProject, form_key: str) -> BatteryConfig | None:
     """Die Auslegung, die gerade gilt - Overlay vor gespeichertem Stand."""
     return overlay_wert(form_key, SPEICHER_FELD, entwurf.battery)
+
+
+#: Preisfeld im Dialog -> Feld in den Projektannahmen. Die Preise sind
+#: ERBFELDER: leer heisst "es gilt die globale Vorgabe". Sie stehen
+#: deshalb nicht am BatteryConfig, sondern in den Abweichungen des
+#: Projekts (siehe engine/models.py::Projektannahmen).
+#: (Dialogkuerzel, Feld der Projektannahmen, Beschriftung, Hilfe, Schrittweite)
+_PREISZEILEN: tuple[tuple[str, str, str, str, float], ...] = (
+    ("capex", "speicher_capex_eur_kw",
+     "oberflaeche.speicher_capex_label",
+     "oberflaeche.speicher_capex_hilfe", 10.0),
+    ("opex", "speicher_opex_eur_kw_jahr",
+     "oberflaeche.speicher_opex_label",
+     "oberflaeche.speicher_opex_hilfe", 1.0),
+)
+
+PREISFELDER: dict[str, str] = {
+    kurz: feld for kurz, feld, *_ in _PREISZEILEN
+}
+
+#: Widget-Schluessel des Einheitenschalters der Investition.
+_CAPEX_ABSOLUT = "capex_absolut"
+
+
+def preis_abweichung(entwurf: PVProject, form_key: str, feld: str):
+    """Der gesetzte Preis dieses Projekts - None heisst "folgt der Vorgabe"."""
+    return overlay_wert(form_key, feld, getattr(entwurf.annahmen, feld))
 
 
 def _vorgabe(entwurf: PVProject, form_key: str) -> BatteryConfig:
@@ -81,10 +116,16 @@ def dialog_state_setzen(form_key: str, entwurf: PVProject) -> None:
         "soc_start": float(b.soc_start_pct * 100),
         "degradation": float(b.degradationskosten_eur_mwh),
         "netzbezug": float(b.netzbezug_limit_mw),
-        "capex_energie": float(b.capex_energie_eur_kwh),
-        "capex_leistung": float(b.capex_leistung_eur_kw),
-        "opex": float(b.opex_eur_kw_jahr),
     }
+    # Die Preise bleiben LEER, wenn das Projekt der Vorgabe folgt - None
+    # und nicht der Vorgabewert selbst. Stuende der Vorgabewert im Feld,
+    # liesse sich "folgt der Vorgabe" nicht mehr von "zufaellig derselbe
+    # Betrag" unterscheiden, und das Uebernehmen schriebe die Vorgabe als
+    # Abweichung fest - eine spaetere Preissenkung erreichte das Projekt
+    # dann nie mehr.
+    for kurz, feld in PREISFELDER.items():
+        gesetzt = preis_abweichung(entwurf, form_key, feld)
+        werte[kurz] = None if gesetzt is None else float(gesetzt)
     for feld, wert in werte.items():
         st.session_state[_dlg_key(form_key, feld)] = wert
 
@@ -92,7 +133,7 @@ def dialog_state_setzen(form_key: str, entwurf: PVProject) -> None:
 def dialog_state_leeren(form_key: str) -> None:
     for feld in ("aktiv", "modus", "leistung", "kapazitaet", "rte", "soc_min",
                  "soc_max", "soc_start", "degradation", "netzbezug",
-                 "capex_energie", "capex_leistung", "opex"):
+                 *PREISFELDER):
         st.session_state.pop(_dlg_key(form_key, feld), None)
 
 
@@ -137,11 +178,16 @@ def render_speicher_dialog(entwurf: PVProject, form_key: str) -> None:
         st.caption(txt(
             "oberflaeche.speicher_dialog_untertitel", projekt=entwurf.anzeigename
         ))
+        # Auch hier, nicht nur im Reiter: Wer die Auslegung einstellt,
+        # trifft damit eine Vermarktungsannahme mit - und soll sie
+        # sehen, bevor er Leistung und Kapazitaet waehlt.
+        st.info(txt("oberflaeche.speicher_markt_hinweis"))
+        vorgaben = services.get_global_assumptions()
         links, rechts = st.columns([0.58, 0.42], gap="large")
         with links:
-            neu = _eingaben(form_key)
+            neu, preise = _eingaben(form_key, vorgaben)
         with rechts:
-            _kennzahlen(neu)
+            _kennzahlen(neu, preise, vorgaben)
 
         st.divider()
         col_leer, col_ab, col_ok = st.columns([0.4, 0.3, 0.3])
@@ -161,7 +207,12 @@ def render_speicher_dialog(entwurf: PVProject, form_key: str) -> None:
             key=f"dlgspbtn_{form_key}_ok", type="primary", width="stretch",
             disabled=neu is None,
         ):
-            overlay_setzen(form_key, {SPEICHER_FELD: neu})
+            # Auslegung UND Preisabweichungen wandern gemeinsam ins
+            # Overlay - sie werden in einem Zug eingestellt und muessen
+            # in einem Zug uebernommen werden. Die Preise landen dabei
+            # nicht am Speicher, sondern in den Abweichungen des
+            # Projekts (siehe project_form.SPEICHER_PREISFELDER).
+            overlay_setzen(form_key, {SPEICHER_FELD: neu, **preise})
             _schliessen()
             st.rerun()
         del col_leer
@@ -169,8 +220,15 @@ def render_speicher_dialog(entwurf: PVProject, form_key: str) -> None:
     _dialog()
 
 
-def _eingaben(form_key: str) -> BatteryConfig | None:
-    """Die Eingabeseite - und die einzige Stelle, die dlg_*-Keys liest."""
+def _eingaben(
+    form_key: str, vorgaben: GlobalAssumptions
+) -> tuple[BatteryConfig | None, dict]:
+    """Die Eingabeseite - und die einzige Stelle, die dlg_*-Keys liest.
+
+    Rueckgabe: die Auslegung und die Preis-ABWEICHUNGEN. Zweiteres ist
+    ein dict nach Feldnamen der Projektannahmen, in dem None bedeutet
+    "folgt der globalen Vorgabe".
+    """
     aktiv = st.toggle(
         txt("oberflaeche.speicher_aktiv_label"),
         key=_dlg_key(form_key, "aktiv"),
@@ -233,22 +291,58 @@ def _eingaben(form_key: str) -> BatteryConfig | None:
         f'{txt("oberflaeche.speicher_gruppe_kosten")}</div>',
         unsafe_allow_html=True,
     )
-    col5, col6, col7 = st.columns(3)
-    capex_energie = col5.number_input(
-        txt("oberflaeche.speicher_capex_energie_label"), min_value=0.0, step=5.0,
-        key=_dlg_key(form_key, "capex_energie"), disabled=not aktiv,
-        help=txt("oberflaeche.speicher_capex_energie_hilfe"),
-    )
-    capex_leistung = col6.number_input(
-        txt("oberflaeche.speicher_capex_leistung_label"), min_value=0.0, step=5.0,
-        key=_dlg_key(form_key, "capex_leistung"), disabled=not aktiv,
-        help=txt("oberflaeche.speicher_capex_leistung_hilfe"),
-    )
-    opex = col7.number_input(
-        txt("oberflaeche.speicher_opex_label"), min_value=0.0, step=1.0,
-        key=_dlg_key(form_key, "opex"), disabled=not aktiv,
-        help=txt("oberflaeche.speicher_opex_hilfe"),
-    )
+    st.caption(txt("oberflaeche.speicher_preise_hilfe"))
+    # Beim Umschalten der Einheit wird der EINGEGEBENE Wert umgerechnet,
+    # nicht neu vorbelegt - eine bereits erfasste Zahl geht damit nicht
+    # verloren, und ihre Bedeutung aendert sich nicht klammheimlich mit
+    # der Beschriftung. Dasselbe Muster wie bei den Investkosten
+    # (project_form.capex_feld).
+    _einheit_umrechnen(form_key, leistung)
+
+    preise: dict = {}
+    spalten = st.columns(2)
+    for spalte, (kurz, feld, label, hilfe, schritt) in zip(
+        spalten, _PREISZEILEN, strict=True
+    ):
+        absolut = kurz == "capex" and st.session_state.get(
+            _dlg_key(form_key, _CAPEX_ABSOLUT), False
+        )
+        vorgabe_kw = float(getattr(vorgaben, feld))
+        # Im Absolutmodus rechnet der Platzhalter die Vorgabe auf DIESE
+        # Auslegung um - sonst stuende dort ein Preis je kW neben einem
+        # Feld, das einen Gesamtbetrag erwartet.
+        vorgabe_anzeige = (
+            vorgabe_kw * leistung * 1000 if absolut else vorgabe_kw
+        )
+        # Leer heisst "folgt der Vorgabe" - dieselbe Regel und dieselbe
+        # Darstellung wie bei den Erbfeldern der Parameterspalte
+        # (project_form._erbe_zahl): Der Vorgabewert steht als
+        # Platzhalter im leeren Feld, nicht als Wert darin.
+        wert = spalte.number_input(
+            txt("oberflaeche.speicher_capex_label_absolut") if absolut
+            else txt(label),
+            min_value=0.0, step=1000.0 if absolut else schritt,
+            placeholder=txt(
+                "oberflaeche.erbfeld_platzhalter",
+                wert=fmt_number(vorgabe_anzeige, 0 if absolut else 2),
+            ),
+            key=_dlg_key(form_key, kurz), disabled=not aktiv,
+            help=txt(hilfe),
+        )
+        if kurz == "capex":
+            einheiten_schalter(
+                spalte, _dlg_key(form_key, _CAPEX_ABSOLUT), f"sp_{form_key}",
+                spezifisch="oberflaeche.speicher_einheit_spezifisch",
+                hilfe="oberflaeche.speicher_capex_toggle_hilfe",
+                disabled=not aktiv,
+            )
+            # Gespeichert wird IMMER je kW - eine Groesse, zwei
+            # Schreibweisen. Ein Gesamtbetrag, der als solcher in den
+            # Annahmen laege, muesste bei jeder Aenderung der Leistung von
+            # Hand nachgezogen werden, ohne dass jemand daran erinnert.
+            if absolut and wert is not None:
+                wert = (wert / (leistung * 1000)) if leistung > 0 else 0.0
+        preise[feld] = None if wert is None else float(wert)
 
     with st.expander(txt("oberflaeche.speicher_gruppe_fuellstand")):
         st.caption(txt("oberflaeche.speicher_fuellstand_hilfe"))
@@ -275,7 +369,7 @@ def _eingaben(form_key: str) -> BatteryConfig | None:
     # wird sie hier abgefangen und als Satz gemeldet.
     if soc_min >= soc_max:
         st.error(txt("oberflaeche.speicher_soc_widerspruch"))
-        return None
+        return None, preise
 
     return BatteryConfig(
         aktiv=bool(aktiv),
@@ -288,19 +382,64 @@ def _eingaben(form_key: str) -> BatteryConfig | None:
         soc_start_pct=soc_start / 100,
         degradationskosten_eur_mwh=degradation,
         netzbezug_limit_mw=netzbezug,
-        capex_energie_eur_kwh=capex_energie,
-        capex_leistung_eur_kw=capex_leistung,
-        opex_eur_kw_jahr=opex,
+    ), preise
+
+
+def _einheit_umrechnen(form_key: str, leistung_mw: float) -> None:
+    """Rechnet den eingetragenen Investitionsbetrag um, wenn die Einheit
+    wechselt.
+
+    Ohne diese Umrechnung bliebe die Zahl stehen und bedeutete ploetzlich
+    etwas anderes: 450 wechselte von "450 EUR je kW" zu "450 EUR
+    insgesamt" - ein Faktor von fuenftausend, ohne dass jemand etwas
+    eingegeben haette.
+
+    Ist das Feld leer (das Projekt folgt der Vorgabe), gibt es nichts
+    umzurechnen; die Vorgabe wird ohnehin bei jedem Durchlauf frisch in
+    die passende Einheit gebracht.
+    """
+    schalter = _dlg_key(form_key, _CAPEX_ABSOLUT)
+    vorher = f"{schalter}__vorher"
+    absolut = bool(st.session_state.get(schalter, False))
+    zuvor = st.session_state.get(vorher)
+    st.session_state[vorher] = absolut
+    if zuvor is None or zuvor == absolut or leistung_mw <= 0:
+        return
+    feld = _dlg_key(form_key, "capex")
+    wert = st.session_state.get(feld)
+    if wert is None:
+        return
+    kw = leistung_mw * 1000
+    st.session_state[feld] = (
+        round(float(wert) * kw, 0) if absolut else round(float(wert) / kw, 2)
     )
 
 
-def _kennzahlen(b: BatteryConfig | None) -> None:
+def _geltend(preise: dict, vorgaben: GlobalAssumptions, feld: str) -> float:
+    """Der Preis, der fuer dieses Projekt gilt: Abweichung vor Vorgabe.
+
+    Dieselbe Regel wie in pipeline.resolve_assumptions - hier fuer die
+    Anzeige im Dialog, wo das aufgeloeste Projekt noch nicht vorliegt.
+    """
+    gesetzt = preise.get(feld)
+    return float(vorgaben.__getattribute__(feld) if gesetzt is None else gesetzt)
+
+
+def _kennzahlen(
+    b: BatteryConfig | None, preise: dict, vorgaben: GlobalAssumptions
+) -> None:
     """Was ohne Optimierung feststeht.
 
     Kein IRR, kein NPV - siehe Modulkopf. Die vier Groessen hier folgen
     unmittelbar aus der Eingabe und beantworten die Fragen, die man beim
     Auslegen stellt: Wie lange haelt der Speicher durch, wie viel davon
     ist nutzbar, was kostet er.
+
+    Investition und Betriebskosten entstehen aus derselben Formel wie im
+    Cashflow (engine/storage/kosten.py); gerechnet wird hier auf einem
+    Behelfssatz aus Abweichung und Vorgabe, weil im Dialog noch keine
+    aufgeloesten Annahmen vorliegen. Der Weg zur Zahl ist damit
+    derselbe - nur die Quelle der Preise ist eine Stufe frueher.
     """
     st.markdown(
         f'<div class="inspector-gruppe">'
@@ -324,14 +463,20 @@ def _kennzahlen(b: BatteryConfig | None) -> None:
         ),
         help=txt("oberflaeche.speicher_kennzahl_hub_hilfe"),
     )
+    behelf = SimpleNamespace(
+        speicher_capex_eur_kw=_geltend(preise, vorgaben, "speicher_capex_eur_kw"),
+        speicher_opex_eur_kw_jahr=_geltend(
+            preise, vorgaben, "speicher_opex_eur_kw_jahr"
+        ),
+    )
     st.metric(
         txt("oberflaeche.speicher_kennzahl_capex"),
-        fmt_eur_kompakt(b.capex_gesamt_eur),
+        fmt_eur_kompakt(kosten.capex_eur(b, behelf)),
         help=txt("oberflaeche.speicher_kennzahl_capex_hilfe"),
     )
     st.metric(
         txt("oberflaeche.speicher_kennzahl_opex"),
-        fmt_eur_kompakt(b.opex_jahr_eur),
+        fmt_eur_kompakt(kosten.opex_jahr_eur(b, behelf)),
         help=txt("oberflaeche.speicher_kennzahl_opex_hilfe"),
     )
     st.caption(txt("oberflaeche.speicher_dialog_wirkung_hinweis"))

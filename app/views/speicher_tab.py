@@ -46,6 +46,11 @@ def render_speicher_tab(projekt: PVProject, result) -> None:
         return
 
     st.caption(zusammenfassung(b))
+    # Der Vermerk steht VOR den Zahlen und nicht in einer Fussnote
+    # darunter: Ein Speicherwert ohne die Angabe, an welchem Markt er
+    # verdient wird, laesst sich nicht einordnen - Regelenergie und
+    # Intraday sind bei realen Projekten oft der groessere Teil.
+    st.info(txt("oberflaeche.speicher_markt_hinweis"))
 
     datei = speicher.preisreihe_datei(projekt, ga)
     if datei is None:

@@ -300,6 +300,14 @@ FELDER_JE_BEREICH: dict[str, tuple[str, ...]] = {
         "gewerbesteuer_freibetrag_eur",
         "verlustvortrag_verrechnungsgrenze_pct",
     ),
+    # Eigener Bereich und kein Anhaengsel an "Betriebskosten" oder
+    # "Technik": Batteriepreise sind ein Thema fuer sich, sie fallen
+    # schneller als alles andere in diesem Modell, und sie sind die
+    # Stelle, an die man geht, wenn eine Co-Location-Rechnung nicht
+    # aufgeht.
+    "speicher": (
+        "speicher_capex_eur_kw", "speicher_opex_eur_kw_jahr",
+    ),
 }
 
 

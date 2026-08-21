@@ -89,6 +89,47 @@ def overlay_leeren(form_key: str) -> None:
 # --- Darstellung ------------------------------------------------------------
 
 
+def einheiten_schalter(
+    ziel,
+    schalter_key: str,
+    key_suffix: str,
+    spezifisch: str = "oberflaeche.formular_capex_einheit_spezifisch",
+    absolut: str = "oberflaeche.formular_capex_einheit_absolut",
+    hilfe: str = "oberflaeche.formular_capex_toggle_hilfe",
+    disabled: bool = False,
+) -> None:
+    """Der Einheiten-Umschalter eines Betragsfelds.
+
+    Aufbau: die Einheit "aus" links, der Schalter, die Einheit "an"
+    rechts - "(€/kWp)  ◯—  (€)". Die beiden Einheiten stehen damit
+    NEBENEINANDER, und was der Schalter tut, ist ablesbar, ohne den
+    Hilfetext zu oeffnen.
+
+    Frueher trug er die Beschriftung "Gesamtbetrag (€)". Sie war lang
+    genug, um in der schmalen Spalte auf zwei Zeilen zu brechen, und sie
+    nannte nur den einen der beiden Zustaende.
+
+    Warum ein Container mit Flex-Regel und keine drei Spalten: Der
+    Schalter steht im Inspector in einer Quick-Adjust-Zelle, die selbst
+    schon eine Spalte in einer Spalte ist - eine weitere Ebene liesse
+    Streamlit nicht zu. Der Container ordnet stattdessen per CSS in eine
+    Zeile (siehe .st-key-einheit_ in app/theme.py); die rechte Einheit
+    ist die Beschriftung des Schalters und steht ohne Zutun neben ihm.
+
+    Die Beschriftungen sind austauschbar, weil derselbe Schalter an zwei
+    Stellen steht: bei den Investkosten je kWp und beim Speicher je kW.
+    Er wohnt deshalb hier und nicht in einer der beiden Masken.
+    """
+    with ziel.container(key=f"einheit_{key_suffix}"):
+        st.markdown(
+            f'<span class="einheit-marke">{txt(spezifisch)}</span>',
+            unsafe_allow_html=True,
+        )
+        st.toggle(
+            txt(absolut), key=schalter_key, help=txt(hilfe), disabled=disabled,
+        )
+
+
 def abschnittstitel(text: str) -> None:
     """Kleine Gliederungsmarke im Inspector (QUICK ADJUST, DETAILS)."""
     st.markdown(

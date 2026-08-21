@@ -246,6 +246,28 @@ def _baue_css() -> str:
         }}
         div[data-testid="stMetric"] label {{ color: {Colors.MUTED}; }}
 
+        /* Beschriftung UND Wert duerfen umbrechen statt abgeschnitten zu
+           werden. Streamlit kuerzt beides von Haus aus mit Auslassungs-
+           punkten, sobald die Spalte schmal wird - aus "Wertbeitrag"
+           wurde "Wertbeitrag g…" und aus "6,06 Mio €" ein "6,06 …".
+           Eine gekuerzte Kennzahl ist keine Kennzahl; zwei Zeilen sind
+           das kleinere Uebel. Der Wert steht dabei eine Spur kleiner und
+           mit engerem Zeilenabstand, damit zwei Zeilen die Kachelhoehe
+           nicht sprengen. */
+        div[data-testid="stMetric"] label p,
+        div[data-testid="stMetricLabel"] p {{
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            line-height: 1.25;
+        }}
+        div[data-testid="stMetricValue"] {{
+            white-space: normal;
+            overflow-wrap: anywhere;
+            font-size: clamp(1.15rem, 2.1vw, 1.75rem);
+            line-height: 1.15;
+        }}
+
         /* Die Werte werden gerundet dargestellt (siehe app/formatting.py:
            fmt_eur_kompakt), deshalb genuegen feste Schriftgroessen - das
            frueher noetige Mess-Skript zur nachtraeglichen Verkleinerung
@@ -991,7 +1013,7 @@ def _baue_css() -> str:
             display: flex;
             flex-direction: column;
             gap: 3px;
-            height: 168px;
+            height: 196px;
             border: 1px solid {Colors.LINE};
             border-radius: 12px;
             padding: 12px 16px 10px 16px;
@@ -1001,6 +1023,20 @@ def _baue_css() -> str:
             transition: transform 140ms ease, box-shadow 140ms ease,
                         border-color 140ms ease;
         }}
+        /* Kein Kind darf unter seine Inhaltshoehe schrumpfen.
+           Flex-Kinder haben von Haus aus flex-shrink: 1. Zusammen mit
+           der festen Kartenhoehe und overflow: hidden fuehrte das zu
+           einem eigentuemlichen Fehlerbild: Die Karte hatte noch Luft,
+           aber jede Textzeile wurde auf acht statt zweiundzwanzig Pixel
+           gestaucht - also mittendurch abgeschnitten. Gemessen bei 1150
+           Pixel Fensterbreite an jeder Karte der Uebersicht.
+
+           Mit flex-shrink: 0 behalten die Zeilen ihre Hoehe. Passt der
+           Inhalt einmal wirklich nicht, faellt die unterste Zeile ganz
+           weg statt alle Zeilen halb - das ist lesbar, das andere war
+           es nicht. */
+        .project-card > * {{ flex-shrink: 0; }}
+
         /* Name und Kennzeichen in einer Zeile; der Name wird bei Bedarf
            gekuerzt, der vollstaendige steht im Tooltip der Karte. */
         .project-card .card-kopf {{
