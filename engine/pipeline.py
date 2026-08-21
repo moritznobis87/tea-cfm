@@ -143,7 +143,17 @@ def resolve_assumptions(
         # zusammen sorgt dafuer, dass 8.760 Werte nicht je Betriebsjahr
         # neu von der Platte kommen.
         lastgang_reihe=io_lastgang.projektreihe(project.lastgang_datei),
-        speicher_capex_eur_kw=erbe("speicher_capex_eur_kw"),
+        # BEWUSST nicht ueber `erbe`: Der Speicherpreis des Projekts ist
+        # ein Angebot, kein abweichender Parameter. Ob eines vorliegt,
+        # entscheidet ueber den Rechenweg - `erbe` wuerde die globale
+        # Vorgabe einsetzen und die Unterscheidung damit einebnen.
+        speicher_capex_eur_kw=project.annahmen.speicher_capex_eur_kw,
+        speicher_capex_leistung_eur_kw=(
+            global_assumptions.speicher_capex_leistung_eur_kw
+        ),
+        speicher_capex_energie_eur_kwh=(
+            global_assumptions.speicher_capex_energie_eur_kwh
+        ),
         speicher_opex_eur_kw_jahr=erbe("speicher_opex_eur_kw_jahr"),
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
         eag_foerderdauer_jahre=erbe("eag_foerderdauer_jahre"),

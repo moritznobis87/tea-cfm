@@ -577,51 +577,96 @@ class TestSpeicherpreise:
     def test_ohne_abweichung_gilt_die_globale_vorgabe(
         self, project, global_assumptions
     ):
+        """Ohne eigenes Angebot bleibt `speicher_capex_eur_kw` leer - und
+        genau das ist das Signal, das Zwei-Parameter-Modell zu rechnen."""
         from engine.pipeline import resolve_assumptions
 
-        global_assumptions.speicher_capex_eur_kw = 500.0
+        global_assumptions.speicher_capex_leistung_eur_kw = 48.0
+        global_assumptions.speicher_capex_energie_eur_kwh = 82.0
         global_assumptions.speicher_opex_eur_kw_jahr = 9.0
         a = resolve_assumptions(project, global_assumptions)
-        assert a.speicher_capex_eur_kw == pytest.approx(500.0)
+        assert a.speicher_capex_eur_kw is None
+        assert a.speicher_capex_leistung_eur_kw == pytest.approx(48.0)
+        assert a.speicher_capex_energie_eur_kwh == pytest.approx(82.0)
         assert a.speicher_opex_eur_kw_jahr == pytest.approx(9.0)
 
     def test_projektabweichung_schlaegt_die_vorgabe(
         self, project, global_assumptions
     ):
         """Ein Projekt mit vorliegendem Angebot weicht ab - alle uebrigen
-        folgen weiter dem zentral gepflegten Preis."""
+        folgen weiter dem zentral gepflegten Preismodell."""
         from engine.models import Projektannahmen
         from engine.pipeline import resolve_assumptions
+        from engine.storage import capex_eur
 
-        global_assumptions.speicher_capex_eur_kw = 500.0
         project.annahmen = Projektannahmen(speicher_capex_eur_kw=390.0)
         a = resolve_assumptions(project, global_assumptions)
         assert a.speicher_capex_eur_kw == pytest.approx(390.0)
+        # Ein Angebot ist ein Festpreis je kW - das Modell schweigt dann.
+        assert capex_eur(
+            _mit_speicher(leistung_mw=5.0, kapazitaet_mwh=10.0), a
+        ) == pytest.approx(5.0 * 1000 * 390.0)
         # Das nicht abweichende Feld folgt weiterhin der Vorgabe.
         assert a.speicher_opex_eur_kw_jahr == pytest.approx(
             global_assumptions.speicher_opex_eur_kw_jahr
         )
 
-    def test_capex_haengt_an_der_leistung_nicht_an_der_kapazitaet(
+    def test_capex_haengt_an_leistung_UND_kapazitaet(
         self, project, global_assumptions
     ):
-        """Die bewusste Vereinfachung, schriftlich festgehalten: Ein
-        5-MW-Speicher kostet gleich viel, ob er zwei oder vier Stunden
-        durchhaelt. Wer das aendert, aendert eine Modellaussage - und
-        dieser Test faellt ihm dabei auf."""
+        """Die Modellaussage, schriftlich festgehalten: Ein 5-MW-Speicher
+        mit vier Stunden Dauer kostet MEHR als derselbe mit zwei Stunden.
+
+        Der Vorlaeufer dieses Tests behauptete das Gegenteil - ein
+        Festpreis je kW machte die Kapazitaet unsichtbar, und in der
+        Anwendung blieb die Investition beim Verdoppeln der kWh stehen.
+        """
         from engine.pipeline import resolve_assumptions
         from engine.storage import capex_eur
 
-        global_assumptions.speicher_capex_eur_kw = 450.0
+        global_assumptions.speicher_capex_leistung_eur_kw = 48.0
+        global_assumptions.speicher_capex_energie_eur_kwh = 82.0
         a = resolve_assumptions(project, global_assumptions)
         zwei_stunden = _mit_speicher(leistung_mw=5.0, kapazitaet_mwh=10.0)
         vier_stunden = _mit_speicher(leistung_mw=5.0, kapazitaet_mwh=20.0)
-        assert capex_eur(zwei_stunden, a) == pytest.approx(5.0 * 1000 * 450.0)
-        assert capex_eur(vier_stunden, a) == capex_eur(zwei_stunden, a)
-        # Die LEISTUNG geht dagegen sehr wohl ein.
-        assert capex_eur(_mit_speicher(leistung_mw=10.0), a) == pytest.approx(
-            2 * capex_eur(zwei_stunden, a)
+        assert capex_eur(zwei_stunden, a) == pytest.approx(
+            5.0 * 1000 * 48.0 + 10.0 * 1000 * 82.0
         )
+        # Die doppelte Kapazitaet kostet spuerbar mehr - der Aufschlag
+        # ist genau der Energieanteil der zweiten Haelfte.
+        assert capex_eur(vier_stunden, a) - capex_eur(
+            zwei_stunden, a
+        ) == pytest.approx(10.0 * 1000 * 82.0)
+        # Die LEISTUNG geht ebenso ein: doppelte Anlage, doppelter Preis.
+        assert capex_eur(
+            _mit_speicher(leistung_mw=10.0, kapazitaet_mwh=20.0), a
+        ) == pytest.approx(2 * capex_eur(zwei_stunden, a))
+
+    def test_spezifische_kosten_fallen_mit_der_dauer(self):
+        """Die Kurve im Annahmen-Dialog: je laenger die Dauer, desto
+        billiger die kWh - der Leistungsanteil verteilt sich auf mehr
+        Energie. Unter den Energieanteil faellt sie nie."""
+        from engine.storage.kosten import spezifisch_eur_kwh
+
+        a, b = 48.0, 82.0
+        assert spezifisch_eur_kwh(2.0, a, b) == pytest.approx(a / 2.0 + b)
+        assert spezifisch_eur_kwh(4.0, a, b) < spezifisch_eur_kwh(2.0, a, b)
+        assert spezifisch_eur_kwh(100.0, a, b) > b
+
+    def test_beide_kalibrierungen_sind_hinterlegt(self):
+        """Zwei Staende nebeneinander: die Engineering-Sicht (NREL) liegt
+        deutlich ueber dem heutigen Turnkey-Markt. Wer die Zahlen
+        anfasst, soll die Quelle mit anfassen muessen."""
+        from engine.storage.kosten import KALIBRIERUNG_STANDARD, KALIBRIERUNGEN
+
+        assert KALIBRIERUNG_STANDARD in KALIBRIERUNGEN
+        for k in KALIBRIERUNGEN.values():
+            assert k.quelle and k.geltungsbereich
+            assert k.leistung_eur_kw > 0 and k.energie_eur_kwh > 0
+        markt = KALIBRIERUNGEN["markt"]
+        technik = KALIBRIERUNGEN["engineering"]
+        assert technik.leistung_eur_kw > markt.leistung_eur_kw
+        assert technik.energie_eur_kwh > markt.energie_eur_kwh
 
     def test_unwirksamer_speicher_kostet_nichts(
         self, project, global_assumptions
@@ -667,10 +712,20 @@ class TestSpeicherpreise:
         umbenanntes Feld muss hier auffallen und nicht erst, wenn ein
         Nutzer sich wundert, dass sein Preis nicht ankommt."""
         from app.components.storage_dialog import PREISFELDER
-        from engine.models import GlobalAssumptions, Projektannahmen
+        from engine.models import (
+            EffectiveAssumptions,
+            GlobalAssumptions,
+            Projektannahmen,
+        )
 
         for feld in PREISFELDER.values():
             assert feld in Projektannahmen.model_fields, feld
-            assert feld in GlobalAssumptions.model_fields, (
-                f"{feld} hat keine globale Vorgabe"
-            )
+            assert feld in EffectiveAssumptions.model_fields, feld
+        # Die globale Vorgabe hinter der Investition ist NICHT dasselbe
+        # Feld: das Projekt traegt ein Angebot je kW, die Vorgabe
+        # dahinter zwei Parameter. Beide muessen existieren.
+        for feld in ("speicher_capex_leistung_eur_kw",
+                     "speicher_capex_energie_eur_kwh",
+                     "speicher_opex_eur_kw_jahr"):
+            assert feld in GlobalAssumptions.model_fields, feld
+            assert feld in EffectiveAssumptions.model_fields, feld

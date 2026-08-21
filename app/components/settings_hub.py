@@ -306,7 +306,8 @@ FELDER_JE_BEREICH: dict[str, tuple[str, ...]] = {
     # Stelle, an die man geht, wenn eine Co-Location-Rechnung nicht
     # aufgeht.
     "speicher": (
-        "speicher_capex_eur_kw", "speicher_opex_eur_kw_jahr",
+        "speicher_capex_leistung_eur_kw", "speicher_capex_energie_eur_kwh",
+        "speicher_opex_eur_kw_jahr", "speicher_kalibrierung",
     ),
 }
 

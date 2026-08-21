@@ -48,6 +48,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from app.components import charts
 from app.components.settings_hub import ABSCHNITT_PRAEFIX, DIALOG_PRAEFIX
 from engine import (
     DirektvermarktungsModus,
@@ -58,6 +59,10 @@ from engine import (
     TaxModus,
     TilgungsArt,
     ZinsMethode,
+)
+from engine.storage.kosten import (
+    KALIBRIERUNG_STANDARD,
+    KALIBRIERUNGEN,
 )
 from texte import txt
 
@@ -819,15 +824,44 @@ def render_steuern(e: GlobalAssumptions) -> None:
 # MWh kosten.
 
 SPEICHER: tuple[Feld, ...] = (
-    Feld("speicher_capex_eur_kw", "zahl",
-         "oberflaeche.annahmen_speicher_capex_label",
-         hilfe="oberflaeche.annahmen_speicher_capex_hilfe",
-         schritt=10.0),
+    Feld("speicher_capex_leistung_eur_kw", "zahl",
+         "oberflaeche.annahmen_speicher_leistung_label",
+         hilfe="oberflaeche.annahmen_speicher_leistung_hilfe",
+         schritt=5.0),
+    Feld("speicher_capex_energie_eur_kwh", "zahl",
+         "oberflaeche.annahmen_speicher_energie_label",
+         hilfe="oberflaeche.annahmen_speicher_energie_hilfe",
+         schritt=5.0),
     Feld("speicher_opex_eur_kw_jahr", "zahl",
          "oberflaeche.annahmen_speicher_opex_label",
          hilfe="oberflaeche.annahmen_speicher_opex_hilfe",
          schritt=1.0),
 )
+
+#: Widget-Schluessel der Kalibrierungswahl im Dialog.
+_KALIBRIERWAHL = f"{DIALOG_PRAEFIX}speicher_kalibrierung"
+
+
+def _kalibrierung_anwenden(e: GlobalAssumptions) -> None:
+    """Traegt die gewaehlte Kalibrierung in die beiden Zahlenfelder ein.
+
+    Nur beim WECHSEL, nicht bei jedem Durchlauf: Wer die Werte danach von
+    Hand anpasst, soll seinen Stand behalten. Eine Kalibrierung ist ein
+    Startpunkt, keine Fessel - und ohne diesen Merker haette jeder Rerun
+    die Handeingabe wieder ueberschrieben.
+    """
+    gewaehlt = st.session_state.get(_KALIBRIERWAHL)
+    vorher = st.session_state.get(f"{_KALIBRIERWAHL}__vorher")
+    st.session_state[f"{_KALIBRIERWAHL}__vorher"] = gewaehlt
+    if gewaehlt is None or gewaehlt == vorher or gewaehlt not in KALIBRIERUNGEN:
+        return
+    kal = KALIBRIERUNGEN[gewaehlt]
+    st.session_state[_schluessel(SPEICHER[0])] = float(kal.leistung_eur_kw)
+    st.session_state[_schluessel(SPEICHER[1])] = float(kal.energie_eur_kwh)
+
+
+def _kalibrierlabel(schluessel: str) -> str:
+    return txt(f"oberflaeche.annahmen_speicher_kalibrierung_{schluessel}")
 
 
 def render_speicher(e: GlobalAssumptions) -> None:
@@ -835,13 +869,46 @@ def render_speicher(e: GlobalAssumptions) -> None:
                width="large", on_dismiss=dialog_schliessen)
     def _dlg():
         _luecken_fuellen(SPEICHER, e)
+        st.session_state.setdefault(
+            _KALIBRIERWAHL, e.speicher_kalibrierung or KALIBRIERUNG_STANDARD
+        )
         st.caption(txt("oberflaeche.annahmen_dlg_speicher_hinweis"))
         st.info(txt("oberflaeche.speicher_markt_hinweis"))
-        _gitter(SPEICHER, 2)
+
+        st.segmented_control(
+            txt("oberflaeche.annahmen_speicher_kalibrierung_label"),
+            list(KALIBRIERUNGEN),
+            format_func=_kalibrierlabel,
+            key=_KALIBRIERWAHL,
+            help=txt("oberflaeche.annahmen_speicher_kalibrierung_hilfe"),
+        )
+        _kalibrierung_anwenden(e)
+        gewaehlt = st.session_state.get(_KALIBRIERWAHL)
+        if gewaehlt in KALIBRIERUNGEN:
+            kal = KALIBRIERUNGEN[gewaehlt]
+            st.caption(f"{kal.quelle} — {kal.geltungsbereich}")
+
+        _gitter(SPEICHER, 3)
         st.caption(txt("oberflaeche.annahmen_dlg_speicher_beispiel"))
 
+        # Die Kurve beantwortet die Frage, die zwei nackte Zahlen nicht
+        # beantworten: Was heisst a und b zusammen fuer einen Speicher
+        # DIESER Dauer? Sie steht direkt unter den Feldern und folgt
+        # ihnen sofort - auch einer Handeingabe.
+        st.plotly_chart(
+            charts.speicher_kostenkurve_chart(
+                float(st.session_state[_schluessel(SPEICHER[0])]),
+                float(st.session_state[_schluessel(SPEICHER[1])]),
+            ),
+            width="stretch", key="ga_speicher_kostenkurve",
+        )
+
         def uebernehmen():
-            _uebernehmen(e, _einsammeln(SPEICHER))
+            werte = _einsammeln(SPEICHER)
+            _uebernehmen(e, werte)
+            # Der Name der Kalibrierung ist eine Merkgroesse und keine
+            # Rechengroesse: Er sagt, womit der Nutzer gestartet ist.
+            e.speicher_kalibrierung = st.session_state.get(_KALIBRIERWAHL, "")
 
         _fuss(uebernehmen, "speicher")
 

@@ -904,7 +904,8 @@ def _karte_speicher(ga: GlobalAssumptions) -> tuple[str, str]:
     einzuordnen."""
     return (
         txt("oberflaeche.annahmen_karte_speicher_capex",
-            wert=fmt_number(ga.speicher_capex_eur_kw, 0)),
+            wert=fmt_number(ga.speicher_capex_leistung_eur_kw, 0),
+            energie=fmt_number(ga.speicher_capex_energie_eur_kwh, 0)),
         settings_hub.kurzfassung([
             txt("oberflaeche.annahmen_karte_speicher_opex",
                 wert=fmt_number(ga.speicher_opex_eur_kw_jahr, 0)),

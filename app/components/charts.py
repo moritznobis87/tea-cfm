@@ -1678,3 +1678,65 @@ def speicher_wertbeitrag_chart(jahreswerte: pd.DataFrame) -> go.Figure:
                     font=dict(size=11)),
     )
     return fig
+
+
+def speicher_kostenkurve_chart(
+    leistung_eur_kw: float, energie_eur_kwh: float
+) -> go.Figure:
+    """Spezifische Speicherkosten ueber der Speicherdauer.
+
+        EUR/kWh = a / Dauer + b
+
+    Zwei nackte Zahlen sagen nicht, was sie zusammen bedeuten. Die Kurve
+    schon: Bei kurzer Dauer dominiert der Leistungsanteil und die
+    spezifischen Kosten schiessen hoch; ab etwa vier Stunden laufen sie
+    flach gegen den Energieanteil.
+
+    Die Asymptote ist eingezeichnet, weil sie die Aussage des Modells
+    ist: Ein Speicher wird je kWh nicht beliebig billig, egal wie lang
+    man ihn auslegt - unter den Preis der Zellen kommt er nicht.
+    """
+    from engine.storage.kosten import spezifisch_eur_kwh
+
+    dauern = [0.5 + 0.1 * i for i in range(76)]  # 0,5 bis 8,0 h
+    werte = [
+        spezifisch_eur_kwh(d, leistung_eur_kw, energie_eur_kwh) for d in dauern
+    ]
+
+    fig = go.Figure()
+    fig.add_scatter(
+        x=dauern, y=werte, mode="lines",
+        line=dict(color=Colors.BRAND, width=2.5),
+        name=txt("diagramme.speicher_spezifische_kosten"),
+        hovertemplate=(
+            "%{x:,.1f} h<br>%{y:,.0f} €/kWh<extra></extra>"
+        ),
+    )
+    fig.add_hline(
+        y=energie_eur_kwh,
+        line=dict(color=Colors.MUTED, width=1, dash="dot"),
+        annotation_text=txt(
+            "diagramme.speicher_energieanteil",
+            wert=fmt_number(energie_eur_kwh, 0),
+        ),
+        annotation_position="top right",
+        annotation_font=dict(size=11, color=Colors.MUTED),
+    )
+    # Zwei und vier Stunden sind die ueblichen Auslegungen und die
+    # Stuetzstellen der Marktkalibrierung - dort ist die Kurve am
+    # belastbarsten, und das gehoert ins Bild.
+    for stunden in (2.0, 4.0):
+        fig.add_vline(
+            x=stunden, line=dict(color=Colors.LINE, width=1),
+        )
+    fig.update_layout(
+        height=260,
+        margin=dict(t=10, b=0, l=0, r=0),
+        showlegend=False,
+        xaxis=dict(
+            title=txt("diagramme.achse_speicherdauer"), ticksuffix=" h",
+            range=[0.5, 8.0],
+        ),
+        yaxis=dict(title="€/kWh", rangemode="tozero"),
+    )
+    return fig
