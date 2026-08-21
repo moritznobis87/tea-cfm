@@ -45,6 +45,32 @@ def _oeffne_projekt(at: AppTest, projekt_id: str | None = None) -> AppTest:
     return at
 
 
+def _aktives_kartenprojekt(at: AppTest) -> str:
+    """Kennung eines AKTIVEN Projekts, das im Portfolio eine Karte hat.
+
+    Beides ist noetig und keins folgt aus dem anderen. Die Uebersicht
+    zeigt je Standort nur die LEITVARIANTE - ein Projekt kann also aktiv
+    sein und trotzdem keinen Oeffnen-Knopf haben. Und die erste Karte
+    kann zu einem stillgelegten Projekt gehoeren; im Testrepository sind
+    genau das die ausgelieferten Vorlagen.
+
+    Wer nur eines von beidem prueft, bekommt einen Test, der an seiner
+    eigenen Voraussetzung scheitert statt an der Sache - erst mit
+    IndexError, dann mit "steht nicht im Portfolio".
+    """
+    from app import services
+
+    aktiv = {p.id for p in services.list_projects() if p.aktiv}
+    mit_karte = [
+        b.key.removeprefix("open_")
+        for b in at.button if b.key and b.key.startswith("open_")
+    ]
+    treffer = [pid for pid in mit_karte if pid in aktiv]
+    if not treffer:
+        pytest.skip("kein aktives Projekt mit Karte im Datenbestand")
+    return treffer[0]
+
+
 def _unauffaelliges_projekt() -> str:
     """Kennung eines Projekts, das seine DSCR-Schwellen einhaelt.
 
@@ -58,7 +84,15 @@ def _unauffaelliges_projekt() -> str:
         (services.get_valuation(p.id).kpis.dscr_min, p.id)
         for p in services.list_projects() if p.aktiv
     ]
-    assert kandidaten, "keine aktiven Projekte ausgeliefert"
+    if not kandidaten:
+        # Kein Fehler, sondern eine fehlende Voraussetzung: Dieser Test
+        # prueft die Anzeige AN einem ausgelieferten Projekt. Wo keines
+        # aktiv ist, gibt es nichts zu pruefen - so im Testrepository,
+        # das nur die (stillgelegten) Vorlagen fuehrt.
+        #
+        # Ausdruecklich uebersprungen und nicht stillschweigend bestanden:
+        # Ein gruener Haken ohne Pruefung waere die schlechtere Auskunft.
+        pytest.skip("kein aktives Projekt im Datenbestand")
     return max(kandidaten)[1]
 
 
@@ -190,7 +224,13 @@ class TestKPIUndChartBugfixes:
             return re.findall(r'class="kpi-value"[^>]*>([^<]+)<', markup)
 
         vorher = kpi_werte(at)
-        at = _oeffne_projekt(at)
+        # Ausdruecklich ein AKTIVES Projekt: Der Test schaltet es gleich
+        # ab und zaehlt die Kachel nach. Das erste Projekt der Liste ist
+        # nicht zwingend aktiv - im Testrepository sind die
+        # ausgelieferten Vorlagen sogar stillgelegt, und der Test brach
+        # dort an seiner eigenen Voraussetzung ab statt an der Sache.
+        gewaehlt = _aktives_kartenprojekt(at)
+        at = _oeffne_projekt(at, gewaehlt)
         btn = [b for b in at.button if b.key and b.key.startswith("aktiv_")][0]
         assert btn.label == "Inaktiv schalten", (
             "Projekt war vor dem Test bereits inaktiv - Testisolation verletzt"
@@ -209,7 +249,7 @@ class TestKPIUndChartBugfixes:
             )
             assert int(nachher[0]) == int(vorher[0]) - 1
         finally:
-            at = _oeffne_projekt(at)
+            at = _oeffne_projekt(at, gewaehlt)
             btn_zurueck = [
                 b for b in at.button if b.key and b.key.startswith("aktiv_")
             ][0]
@@ -534,3 +574,56 @@ class TestKopfzeileUndKacheln:
         assert "@media (max-width: 1150px)" in css
         assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
         assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in css
+
+
+class TestPortfolioOhneAktiveProjekte:
+    """Der erste Bildschirm einer frischen Installation.
+
+    Die Portfolioseite stuerzte ab, sobald kein Projekt aktiv war: Die
+    Auswertungen bauen Tabellen aus einer leeren Liste, und eine leere
+    Tabelle hat keine Spalten, nach denen sich sortieren liesse
+    (KeyError "EK-Rendite (%)").
+
+    Aufgefallen ist es beim Aufsetzen des Testrepositories, in dem nur
+    die beiden Vorlagen liegen - und beide sind stillgelegt. Damit ist
+    es kein Randfall fuer Fortgeschrittene: Es ist der Zustand jeder
+    Installation, in der noch nichts angelegt wurde.
+    """
+
+    @pytest.fixture
+    def nur_vorlagen(self, tmp_path, monkeypatch):
+        """Ein Datenbestand, in dem KEIN Projekt aktiv ist."""
+        import shutil
+
+        from app.config import PROJECTS_DIR
+        from engine.io_yaml import load_project_yaml, save_project_yaml
+
+        sicherung = tmp_path / "projekte"
+        shutil.copytree(PROJECTS_DIR, sicherung)
+        try:
+            for datei in PROJECTS_DIR.glob("*.yaml"):
+                projekt = load_project_yaml(datei)
+                if projekt.aktiv:
+                    projekt.aktiv = False
+                    save_project_yaml(projekt, datei)
+            yield
+        finally:
+            for datei in PROJECTS_DIR.glob("*.yaml"):
+                datei.unlink()
+            for datei in sicherung.glob("*.yaml"):
+                shutil.copy(datei, PROJECTS_DIR / datei.name)
+
+    def test_portfolio_rendert_ohne_absturz(self, nur_vorlagen):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=120)
+        at.run()
+        assert not at.exception, at.exception
+
+    def test_und_sagt_was_zu_tun_ist(self, nur_vorlagen):
+        """Eine leere Seite waere kein Absturz, aber auch keine Auskunft."""
+        from texte import txt
+
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=120)
+        at.run()
+        assert not at.exception, at.exception
+        hinweise = " ".join(i.value for i in at.info if i.value)
+        assert txt("oberflaeche.portfolio_keine_aktiven")[:30] in hinweise

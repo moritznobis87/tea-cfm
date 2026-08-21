@@ -307,13 +307,22 @@ def _eingaben(
         absolut = kurz == "capex" and st.session_state.get(
             _dlg_key(form_key, _CAPEX_ABSOLUT), False
         )
-        vorgabe_kw = float(getattr(vorgaben, feld))
-        # Im Absolutmodus rechnet der Platzhalter die Vorgabe auf DIESE
-        # Auslegung um - sonst stuende dort ein Preis je kW neben einem
-        # Feld, das einen Gesamtbetrag erwartet.
-        vorgabe_anzeige = (
-            vorgabe_kw * leistung * 1000 if absolut else vorgabe_kw
-        )
+        # Der Platzhalter zeigt, was OHNE Angebot gilt - und das ist beim
+        # Investitionsfeld keine feste Zahl mehr, sondern das Ergebnis
+        # des Zweiparametermodells fuer GENAU DIESE Auslegung
+        # (a * kW + b * kWh). Stuende dort weiterhin ein blosser
+        # Leistungspreis, saehe man der Vorgabe nicht an, dass sie mit
+        # der Kapazitaet waechst - genau die Blindheit, die das alte
+        # Modell hatte.
+        if kurz == "capex":
+            gesamt = vorgaben.speicher_capex_leistung_eur_kw * leistung * 1000 \
+                + vorgaben.speicher_capex_energie_eur_kwh * kapazitaet * 1000
+            vorgabe_anzeige = (
+                gesamt if absolut
+                else (gesamt / (leistung * 1000) if leistung > 0 else 0.0)
+            )
+        else:
+            vorgabe_anzeige = float(getattr(vorgaben, feld))
         # Leer heisst "folgt der Vorgabe" - dieselbe Regel und dieselbe
         # Darstellung wie bei den Erbfeldern der Parameterspalte
         # (project_form._erbe_zahl): Der Vorgabewert steht als
@@ -463,8 +472,14 @@ def _kennzahlen(
         ),
         help=txt("oberflaeche.speicher_kennzahl_hub_hilfe"),
     )
+    # Derselbe Rechenweg wie im Cashflow: Ein gesetztes Angebot gilt,
+    # sonst das Zweiparametermodell. `speicher_capex_eur_kw` bleibt
+    # deshalb None, wenn das Feld leer ist - genau daran unterscheidet
+    # engine/storage/kosten.py die beiden Faelle.
     behelf = SimpleNamespace(
-        speicher_capex_eur_kw=_geltend(preise, vorgaben, "speicher_capex_eur_kw"),
+        speicher_capex_eur_kw=preise.get("speicher_capex_eur_kw"),
+        speicher_capex_leistung_eur_kw=vorgaben.speicher_capex_leistung_eur_kw,
+        speicher_capex_energie_eur_kwh=vorgaben.speicher_capex_energie_eur_kwh,
         speicher_opex_eur_kw_jahr=_geltend(
             preise, vorgaben, "speicher_opex_eur_kw_jahr"
         ),

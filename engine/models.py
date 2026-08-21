@@ -581,8 +581,9 @@ class BatteryConfig(BaseModel):
     davon ist eine Eigenschaft dieser Anlage.
 
     Was er KOSTET, steht nicht hier, sondern in den Annahmen
-    (Projektannahmen.speicher_capex_energie_eur_kwh und die globale
-    Vorgabe dahinter). Batteriepreise sind eine Marktannahme, und sie
+    (Projektannahmen.speicher_capex_eur_kw als vorliegendes Angebot und
+    die globale Vorgabe dahinter, die aus einem Leistungs- und einem
+    Energieanteil besteht). Batteriepreise sind eine Marktannahme, und sie
     fallen Jahr fuer Jahr spuerbar; an der Auslegung festgemacht,
     muesste eine Preissenkung in jedem Projekt einzeln nachgetragen
     werden. Die Rechnung steht in engine/storage/kosten.py.
@@ -1217,23 +1218,34 @@ class GlobalAssumptions(BaseModel):
     #: engine/clipping.py).
     einspeiselimit_pct: float | None = Field(default=0.70, gt=0, le=1)
 
-    # Speicherpreise (Co-Location). Zentral gepflegt, weil sie eine
-    # Marktannahme sind und keine Projekteigenschaft - siehe
-    # Projektannahmen.speicher_capex_energie_eur_kwh. Ein Projekt mit
-    # vorliegendem Angebot weicht dort ab.
+    # --- Speicherpreise (Co-Location) ---------------------------------
     #
-    # Die Vorgabewerte sind Groessenordnungen fuer einen
-    # Zwei-Stunden-Speicher und ausdruecklich zum Nachpflegen gedacht:
-    # Batteriepreise fallen schneller, als eine Modellvorgabe altert.
+    # Zentral gepflegt, weil sie eine Marktannahme sind und keine
+    # Projekteigenschaft. Ein Projekt mit vorliegendem Angebot weicht in
+    # seinen Projektannahmen ab.
     #
-    # Bemessen wird an der LEISTUNG, nicht an der Kapazitaet. Das ist
-    # eine bewusste Vereinfachung mit einer Folge, die man kennen muss:
-    # Ein 5-MW-Speicher kostet damit gleich viel, ob er zwei oder vier
-    # Stunden durchhaelt. Wer eine andere Speicherdauer rechnet, traegt
-    # den Preis je kW entsprechend nach - oder gibt im Projekt den
-    # Gesamtbetrag direkt ein (siehe Projektannahmen).
-    speicher_capex_eur_kw: float = Field(ge=0, default=450.0)
+    # ZWEI Parameter, und das ist der Kern:
+    #
+    #     CAPEX = a * Leistung[kW] + b * Kapazitaet[kWh]
+    #
+    # `a` traegt, was an der Anschlussleistung haengt (Umrichter/PCS,
+    # Trafo, Schaltanlage, Netzanschluss, Baustelle), `b` was an der
+    # Energie haengt (Zellen, Module, Racks, Thermomanagement).
+    #
+    # Die Vorgaenger-Fassung kannte nur `a`. Damit kostete ein 3-MW-
+    # Speicher mit 12 MWh genau so viel wie einer mit 24 MWh - doppelt so
+    # viele Zellen zum Nulltarif. Der groessere Teil der Speicherkosten
+    # ist energiebezogen; ohne `b` fehlt genau der Teil, der mit der
+    # Speicherdauer skaliert.
+    speicher_capex_leistung_eur_kw: float = Field(ge=0, default=48.0)
+    speicher_capex_energie_eur_kwh: float = Field(ge=0, default=82.0)
     speicher_opex_eur_kw_jahr: float = Field(ge=0, default=8.0)
+    #: Name der zuletzt gewaehlten Kalibrierung - reine Merkgroesse fuer
+    #: die Oberflaeche. Gerechnet wird IMMER mit den beiden Zahlen
+    #: darueber: Wer sie von Hand anpasst, soll seinen Wert behalten und
+    #: nicht beim naechsten Aufbau von einer Voreinstellung ueberschrieben
+    #: werden.
+    speicher_kalibrierung: str = ""
 
     # Foerder- und Betrachtungsdauer
     eag_foerderdauer_jahre: int = Field(gt=0, default=20)
@@ -1354,7 +1366,16 @@ class EffectiveAssumptions(BaseModel):
     # BatteryConfig, damit es genau EINE Stelle gibt, an der feststeht,
     # welcher Preis fuer dieses Projekt gilt - siehe
     # engine/storage/kosten.py.
-    speicher_capex_eur_kw: float = 0.0
+    #: Das Angebot DIESES Projekts, oder None. Anders als sonst in
+    #: EffectiveAssumptions bleibt hier die Unterscheidung "gesetzt oder
+    #: nicht" erhalten und wird nicht auf einen Wert aufgeloest - der
+    #: Rechenweg haengt daran: Ein Angebot gilt so, wie es ist; ohne
+    #: Angebot rechnet das Zweiparametermodell (siehe
+    #: engine/storage/kosten.py).
+    speicher_capex_eur_kw: float | None = None
+    #: Die zentrale Kalibrierung: Leistungs- und Energieanteil.
+    speicher_capex_leistung_eur_kw: float = 0.0
+    speicher_capex_energie_eur_kwh: float = 0.0
     speicher_opex_eur_kw_jahr: float = 0.0
 
     eag_zuschlagswert_effektiv_ct_kwh: float

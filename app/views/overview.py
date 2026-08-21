@@ -401,77 +401,92 @@ def render_overview() -> None:
     # denselben Gegenstand, Klappfelder optionales Detail INNERHALB einer
     # Sicht - und nie ineinander (dieselbe Regel gilt auf der Projektseite).
     st.subheader(txt("oberflaeche.portfolio_analytik_titel"))
-    tab_karte, tab_rangliste, tab_tabelle, tab_varianten = st.tabs([
-        txt("oberflaeche.portfolio_tab_karte"),
-        txt("oberflaeche.portfolio_tab_rangliste"),
-        txt("oberflaeche.portfolio_tab_tabelle"),
-        txt("oberflaeche.portfolio_tab_varianten"),
-    ])
-    with tab_karte:
-        # Der erlaeuternde Satz steht in _landkarte: Er haengt an der
-        # gewaehlten x-Achse, und die waehlt der Umschalter dort.
-        _landkarte(landkarte, gruppen, labels, selected, ziel_pct)
-    with tab_rangliste:
-        st.caption(txt("oberflaeche.portfolio_rangliste_hilfe"))
-        st.plotly_chart(
-            charts.portfolio_rangliste_chart(
+    # Ohne aktives Projekt gibt es nichts zu vergleichen - und die
+    # Auswertungen brechen ab: Sie bauen Tabellen aus einer leeren
+    # Liste, und eine leere Tabelle hat keine Spalten, nach denen sich
+    # sortieren liesse (KeyError "EK-Rendite (%)"). Das ist kein Randfall
+    # fuer Fortgeschrittene, sondern der ERSTE Bildschirm einer frischen
+    # Installation und der Zustand jedes Portfolios, in dem alle Projekte
+    # stillgelegt sind.
+    #
+    # Uebersprungen wird NUR die Analytik. Ein `return` an dieser Stelle
+    # naehme auch die Projektkacheln darunter mit - und damit den
+    # einzigen Weg zu einem stillgelegten Projekt, ueber den es sich
+    # wieder aktivieren liesse. Die Seite haette sich selbst ausgesperrt.
+    if not alle_aktiven:
+        st.info(txt("oberflaeche.portfolio_keine_aktiven"))
+    else:
+        tab_karte, tab_rangliste, tab_tabelle, tab_varianten = st.tabs([
+            txt("oberflaeche.portfolio_tab_karte"),
+            txt("oberflaeche.portfolio_tab_rangliste"),
+            txt("oberflaeche.portfolio_tab_tabelle"),
+            txt("oberflaeche.portfolio_tab_varianten"),
+        ])
+        with tab_karte:
+            # Der erlaeuternde Satz steht in _landkarte: Er haengt an der
+            # gewaehlten x-Achse, und die waehlt der Umschalter dort.
+            _landkarte(landkarte, gruppen, labels, selected, ziel_pct)
+        with tab_rangliste:
+            st.caption(txt("oberflaeche.portfolio_rangliste_hilfe"))
+            st.plotly_chart(
+                charts.portfolio_rangliste_chart(
+                    [
+                        {
+                            "label": labels.get(g["standort"], g["standort"]),
+                            "kennung": g["standort"],
+                            "leit_id": g["leit"].id,
+                            "leit_irr": (g["leit_kpis"].equity_irr or 0) * 100,
+                            "varianten": [
+                                (z["projekt"].variantenlabel,
+                                 (z["kpis"].equity_irr or 0) * 100)
+                                for z in g["varianten"]
+                            ],
+                        }
+                        for g in gruppen
+                    ],
+                    ziel_pct, selected,
+                ),
+                width="stretch",
+            )
+        with tab_tabelle:
+            vergleich = pd.DataFrame(
                 [
                     {
-                        "label": labels.get(g["standort"], g["standort"]),
-                        "kennung": g["standort"],
-                        "leit_id": g["leit"].id,
-                        "leit_irr": (g["leit_kpis"].equity_irr or 0) * 100,
-                        "varianten": [
-                            (z["projekt"].variantenlabel,
-                             (z["kpis"].equity_irr or 0) * 100)
-                            for z in g["varianten"]
-                        ],
+                        "Projekt": z["projekt"].anzeigename,
+                        "Typ": "Agri-PV"
+                        if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
+                        else "Konventionell",
+                        "Leistung (kWp)": round(z["projekt"].nennleistung_kwp),
+                        "EK-Rendite (%)": round(z["kpis"].equity_irr * 100, 2)
+                        if z["kpis"].equity_irr is not None
+                        else None,
+                        "NPV bei 8 % (€)": round(z["kpis"].npv_eur),
+                        "Invest (€)": round(z["kpis"].capex_total_eur),
+                        "Invest (€/kWp)": round(
+                            z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
+                        )
+                        if z["projekt"].nennleistung_kwp
+                        else None,
+                        "Min. DSCR (x)": round(z["kpis"].dscr_min, 2)
+                        if z["kpis"].dscr_min is not None
+                        else None,
+                        "Payback (Jahr)": z["kpis"].payback_jahre,
                     }
-                    for g in gruppen
-                ],
-                ziel_pct, selected,
-            ),
-            width="stretch",
-        )
-    with tab_tabelle:
-        vergleich = pd.DataFrame(
-            [
-                {
-                    "Projekt": z["projekt"].anzeigename,
-                    "Typ": "Agri-PV"
-                    if z["projekt"].anlagentyp == AnlagenTyp.AGRI_PV
-                    else "Konventionell",
-                    "Leistung (kWp)": round(z["projekt"].nennleistung_kwp),
-                    "EK-Rendite (%)": round(z["kpis"].equity_irr * 100, 2)
-                    if z["kpis"].equity_irr is not None
-                    else None,
-                    "NPV bei 8 % (€)": round(z["kpis"].npv_eur),
-                    "Invest (€)": round(z["kpis"].capex_total_eur),
-                    "Invest (€/kWp)": round(
-                        z["kpis"].capex_total_eur / z["projekt"].nennleistung_kwp
-                    )
-                    if z["projekt"].nennleistung_kwp
-                    else None,
-                    "Min. DSCR (x)": round(z["kpis"].dscr_min, 2)
-                    if z["kpis"].dscr_min is not None
-                    else None,
-                    "Payback (Jahr)": z["kpis"].payback_jahre,
-                }
-                for z in aktive
-            ]
-        )
-        st.dataframe(
-            vergleich.sort_values("EK-Rendite (%)", ascending=False),
-            width="stretch",
-            hide_index=True,
-        )
-    with tab_varianten:
-        st.caption(
-            txt("oberflaeche.portfolio_varianten_hilfe",
-                ziel=fmt_pct(ziel_pct, 1),
-                dscr=fmt_number(ga.dscr_cash_trap, 2))
-        )
-        _variantentabelle(gruppen, ziel_pct, ga.dscr_cash_trap)
+                    for z in aktive
+                ]
+            )
+            st.dataframe(
+                vergleich.sort_values("EK-Rendite (%)", ascending=False),
+                width="stretch",
+                hide_index=True,
+            )
+        with tab_varianten:
+            st.caption(
+                txt("oberflaeche.portfolio_varianten_hilfe",
+                    ziel=fmt_pct(ziel_pct, 1),
+                    dscr=fmt_number(ga.dscr_cash_trap, 2))
+            )
+            _variantentabelle(gruppen, ziel_pct, ga.dscr_cash_trap)
 
     # --- Projektkarten ------------------------------------------------------
     # Je Reihe ein eigener Spaltensatz: Ein einziger Satz mit

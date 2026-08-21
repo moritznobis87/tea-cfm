@@ -29,12 +29,14 @@ import io
 import json
 
 import pandas as pd
+from pydantic import ValidationError
 
 from .models import (
+    EINSPEISEKURVE_STANDARD_PCT,
     AnlagenTyp,
+    BatteryConfig,
     CapexBreakdown,
     CapexPosition,
-    EINSPEISEKURVE_STANDARD_PCT,
     DirektvermarktungsModus,
     GlobalAssumptions,
     MarktpreisSzenario,
@@ -500,6 +502,11 @@ PROJEKT_SPALTEN = [
     # Anzahl ist projektabhaengig, feste Spalten scheiden damit aus. Der
     # Import kommt ohne diese Spalten aus (aeltere Exporte).
     "capex_zusatzpositionen_json", "zusatz_opex_json",
+    # Die Speicherauslegung als JSON in EINER Spalte, aus demselben Grund
+    # wie die Zusatzpositionen: Sie ist ein verschachteltes Objekt mit
+    # einem Dutzend Feldern, und dreizehn weitere Spalten machten die
+    # Mappe unlesbar. Leer heisst "kein Speicher".
+    "battery_json",
 ]
 
 #: Spalten, die erst nachtraeglich hinzugekommen sind und in einer aelteren
@@ -521,6 +528,9 @@ OPTIONALE_PROJEKT_SPALTEN = frozenset(
         "capex_widmung_eur", "capex_genehmigung_eur",
         # seit v4.28 (frei benannte Zusatzpositionen)
         "capex_zusatzpositionen_json", "zusatz_opex_json",
+        # seit v5.29 (Co-Location-Speicher); fehlt sie, fuehrt das
+        # Projekt keinen Speicher und rechnet wie bisher
+        "battery_json",
         # seit v5.1 (Standort + Variante); fehlt sie, ist jede Zeile der
         # Grundfall ihres Standorts
         "variante",
@@ -604,6 +614,31 @@ def _json_liste(wert) -> list[dict]:
     return list(eintraege)
 
 
+def _speicher(wert) -> BatteryConfig | None:
+    """Liest die als JSON-Text gespeicherte Speicherauslegung.
+
+    Leere Zelle, fehlende Spalte oder aeltere Exportdatei heissen "kein
+    Speicher" - dann rechnet das Projekt wie vor der Co-Location.
+
+    Ein UNGUELTIGER Text scheitert dagegen laut. Das ist Absicht: Die
+    Alternative waere, eine beschaedigte Auslegung als "kein Speicher" zu
+    lesen, und damit verschwaende ein Speicher beim Import, ohne dass es
+    jemand bemerkt. Genau diese Fehlerklasse hat das Feld schon zweimal
+    erwischt (Maske und Variantenvergleich).
+    """
+    if wert is None or (isinstance(wert, float) and pd.isna(wert)):
+        return None
+    text = str(wert).strip()
+    if not text or text.lower() in ("nan", "null"):
+        return None
+    try:
+        return BatteryConfig.model_validate(json.loads(text))
+    except (json.JSONDecodeError, ValidationError) as fehler:
+        raise ValueError(
+            f"Speicherauslegung ist nicht lesbar: {text[:80]}"
+        ) from fehler
+
+
 def projects_to_excel(projects: list[PVProject]) -> bytes:
     rows = [
         {
@@ -650,6 +685,12 @@ def projects_to_excel(projects: list[PVProject]) -> bytes:
             ),
             "zusatz_opex_json": json.dumps(
                 [pos.model_dump() for pos in p.zusatz_opex], ensure_ascii=False
+            ),
+            # Leerer Text statt "null": In der Tabelle liest sich eine
+            # leere Zelle als "kein Speicher", das Wort null nicht.
+            "battery_json": (
+                json.dumps(p.battery.model_dump(mode="json"), ensure_ascii=False)
+                if p.battery is not None else ""
             ),
         }
         for p in projects
@@ -763,6 +804,7 @@ def excel_to_projects(file_bytes: bytes) -> list[PVProject]:
                     OpexItem(**eintrag)
                     for eintrag in _json_liste(r.get("zusatz_opex_json"))
                 ],
+                battery=_speicher(r.get("battery_json")),
             )
         )
     return projects
