@@ -1740,3 +1740,74 @@ def speicher_kostenkurve_chart(
         yaxis=dict(title="€/kWh", rangemode="tozero"),
     )
     return fig
+
+
+def speicher_auslegung_chart(
+    tabelle: pd.DataFrame,
+    spalte: str,
+    referenz: float | None,
+    optimum: tuple[float, int] | None = None,
+) -> go.Figure:
+    """Die Auslegungsflaeche: Speicherdauer waagerecht, Leistung senkrecht.
+
+    Eine Flaeche und keine Rangliste, und das ist der Punkt. Die Frage
+    "wie gross?" ist erst beantwortet, wenn man sieht, WIE STARK die
+    Antwort von der Groesse abhaengt. Ein scharfer Gipfel heisst: genau
+    so bauen. Ein Plateau heisst: die halbe Investition tut es auch, und
+    dann entscheiden Flaeche, Netzanschluss und Angebotslage - nicht
+    dieses Diagramm.
+
+    `referenz` ist der Wert OHNE Speicher. Er sitzt in der Mitte der
+    Farbskala, damit die Karte auf einen Blick zeigt, wo ein Speicher
+    ueberhaupt traegt und wo er Geld kostet.
+    """
+    pivot = tabelle.pivot(
+        index="leistungsanteil", columns="dauer_h", values=spalte
+    ).sort_index()
+    ist_rendite = spalte == "equity_irr"
+    z = pivot.to_numpy() * (100 if ist_rendite else 1.0)
+    mitte = (referenz or 0.0) * (100 if ist_rendite else 1.0)
+
+    einheit = " %" if ist_rendite else " €"
+    zellentext = "%{z:.2f}" if ist_rendite else "%{z:,.0f}"
+    x_labels = [f"{int(d)} h" for d in pivot.columns]
+    y_labels = [f"{a * 100:.0f} %".replace(".", ",") for a in pivot.index]
+
+    fig = go.Figure(
+        go.Heatmap(
+            z=z, x=x_labels, y=y_labels,
+            colorscale=Colors.HEAT_SCALE,
+            zmid=mitte,
+            texttemplate=zellentext,
+            textfont=dict(size=11, family="Inter, sans-serif"),
+            colorbar=dict(ticksuffix=einheit),
+            hovertemplate=(
+                txt("diagramme.speicher_raster_hover")
+                + f"<br><b>{zellentext}{einheit}</b><extra></extra>"
+            ),
+        )
+    )
+
+    # Das Optimum bekommt einen Ring und keine Fuellung: Die Farbe der
+    # Zelle traegt bereits eine Aussage, und sie zu ueberdecken hiesse,
+    # genau an der interessantesten Stelle Information wegzunehmen.
+    if optimum is not None:
+        anteil, dauer = optimum
+        fig.add_scatter(
+            x=[f"{int(dauer)} h"],
+            y=[f"{anteil * 100:.0f} %".replace(".", ",")],
+            mode="markers",
+            marker=dict(
+                symbol="square-open", size=34,
+                color=Colors.INK, line=dict(width=3),
+            ),
+            hoverinfo="skip", showlegend=False,
+        )
+
+    fig.update_layout(
+        height=420,
+        margin=dict(t=10, b=0, l=0, r=0),
+        xaxis=dict(title=txt("diagramme.achse_speicherdauer")),
+        yaxis=dict(title=txt("diagramme.achse_speicherleistung")),
+    )
+    return fig
