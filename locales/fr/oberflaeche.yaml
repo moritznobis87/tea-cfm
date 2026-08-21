@@ -844,7 +844,7 @@ projekt_rueckzahlung_keine: "Aucun reversement à l'organisme de soutien : dans 
 
 # Einspeisegrenze und Stundenreihe
 formular_einspeiselimit_label: "Limite d'injection (% des kWc)"
-formular_einspeiselimit_hilfe: "Injection maximale autorisée au point de raccordement, en part de la puissance crête — 70 % est usuel en Autriche. Effective uniquement avec une série horaire enregistrée : un volume mensuel ou annuel ne dit pas dans quelles heures la puissance a dépassé la limite."
+formular_einspeiselimit_hilfe: "Injection maximale autorisée au point de raccordement, en part de la puissance crête — 70 % est usuel en Autriche. Effective uniquement avec une série horaire enregistrée : un volume mensuel ou annuel ne dit pas dans quelles heures la puissance a dépassé la limite. L'Allemagne ne connaît pas de règle forfaitaire de ce type ; ce qui compte là-bas, c'est la puissance de raccordement (AC) accordée dans le contrat de raccordement rapportée à la puissance crête des modules (DC) — avec un rapport DC/AC de 1,25, cela fait 80 %. Ce n'est 100 % que si le raccordement absorbe toute la puissance DC."
 formular_lastgang_titel: "Série horaire d'injection"
 formular_lastgang_hinweis: "8 760 valeurs horaires issues de la simulation de conception. Elle remplace la courbe du type de montage par le profil propre de cette installation et sert de base au calcul d'écrêtage."
 formular_lastgang_upload: "Téléverser la série"
@@ -976,7 +976,7 @@ annahmen_dlg_foerderung_hinweis: "Modèle de prime, comportement en prix négati
 annahmen_dlg_rueckzahlung: "Restitution du surprofit"
 annahmen_dlg_steuern_hinweis: "Le mode fiscal détermine les champs applicables — le formulaire le suit."
 annahmen_einspeiselimit_label: "Limite d'injection (% des kWc)"
-annahmen_einspeiselimit_hilfe: "Injection maximale autorisée au point de raccordement, en part de la puissance crête (70 % usuel en Autriche). Actif uniquement si une série horaire est enregistrée pour le projet. 0 signifie : aucune limite."
+annahmen_einspeiselimit_hilfe: "Injection maximale autorisée au point de raccordement, en part de la puissance crête (70 % usuel en Autriche). Actif uniquement si une série horaire est enregistrée pour le projet. 0 signifie : aucune limite. L'Allemagne ne connaît pas de règle forfaitaire de ce type ; ce qui compte là-bas, c'est la puissance de raccordement (AC) accordée dans le contrat de raccordement rapportée à la puissance crête des modules (DC) — avec un rapport DC/AC de 1,25, cela fait 80 %. Ce n'est 100 % que si le raccordement absorbe toute la puissance DC."
 annahmen_pacht_mindestpacht_vorschlag_label: "Bail minimum (€/ha/an)"
 annahmen_tilgungsart_annuitaet: "Annuité"
 annahmen_tilgungsart_linear: "Linéaire"
@@ -1197,3 +1197,6 @@ speicher_auslegung_feste_leistung_hilfe: "La puissance de stockage réglée dans
 speicher_auslegung_mw_wert: "{wert} MW"
 speicher_auslegung_ohne_leistung: "« La durée seulement » nécessite une puissance de stockage réglée. Elle se trouve dans la colonne de paramètres sous « Stockage » — ou basculez sur « Puissance et durée » pour la faire chercher aussi."
 speicher_auslegung_nur_dauer_hinweis: "La puissance est fixée ; seule la durée est recherchée. L'optimiseur résout ce cas exactement : le repère vertical est sa réponse continue, les points sont les paliers constructibles à côté."
+speicher_auslegung_bezug_mit_grenze: "100 % = {leistung} MW — la limite d'injection ({grenze} de {kwp} MWp), ni la puissance des modules ni le stockage déjà paramétré. Sans règle des 70 % (en Allemagne par exemple) : la mettre à 100 % sur le projet, ou — si tout le portefeuille calcule sans limite — à 0 globalement."
+speicher_auslegung_bezug_ohne_grenze: "100 % = {leistung} MW — la puissance totale des modules ; aucune limite d'injection n'est enregistrée pour ce projet. La référence n'est PAS le stockage déjà paramétré."
+speicher_auslegung_rand_optimierer: "L'optimiseur se situe en revanche à {leistung} MW · {kapazitaet} MWh ({stunden} h) À L'INTÉRIEUR de son espace de recherche — un véritable optimum, pas un bord. Tant que la grille n'est pas étendue, sa réponse est la plus fiable des deux."

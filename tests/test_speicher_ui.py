@@ -1638,3 +1638,79 @@ class TestModuswechsel:
                    for a in (0.5, 1.0)]
         assert len({k.leistung_mw for k in eine}) == 1
         assert len({k.leistung_mw for k in mehrere}) > 1
+
+
+class TestBezugsgroesse:
+    """Worauf sich die Prozentwerte beziehen.
+
+    Genau hier lauert ein Missverstaendnis, und es ist keins, das man
+    sich ausdenken muesste: Es wurde in der Anwendung gestellt. Die
+    Prozentwerte meinen die EINSPEISELEISTUNG - nicht die Modulleistung
+    und nicht den bereits eingestellten Speicher. Beides faellt nur
+    zusammen, wenn keine Einspeisegrenze hinterlegt ist, und die globale
+    Vorbelegung sind 70 Prozent (in Oesterreich die Regel, in
+    Deutschland nicht).
+    """
+
+    def _mit(self, projekt, ga, kwp: float, grenze: float | None):
+        from engine.models import Projektannahmen
+
+        projekt.nennleistung_kwp = kwp
+        projekt.annahmen = Projektannahmen(einspeiselimit_pct=grenze)
+        return projekt, ga
+
+    def test_die_grenze_bestimmt_die_hundert_prozent(
+        self, project, global_assumptions
+    ):
+        from app import speicher
+
+        projekt, ga = self._mit(project, global_assumptions, 10_000.0, 0.70)
+        assert speicher.einspeiseleistung_mw(projekt, ga) == pytest.approx(7.0)
+
+    def test_hundert_prozent_grenze_gibt_die_volle_modulleistung(
+        self, project, global_assumptions
+    ):
+        """Der Weg fuer ein deutsches Projekt in einem sonst
+        oesterreichischen Portfolio: Die Grenze am PROJEKT auf 100 %
+        stellen. Global auf null zu gehen wuerde die uebrigen Projekte
+        mitnehmen."""
+        from app import speicher
+
+        projekt, ga = self._mit(project, global_assumptions, 10_000.0, 1.0)
+        assert speicher.einspeiseleistung_mw(projekt, ga) == pytest.approx(10.0)
+
+    def test_ohne_projektangabe_gilt_die_globale_vorbelegung(
+        self, project, global_assumptions
+    ):
+        """None heisst "folgt der Vorgabe" und nicht "keine Grenze" -
+        die Erbmechanik, und genau daran ist die Frage entstanden."""
+        from app import speicher
+
+        global_assumptions.einspeiselimit_pct = 0.70
+        projekt, ga = self._mit(project, global_assumptions, 10_000.0, None)
+        assert speicher.einspeiseleistung_mw(projekt, ga) == pytest.approx(7.0)
+
+    def test_der_eingestellte_speicher_ist_NICHT_die_bezugsgroesse(
+        self, project, global_assumptions
+    ):
+        """Die Frage, die gestellt wurde: Sind 100 % der angelegte
+        7,5-MW-Speicher? Nein - sonst haenge das Raster an dem Wert, den
+        es gerade ersetzen soll."""
+        from app import speicher
+
+        projekt, ga = self._mit(project, global_assumptions, 10_000.0, 1.0)
+        projekt.battery = _mit_speicher(leistung_mw=7.5, kapazitaet_mwh=15.0)
+        assert speicher.einspeiseleistung_mw(projekt, ga) == pytest.approx(10.0)
+
+    def test_das_raster_rechnet_mit_dieser_bezugsgroesse(
+        self, project, global_assumptions
+    ):
+        from app import speicher
+        from engine.storage import raster
+
+        projekt, ga = self._mit(project, global_assumptions, 10_000.0, 0.70)
+        bezug = speicher.einspeiseleistung_mw(projekt, ga)
+        kandidaten = raster(bezug, (0.5, 0.75, 1.0), (4,))
+        assert [k.leistung_mw for k in kandidaten] == pytest.approx(
+            [3.5, 5.25, 7.0]
+        )

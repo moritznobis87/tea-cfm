@@ -46,11 +46,26 @@ kein DP kann sie direkt maximieren.
 
 Deshalb gibt es beides: Dieses Modell sagt exakt, WO das Optimum der
 Dispatch-Oekonomie liegt. Das Raster (auslegung.py) sagt, was eine
-gebaute Auslegung im vollen Cashflow wirklich einbringt. Die beiden
-Antworten fallen regelmaessig auseinander - und dass sie es tun, ist
-eine Auskunft und kein Fehler: Steuer und Fremdkapital verschieben das
-Optimum zu kleineren Speichern, weil der Erloes besteuert wird, waehrend
-die Investition voll zu bezahlen ist.
+gebaute Auslegung im vollen Cashflow wirklich einbringt.
+
+Dass die Antworten auseinanderfallen, ist eine Auskunft und kein Fehler.
+In WELCHE Richtung, laesst sich aber nicht pauschal sagen - gemessen an
+einem 10-MWp-Projekt mit 20 % Eigenkapital und 4,2 % Fremdkapitalzins:
+
+    Barwert des Speichers, unverschuldet (dieses Modell)   6,5 h
+    EK-Rendite des Projekts, verschuldet und nach Steuer   6   h
+    Barwert des Projekts, verschuldet und nach Steuer      8   h
+
+Die Rendite zieht nach unten, weil zusaetzliches Kapital sie verwaessert;
+der Barwert zieht nach oben, weil Fremdkapital zu 4,2 % billiger ist als
+der Diskontsatz von 8 %, mit dem dieses Modell rechnet. Wer eine der
+beiden Richtungen als Regel formuliert, liegt in der Haelfte der Faelle
+falsch.
+
+Eine Aussage bleibt: Liegt der Rasterbestwert am RAND des Rasters, ist
+er kein Optimum, sondern die Stelle, an der die Suche aufgehoert hat -
+und dann ist die stetige Antwort dieses Modells die belastbarere von
+beiden.
 """
 
 from __future__ import annotations

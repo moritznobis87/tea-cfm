@@ -844,7 +844,7 @@ projekt_rueckzahlung_keine: "Sin reintegro al organismo financiador: en este esc
 
 # Einspeisegrenze und Stundenreihe
 formular_einspeiselimit_label: "Límite de inyección (% de kWp)"
-formular_einspeiselimit_hilfe: "Inyección máxima permitida en el punto de conexión, como cuota de la potencia pico — en Austria es habitual el 70 %. Solo es efectiva con una serie horaria registrada: un volumen mensual o anual no revela en qué horas la potencia superó el límite."
+formular_einspeiselimit_hilfe: "Inyección máxima permitida en el punto de conexión, como cuota de la potencia pico — en Austria es habitual el 70 %. Solo es efectiva con una serie horaria registrada: un volumen mensual o anual no revela en qué horas la potencia superó el límite. En Alemania no existe una regla general de ese tipo; allí lo determinante es la potencia de conexión (CA) acordada en el contrato de conexión en relación con la potencia pico de los módulos (CC) — con una relación CC/CA de 1,25, eso son 80 %. Solo si la conexión admite toda la potencia CC son 100 %."
 formular_lastgang_titel: "Serie horaria de inyección"
 formular_lastgang_hinweis: "8.760 valores horarios de la simulación de diseño. Sustituye la curva del tipo de montaje por el perfil propio de esta planta y es la base del cálculo de recorte."
 formular_lastgang_upload: "Subir serie"
@@ -976,7 +976,7 @@ annahmen_dlg_foerderung_hinweis: "Modelo de prima, comportamiento con precios ne
 annahmen_dlg_rueckzahlung: "Devolución del sobrebeneficio"
 annahmen_dlg_steuern_hinweis: "El modo fiscal determina qué campos se aplican — el formulario lo sigue."
 annahmen_einspeiselimit_label: "Límite de inyección (% de kWp)"
-annahmen_einspeiselimit_hilfe: "Inyección máxima permitida en el punto de conexión como porcentaje de la potencia pico (70 % es habitual en Austria). Solo es efectivo si el proyecto tiene una serie horaria. 0 significa: sin límite."
+annahmen_einspeiselimit_hilfe: "Inyección máxima permitida en el punto de conexión como porcentaje de la potencia pico (70 % es habitual en Austria). Solo es efectivo si el proyecto tiene una serie horaria. 0 significa: sin límite. En Alemania no existe una regla general de ese tipo; allí lo determinante es la potencia de conexión (CA) acordada en el contrato de conexión en relación con la potencia pico de los módulos (CC) — con una relación CC/CA de 1,25, eso son 80 %. Solo si la conexión admite toda la potencia CC son 100 %."
 annahmen_pacht_mindestpacht_vorschlag_label: "Arrendamiento mínimo (€/ha/año)"
 annahmen_tilgungsart_annuitaet: "Anualidad"
 annahmen_tilgungsart_linear: "Lineal"
@@ -1197,3 +1197,6 @@ speicher_auslegung_feste_leistung_hilfe: "La potencia del almacenamiento fijada 
 speicher_auslegung_mw_wert: "{wert} MW"
 speicher_auslegung_ohne_leistung: "«Solo la duración» requiere una potencia de almacenamiento fijada. Está en la columna de parámetros bajo «Almacenamiento» — o cambie a «Potencia y duración» para que también se busque."
 speicher_auslegung_nur_dauer_hinweis: "La potencia está fija; solo se busca la duración. El optimizador resuelve este caso de forma exacta: la marca vertical es su respuesta continua, los puntos son los escalones construibles a su lado."
+speicher_auslegung_bezug_mit_grenze: "100 % = {leistung} MW — el límite de inyección ({grenze} de {kwp} MWp), no la potencia de los módulos ni el almacenamiento ya configurado. Sin regla del 70 % (por ejemplo en Alemania): fíjelo al 100 % en el proyecto, o — si toda la cartera calcula sin límite — a 0 globalmente."
+speicher_auslegung_bezug_ohne_grenze: "100 % = {leistung} MW — la potencia total de los módulos; para este proyecto no hay límite de inyección. La referencia NO es el almacenamiento ya configurado."
+speicher_auslegung_rand_optimierer: "El optimizador, en cambio, se sitúa en {leistung} MW · {kapazitaet} MWh ({stunden} h) DENTRO de su espacio de búsqueda — un óptimo real, no un borde. Mientras no se amplíe la malla, su respuesta es la más fiable de las dos."
