@@ -34,9 +34,16 @@ from engine.io_yaml import load_project_yaml, save_project_yaml  # noqa: E402
 
 
 def _mit_speicher(**kwargs) -> BatteryConfig:
+    """Eine Auslegung - OHNE Preise.
+
+    Die Preise stehen nicht mehr an der Auslegung, sondern in den
+    Annahmen (siehe engine/storage/kosten.py). BatteryConfig lehnt sie
+    ausdruecklich ab (`extra="forbid"`), damit eine aeltere Projektdatei
+    beim Laden scheitert statt einen gesetzten Preis stillschweigend zu
+    verlieren.
+    """
     vorgabe = dict(
         modus=SpeicherModus.GRUENSTROM, leistung_mw=5.0, kapazitaet_mwh=10.0,
-        capex_energie_eur_kwh=180.0, opex_eur_kw_jahr=8.0,
     )
     vorgabe.update(kwargs)
     return BatteryConfig(**vorgabe)
@@ -541,4 +548,129 @@ def test_projektmodell_haelt_den_speicher_ueber_yaml(tmp_path, project):
     assert neu.battery is not None
     assert neu.battery.modus == SpeicherModus.GRAUSTROM
     assert neu.battery.netzbezug_limit_mw == pytest.approx(3.0)
-    assert neu.battery.capex_gesamt_eur == pytest.approx(10.0 * 1000 * 180.0)
+
+
+# ---------------------------------------------------------------------------
+# Preise: Erbmechanik und Rechnung
+# ---------------------------------------------------------------------------
+
+
+class TestSpeicherpreise:
+    """Was ein Speicher kostet, ist eine MARKTANNAHME.
+
+    Die Auslegung gehoert zum Projekt - sie folgt aus Flaeche,
+    Netzanschluss und Vermarktungsidee. Der Preis nicht: Batteriepreise
+    fallen Jahr fuer Jahr spuerbar, und stuenden sie an der Auslegung,
+    muesste eine Preissenkung in jedem einzelnen Projekt nachgetragen
+    werden.
+    """
+
+    def test_alte_preisfelder_werden_abgelehnt(self):
+        """Eine aeltere Projektdatei soll beim Laden SCHEITERN und nicht
+        stillschweigend einen gesetzten Preis verlieren. Genau deshalb
+        traegt BatteryConfig `extra="forbid"`."""
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            BatteryConfig(leistung_mw=5.0, capex_energie_eur_kwh=180.0)
+
+    def test_ohne_abweichung_gilt_die_globale_vorgabe(
+        self, project, global_assumptions
+    ):
+        from engine.pipeline import resolve_assumptions
+
+        global_assumptions.speicher_capex_eur_kw = 500.0
+        global_assumptions.speicher_opex_eur_kw_jahr = 9.0
+        a = resolve_assumptions(project, global_assumptions)
+        assert a.speicher_capex_eur_kw == pytest.approx(500.0)
+        assert a.speicher_opex_eur_kw_jahr == pytest.approx(9.0)
+
+    def test_projektabweichung_schlaegt_die_vorgabe(
+        self, project, global_assumptions
+    ):
+        """Ein Projekt mit vorliegendem Angebot weicht ab - alle uebrigen
+        folgen weiter dem zentral gepflegten Preis."""
+        from engine.models import Projektannahmen
+        from engine.pipeline import resolve_assumptions
+
+        global_assumptions.speicher_capex_eur_kw = 500.0
+        project.annahmen = Projektannahmen(speicher_capex_eur_kw=390.0)
+        a = resolve_assumptions(project, global_assumptions)
+        assert a.speicher_capex_eur_kw == pytest.approx(390.0)
+        # Das nicht abweichende Feld folgt weiterhin der Vorgabe.
+        assert a.speicher_opex_eur_kw_jahr == pytest.approx(
+            global_assumptions.speicher_opex_eur_kw_jahr
+        )
+
+    def test_capex_haengt_an_der_leistung_nicht_an_der_kapazitaet(
+        self, project, global_assumptions
+    ):
+        """Die bewusste Vereinfachung, schriftlich festgehalten: Ein
+        5-MW-Speicher kostet gleich viel, ob er zwei oder vier Stunden
+        durchhaelt. Wer das aendert, aendert eine Modellaussage - und
+        dieser Test faellt ihm dabei auf."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import capex_eur
+
+        global_assumptions.speicher_capex_eur_kw = 450.0
+        a = resolve_assumptions(project, global_assumptions)
+        zwei_stunden = _mit_speicher(leistung_mw=5.0, kapazitaet_mwh=10.0)
+        vier_stunden = _mit_speicher(leistung_mw=5.0, kapazitaet_mwh=20.0)
+        assert capex_eur(zwei_stunden, a) == pytest.approx(5.0 * 1000 * 450.0)
+        assert capex_eur(vier_stunden, a) == capex_eur(zwei_stunden, a)
+        # Die LEISTUNG geht dagegen sehr wohl ein.
+        assert capex_eur(_mit_speicher(leistung_mw=10.0), a) == pytest.approx(
+            2 * capex_eur(zwei_stunden, a)
+        )
+
+    def test_unwirksamer_speicher_kostet_nichts(
+        self, project, global_assumptions
+    ):
+        """Wer den Speicher abschaltet, um seinen Beitrag zu isolieren,
+        will das Projekt OHNE ihn sehen - mit seiner Investition im
+        Anlagevermoegen waere es weder das eine noch das andere."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import capex_eur, opex_jahr_eur
+
+        a = resolve_assumptions(project, global_assumptions)
+        for aus in (None, _mit_speicher(aktiv=False),
+                    _mit_speicher(leistung_mw=0.0)):
+            assert capex_eur(aus, a) == 0.0
+            assert opex_jahr_eur(aus, a) == 0.0
+
+    def test_opex_haengt_an_der_leistung(self, project, global_assumptions):
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import opex_jahr_eur
+
+        global_assumptions.speicher_opex_eur_kw_jahr = 8.0
+        a = resolve_assumptions(project, global_assumptions)
+        assert opex_jahr_eur(_mit_speicher(leistung_mw=5.0), a) == pytest.approx(
+            5.0 * 1000 * 8.0
+        )
+
+    def test_preisaenderung_bewegt_den_fingerabdruck(
+        self, project, global_assumptions
+    ):
+        """Der Preis geht in CAPEX und OPEX ein und damit in die
+        Rendite - ein gerechneter Lauf gehoert danach als veraltet
+        gekennzeichnet."""
+        from app import speicher
+        from engine.models import Projektannahmen
+
+        project.battery = _mit_speicher()
+        vorher = speicher.fingerabdruck(project, global_assumptions)
+        project.annahmen = Projektannahmen(speicher_capex_eur_kw=390.0)
+        assert speicher.fingerabdruck(project, global_assumptions) != vorher
+
+    def test_dialog_und_modell_kennen_dieselben_felder(self):
+        """Der Dialog schreibt in die Projektannahmen. Ein dort
+        umbenanntes Feld muss hier auffallen und nicht erst, wenn ein
+        Nutzer sich wundert, dass sein Preis nicht ankommt."""
+        from app.components.storage_dialog import PREISFELDER
+        from engine.models import GlobalAssumptions, Projektannahmen
+
+        for feld in PREISFELDER.values():
+            assert feld in Projektannahmen.model_fields, feld
+            assert feld in GlobalAssumptions.model_fields, (
+                f"{feld} hat keine globale Vorgabe"
+            )

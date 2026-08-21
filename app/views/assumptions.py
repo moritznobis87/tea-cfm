@@ -895,6 +895,24 @@ def _letztes_modelljahr() -> int | None:
     return max(p.inbetriebnahme_jahr for p in projekte) + dauer - 1
 
 
+def _karte_speicher(ga: GlobalAssumptions) -> tuple[str, str]:
+    """Der Investitionspreis als Hauptwert - er entscheidet ueber die
+    Wirtschaftlichkeit am staerksten.
+
+    Die Subline nennt den Markt mit, an dem gerechnet wird: Ein
+    Speicherwert ohne die Angabe, WO er verdient wird, ist nicht
+    einzuordnen."""
+    return (
+        txt("oberflaeche.annahmen_karte_speicher_capex",
+            wert=fmt_number(ga.speicher_capex_eur_kw, 0)),
+        settings_hub.kurzfassung([
+            txt("oberflaeche.annahmen_karte_speicher_opex",
+                wert=fmt_number(ga.speicher_opex_eur_kw_jahr, 0)),
+            txt("oberflaeche.annahmen_karte_speicher_markt"),
+        ]),
+    )
+
+
 # --- Uebersicht -------------------------------------------------------------
 
 #: Bereich -> (Titelschluessel, Wertfunktion, Ziel). Ziel ist entweder
@@ -913,6 +931,8 @@ _KARTEN = (
     ("foerderung", "oberflaeche.annahmen_karte_foerderung",
      _karte_foerderung, "foerderung"),
     ("steuern", "oberflaeche.annahmen_karte_steuern", _karte_steuern, "steuern"),
+    ("speicher", "oberflaeche.annahmen_karte_speicher",
+     _karte_speicher, "speicher"),
 )
 
 

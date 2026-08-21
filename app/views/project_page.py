@@ -215,7 +215,11 @@ def render_project_page() -> None:
     )
 
     # --- Kopfzeile mit Aktionen ---------------------------------------------
-    col_titel, col_pdf, col_excel, col_mehr = st.columns([6, 1.5, 1.0, 0.5],
+    # PDF und Excel bekommen gleich viel Platz: Sie stehen nebeneinander
+    # und sind derselbe Vorgang in zwei Formaten. Vorher war die
+    # PDF-Spalte breiter, und weil ihre Beschriftung trotzdem umbrach,
+    # stand der Knopf zweizeilig neben einem einzeiligen "Excel".
+    col_titel, col_pdf, col_excel, col_mehr = st.columns([6, 1.2, 1.2, 0.5],
                                                          vertical_alignment="bottom")
     with col_titel:
         st.markdown(f"### {gespeichert.name}")

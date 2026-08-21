@@ -31,6 +31,7 @@ from app import services
 from app.components import storage_dialog
 from app.components.project_inspector import (
     abschnittstitel,
+    einheiten_schalter,
     kurzfassung,
     overlay_wert,
     summary_card,
@@ -98,38 +99,6 @@ def _bereinige_positionen(tabelle: pd.DataFrame) -> list[dict]:
             {"Position": name, "Wert": float(wert) if pd.notna(wert) else 0.0}
         )
     return eintraege
-
-
-def _einheiten_schalter(ziel, schalter_key: str, key_suffix: str) -> None:
-    """Der Einheiten-Umschalter eines Investkostenfelds.
-
-    Aufbau: die Einheit "aus" links, der Schalter, die Einheit "an"
-    rechts - "(€/kWp)  ◯—  (€)". Die beiden Einheiten stehen damit
-    NEBENEINANDER, und was der Schalter tut, ist ablesbar, ohne den
-    Hilfetext zu oeffnen.
-
-    Frueher trug er die Beschriftung "Gesamtbetrag (€)". Sie war lang
-    genug, um in der schmalen Spalte auf zwei Zeilen zu brechen, und sie
-    nannte nur den einen der beiden Zustaende.
-
-    Warum ein Container mit Flex-Regel und keine drei Spalten: Der
-    Schalter steht im Inspector in einer Quick-Adjust-Zelle, die selbst
-    schon eine Spalte in einer Spalte ist - eine weitere Ebene liesse
-    Streamlit nicht zu. Der Container ordnet stattdessen per CSS in eine
-    Zeile (siehe .st-key-einheit_ in app/theme.py); die rechte Einheit
-    ist die Beschriftung des Schalters und steht ohne Zutun neben ihm.
-    """
-    with ziel.container(key=f"einheit_{key_suffix}"):
-        st.markdown(
-            f'<span class="einheit-marke">'
-            f'{txt("oberflaeche.formular_capex_einheit_spezifisch")}</span>',
-            unsafe_allow_html=True,
-        )
-        st.toggle(
-            txt("oberflaeche.formular_capex_einheit_absolut"),
-            key=schalter_key,
-            help=txt("oberflaeche.formular_capex_toggle_hilfe"),
-        )
 
 
 def _positionstabelle(
@@ -300,7 +269,9 @@ def _zusammenfassung_capex(form_key, existing, nennleistung_kwp) -> str:
     # Kurzfassung mit - vergleichbar ist der spezifische Wert, greifbar
     # der absolute.
     return kurzfassung([
-        f"{fmt_number(spez, 0)} €/kWp",
+        # Ohne Waehrungszeichen: Der Gesamtbetrag daneben traegt es
+        # bereits, und die Zeile war eine Angabe zu lang fuer die Karte.
+        f"{fmt_number(spez, 0)}/kWp",
         f"{fmt_number(gesamt / 1e6, 2)} Mio. €",
         txt("oberflaeche.inspector_kurz_netz", wert=fmt_number(netz / 1000, 0)),
         txt("oberflaeche.inspector_kurz_trasse", wert=fmt_number(trasse / 1000, 0)),
@@ -350,7 +321,15 @@ def _zusammenfassung_ertrag(form_key, existing, ga) -> str:
         form_key, "ibn_jahr_live",
         existing.inbetriebnahme_jahr if existing else "",
     )
-    ibn = f"{monat} {jahr}".strip() if jahr else ""
+    # "1/27" statt "Jan 2027": Die Kurzfassung dieser Karte traegt vier
+    # Angaben, und in der schmalen Spalte lief sie damit auf drei Zeilen
+    # ueber den Kartenrand hinaus. Monat und Jahr bleiben ablesbar, sie
+    # brauchen nur ein Viertel des Platzes.
+    monatszahl = (
+        kurznamen.index(monat) + 1 if monat in kurznamen
+        else (existing.inbetriebnahme_monat if existing else 0)
+    )
+    ibn = f"{monatszahl}/{str(jahr)[-2:]}" if jahr and monatszahl else ""
     return kurzfassung([
         str(bauform),
         txt("oberflaeche.inspector_kurz_ibn", wert=ibn) if ibn else "",
@@ -394,6 +373,34 @@ def _zusammenfassung_finanzierung(form_key, existing, ga) -> str:
     ])
 
 
+#: Kurzform der Steuermodelle FUER DIE KARTE.
+#:
+#: Die ausgeschriebene Beschriftung ("AfA + Koerperschaftsteuer (AT)")
+#: steht weiterhin im Auswahlfeld, wo Platz ist und die Alternativen
+#: nebeneinander gelesen werden. In der Kurzfassung der Karte war sie
+#: allein so lang wie die uebrigen zwei Angaben zusammen und trieb die
+#: Zeile in der schmalen Spalte auf drei Zeilen.
+_STEUER_KURZ: dict[str, str] = {
+    TaxModus.AFA_KOERPERSCHAFTSTEUER.value: "oberflaeche.inspector_kurz_koest",
+    TaxModus.GEWERBESTEUER_DE.value: "oberflaeche.inspector_kurz_gewst",
+    TaxModus.PAUSCHAL_AUF_EBT.value: "oberflaeche.inspector_kurz_pauschal",
+}
+
+
+def _steuermodus_kurz(modus) -> str:
+    """Die Kurzform, wenn es eine gibt - sonst der Wert selbst.
+
+    Der Rueckfall ist nicht Kosmetik: In der Karte steht der WIDGET-Wert
+    des Auswahlfelds, also die ausgeschriebene Beschriftung. Sie wird
+    hier auf ihren Enum-Wert zurueckgesucht; findet sich keiner (andere
+    Sprache, spaeter ergaenztes Modell), bleibt sie unveraendert stehen.
+    """
+    for wert, schluessel in _STEUER_KURZ.items():
+        if str(modus) == _lesbar(TaxModus(wert)):
+            return txt(schluessel)
+    return str(modus)
+
+
 def _zusammenfassung_steuern(form_key, ga) -> str:
     modus = _live(form_key, "abw_tax_modus", _lesbar(ga.tax_modus))
     afa = _live(form_key, "abw_afa_nutzungsdauer_jahre", None)
@@ -403,7 +410,7 @@ def _zusammenfassung_steuern(form_key, ga) -> str:
     if satz is None:
         satz = ga.steuersatz_pct * 100
     return kurzfassung([
-        str(modus),
+        _steuermodus_kurz(modus),
         txt("oberflaeche.inspector_kurz_afa", wert=fmt_number(afa, 0)),
         txt("oberflaeche.inspector_kurz_steuersatz", wert=fmt_number(satz, 0)),
     ])
@@ -774,13 +781,28 @@ _ABWEICHUNG_LABEL: dict[str, str] = {
     "einspeiselimit_pct": "oberflaeche.formular_einspeiselimit_label",
 }
 
+#: Die Preisfelder des Speichers.
+#:
+#: Sie stehen bewusst NICHT in _ABWEICHUNG_LABEL: Dort steht, was die
+#: Parameterspalte als eigenes Feld fuehrt, und diese drei fuehrt sie
+#: nicht - sie werden im Speicherdialog gesetzt, dort, wo man die
+#: Auslegung vor sich hat. Ein Preis je kWh ohne die Kapazitaet daneben
+#: waere eine Zahl ohne Zusammenhang.
+#:
+#: Aus _NOCH_NICHT_IN_DER_MASKE muessen sie trotzdem heraus: Sonst
+#: schriebe der gespeicherte Stand bei jedem Aufbau den Dialogwert
+#: nieder, und das Uebernehmen im Dialog waere wirkungslos.
+SPEICHER_PREISFELDER: tuple[str, ...] = tuple(storage_dialog.PREISFELDER.values())
+
 #: Abweichungsfelder, die die Maske noch nicht anbietet. Sie werden
 #: unveraendert aus dem gespeicherten Projekt uebernommen - sonst
 #: loeschte jedes Speichern eine von Hand in der YAML gepflegte
 #: Abweichung stillschweigend.
 _NOCH_NICHT_IN_DER_MASKE: tuple[str, ...] = tuple(
     feld for feld in Projektannahmen.model_fields
-    if feld not in _ABWEICHUNG_LABEL and feld != "opex_standard_eur_kwp"
+    if feld not in _ABWEICHUNG_LABEL
+    and feld != "opex_standard_eur_kwp"
+    and feld not in SPEICHER_PREISFELDER
 )
 
 
@@ -1629,7 +1651,7 @@ def _felder(
         # genau einer Zahl. Als "Gesamtbetrag (€)" stand er zeitweise
         # ausgelagert am Kopf der Investkosten-Karte; dort war nicht mehr
         # zu erkennen, auf welches Feld er sich bezieht.
-        _einheiten_schalter(col, schalter_key, key_suffix)
+        einheiten_schalter(col, schalter_key, key_suffix)
         return eingabe if absolut else eingabe * nennleistung_kwp
 
     epc_default_eur_kwp = global_assumptions.epc_eur_kwp_vorschlag_je_anlagentyp.get(
@@ -2272,8 +2294,20 @@ def _felder(
         form_key, global_assumptions, kreditvertrag, steuern, foerdermodell
     )
 
+    # Die Speicherpreise liegen im Overlay, nicht in Widgets: Gesetzt
+    # werden sie im Speicherdialog, und der lebt nur, solange er offen
+    # ist (siehe project_inspector.py). Ohne Eintrag gilt der
+    # gespeicherte Stand - dieselbe Regel wie bei allen Overlay-Feldern.
+    speicher_preise = {
+        feld: overlay_wert(
+            form_key, feld, getattr(gespeicherte_abweichung, feld)
+        )
+        for feld in SPEICHER_PREISFELDER
+    }
+
     abweichungen = Projektannahmen(
         **kreditvertrag, **steuern, **foerdermodell, **ertrag,
+        **speicher_preise,
         kosten_inflation_pct_pa=kosten_inflation,
         opex_standard_eur_kwp=opex_standard,
         **{

@@ -12,6 +12,22 @@ import os
 from pathlib import Path
 
 import pytest
+import yaml
+
+
+def _aus_sprachdatei(sprache: str, schluessel: str, datei: str = "oberflaeche") -> str:
+    """Ein Text direkt aus der Sprachdatei - ohne texte.py.
+
+    Bewusst am Modul vorbei: Tests, die eine Beschriftung der laufenden
+    App pruefen, sollen gegen die QUELLE vergleichen und nicht gegen
+    einen zweiten Aufruf derselben Mechanik, die sie eigentlich pruefen.
+    """
+    from texte import LOCALES_DIR
+
+    inhalt = yaml.safe_load(
+        (LOCALES_DIR / sprache / f"{datei}.yaml").read_text(encoding="utf-8")
+    )
+    return inhalt[schluessel]
 
 
 @pytest.fixture(autouse=True)
@@ -189,7 +205,16 @@ class TestSprachdropdownEndToEnd:
         at.run()
         assert not at.exception
         pdf_btn = [b for b in at.button if "PDF" in (b.label or "")][0]
-        assert pdf_btn.label == "Create PDF report"
+        # Gegen die SPRACHDATEI und nicht gegen eine hier abgeschriebene
+        # Beschriftung: Geprueft wird, dass die Sprachwahl wirkt, nicht
+        # der Wortlaut. Sonst faellt der Test bei jeder Umformulierung,
+        # ohne dass etwas kaputt waere - so geschehen, als der Knopf von
+        # "Create PDF report" auf "PDF report" gekuerzt wurde, weil er
+        # zweizeilig neben einem einzeiligen "Excel" stand.
+        assert pdf_btn.label == _aus_sprachdatei("en", "btn_pdf_bericht")
+        assert pdf_btn.label != _aus_sprachdatei("de", "btn_pdf_bericht"), (
+            "Die Sprachwahl wirkt nicht auf den PDF-Knopf"
+        )
         pdf_btn.click()
         at.run(timeout=300)
         assert not at.exception

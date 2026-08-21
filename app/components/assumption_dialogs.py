@@ -809,6 +809,45 @@ def render_steuern(e: GlobalAssumptions) -> None:
     _dlg()
 
 
+# --- Speicherpreise ---------------------------------------------------------
+#
+# Eigener Bereich und kein Anhaengsel: Batteriepreise sind ein Thema fuer
+# sich, sie fallen schneller als alles andere in diesem Modell, und sie
+# sind die Stelle, an die man geht, wenn eine Co-Location-Rechnung nicht
+# aufgeht. Die AUSLEGUNG eines Speichers steht dagegen am Projekt
+# (engine/models.py::BatteryConfig) - hier steht nur, was ein MW und ein
+# MWh kosten.
+
+SPEICHER: tuple[Feld, ...] = (
+    Feld("speicher_capex_eur_kw", "zahl",
+         "oberflaeche.annahmen_speicher_capex_label",
+         hilfe="oberflaeche.annahmen_speicher_capex_hilfe",
+         schritt=10.0),
+    Feld("speicher_opex_eur_kw_jahr", "zahl",
+         "oberflaeche.annahmen_speicher_opex_label",
+         hilfe="oberflaeche.annahmen_speicher_opex_hilfe",
+         schritt=1.0),
+)
+
+
+def render_speicher(e: GlobalAssumptions) -> None:
+    @st.dialog(txt("oberflaeche.annahmen_karte_speicher"),
+               width="large", on_dismiss=dialog_schliessen)
+    def _dlg():
+        _luecken_fuellen(SPEICHER, e)
+        st.caption(txt("oberflaeche.annahmen_dlg_speicher_hinweis"))
+        st.info(txt("oberflaeche.speicher_markt_hinweis"))
+        _gitter(SPEICHER, 2)
+        st.caption(txt("oberflaeche.annahmen_dlg_speicher_beispiel"))
+
+        def uebernehmen():
+            _uebernehmen(e, _einsammeln(SPEICHER))
+
+        _fuss(uebernehmen, "speicher")
+
+    _dlg()
+
+
 # --- gemeinsam --------------------------------------------------------------
 
 
@@ -827,4 +866,5 @@ DIALOGE: dict[str, tuple[tuple[Feld, ...], Callable[[GlobalAssumptions], None]]]
     "finanzierung": (FINANZIERUNG, render_finanzierung),
     "foerderung": (FOERDERUNG, render_foerderung),
     "steuern": (STEUERN, render_steuern),
+    "speicher": (SPEICHER, render_speicher),
 }

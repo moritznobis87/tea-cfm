@@ -46,6 +46,7 @@ import pandas as pd
 from ..models import BatteryConfig, EffectiveAssumptions
 from .dispatch import dispatch_jahr
 from .economics import grenzerloes_je_stunde, jahreswert
+from .kosten import capex_eur, opex_jahr_eur
 from .models import StorageJahreswert
 
 
@@ -267,8 +268,10 @@ def dispatch_mehrjahr(
 
     return SpeicherBeitrag(
         wertbeitrag_eur_je_jahr=tuple(wertbeitrag),
-        capex_eur=batterie.capex_gesamt_eur,
-        opex_eur_je_jahr=tuple(batterie.opex_jahr_eur for _ in jahre),
+        capex_eur=capex_eur(batterie, assumptions),
+        opex_eur_je_jahr=tuple(
+            opex_jahr_eur(batterie, assumptions) for _ in jahre
+        ),
         jahreswerte=tuple(jahreswerte),
         hinweise=tuple(hinweise),
     )
