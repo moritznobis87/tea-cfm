@@ -107,18 +107,78 @@ DAUERN_STUNDEN: tuple[int, ...] = (1, 2, 3, 4, 6, 8, 10, 12)
 #: Was ohne weitere Angabe gerechnet wird.
 DAUERN_STANDARD: tuple[int, ...] = (2, 4, 6, 8, 10, 12)
 
-#: Speicherleistung als Anteil der EINSPEISELEISTUNG, nicht der
-#: Modulleistung. Das ist der Bezug, in dem die Frage gestellt wird und
-#: der einzige, der die Antwort traegt: Der Netzverknuepfungspunkt
-#: begrenzt, was ueberhaupt hinausgehen kann - bei einer 70-%-Anlage
-#: sind das 70 % der Modulleistung. Ein Speicher mit "100 % der
-#: Modulleistung" haette eine Entladeleistung, die zu keinem Zeitpunkt
-#: abfliessen kann.
-LEISTUNGSANTEILE: tuple[float, ...] = (
-    0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.75, 0.8, 0.9,
-    1.0, 1.1, 1.25, 1.5, 1.75, 2.0,
+#: Feinste Stufe der Speicherleistung, in MW. Ein Speicher wird nicht
+#: auf drei Nachkommastellen bestellt; hundert Kilowatt sind die
+#: kleinste Groesse, ueber die sich zu reden lohnt.
+LEISTUNGSSCHRITT_MW = 0.1
+
+#: Wie weit ueber die Einspeiseleistung hinaus Auslegungen zur Wahl
+#: stehen. Mehr Leistung als der Anschluss hergibt klingt widersinnig,
+#: ist es aber nicht: Entladen kann der Speicher nur bis zur
+#: Anschlussgrenze, LADEN aus der PV-Anlage dagegen so schnell, wie sie
+#: liefert - und genau in den Stunden, in denen sie ueber der Grenze
+#: liegt, entsteht die Abregelung, die er zurueckholen soll.
+LEISTUNG_UEBER_ANSCHLUSS = 1.5
+
+#: Ungefaehr so viele Stufen soll die Auswahl haben. Zwoelf bis
+#: achtzehn passen in eine Liste, ohne dass man scrollt.
+_STUFEN_ANGESTREBT = 14
+
+#: Runde Schrittweiten in MW. Aus dieser Reihe wird die genommen, die
+#: der angestrebten Stufenzahl am naechsten kommt - so stehen im
+#: Auswahlfeld runde Zahlen (0,5 / 1,0 / 1,5 MW) und nicht die krummen
+#: Vielfachen eines Prozentsatzes (1,75 / 3,50 / 5,25 MW).
+_SCHRITTREIHE: tuple[float, ...] = (
+    0.1, 0.2, 0.25, 0.5, 1.0, 2.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0,
 )
-LEISTUNGSANTEILE_STANDARD: tuple[float, ...] = (0.25, 0.5, 0.75, 1.0)
+
+
+def _schrittweite(spanne_mw: float) -> float:
+    """Die runde Schrittweite, die `spanne_mw` am besten aufteilt."""
+    ziel = spanne_mw / _STUFEN_ANGESTREBT
+    tauglich = [s for s in _SCHRITTREIHE if s >= LEISTUNGSSCHRITT_MW]
+    return min(tauglich, key=lambda s: abs(s - ziel))
+
+
+def leistungsstufen(einspeiseleistung_mw: float) -> tuple[float, ...]:
+    """Waehlbare Speicherleistungen in MW - runde Zahlen, keine Prozente.
+
+    Prozentwerte waren die erste Fassung und die schlechtere: "75 %"
+    beantwortet die Frage nicht, solange nicht danebensteht, wovon.
+    Genau diese Rueckfrage kam aus der Anwendung, und zwar mit drei
+    plausiblen Kandidaten - Modulleistung, Einspeiseleistung oder der
+    bereits eingestellte Speicher.
+
+    In MW stellt sie sich nicht. Die Liste richtet sich trotzdem nach
+    der Einspeiseleistung, denn sie ist die Groesse, an der die Antwort
+    haengt; sichtbar ist davon aber nur noch das Ergebnis.
+    """
+    obergrenze = max(
+        einspeiseleistung_mw * LEISTUNG_UEBER_ANSCHLUSS, LEISTUNGSSCHRITT_MW
+    )
+    schritt = _schrittweite(obergrenze)
+    anzahl = max(1, int(round(obergrenze / schritt)))
+    return tuple(
+        round(schritt * (i + 1), 3) for i in range(anzahl)
+    )
+
+
+def leistungen_standard(einspeiseleistung_mw: float) -> tuple[float, ...]:
+    """Was ohne weitere Angabe angehakt ist.
+
+    Vier Stufen rund um die Einspeiseleistung - ein Viertel, die
+    Haelfte, drei Viertel, voll -, auf die verfuegbaren Stufen gerundet.
+    Das ist dieselbe Spreizung wie in der ersten Fassung, nur ohne dass
+    der Nutzer sie in Prozent lesen muss.
+    """
+    stufen = leistungsstufen(einspeiseleistung_mw)
+    if not stufen:
+        return ()
+    gewuenscht = [einspeiseleistung_mw * a for a in (0.25, 0.5, 0.75, 1.0)]
+    gewaehlt = {
+        min(stufen, key=lambda s, z=ziel: abs(s - z)) for ziel in gewuenscht
+    }
+    return tuple(sorted(gewaehlt))
 
 #: Stuetzjahre ohne weitere Angabe.
 STUETZJAHRE_STANDARD = 4
@@ -164,23 +224,27 @@ class Kandidat:
 
 
 def raster(
-    einspeiseleistung_mw: float,
-    leistungsanteile: Sequence[float] = LEISTUNGSANTEILE_STANDARD,
+    leistungen_mw: Sequence[float],
     dauern: Sequence[int] = DAUERN_STANDARD,
+    einspeiseleistung_mw: float = 0.0,
 ) -> tuple[Kandidat, ...]:
     """Alle Punkte des Rasters, nach Leistung und dann Dauer sortiert.
 
-    Bezugsgroesse ist die EINSPEISELEISTUNG am Netzverknuepfungspunkt -
-    bei einer 70-%-Anlage also 70 % der Modulleistung. Siehe
-    LEISTUNGSANTEILE.
+    Die Leistungen kommen ABSOLUT in MW herein. Der Anteil an der
+    Einspeiseleistung wird nur noch mitgefuehrt, weil der Optimierer
+    seinen Kandidaten damit einordnet - gefragt und angezeigt wird er
+    nicht mehr (siehe `leistungsstufen`).
     """
     return tuple(
         Kandidat(
-            leistungsanteil=float(anteil),
-            leistung_mw=einspeiseleistung_mw * float(anteil),
+            leistungsanteil=(
+                float(mw) / einspeiseleistung_mw
+                if einspeiseleistung_mw else 0.0
+            ),
+            leistung_mw=round(float(mw), 3),
             dauer_h=int(dauer),
         )
-        for anteil in sorted(set(leistungsanteile))
+        for mw in sorted(set(leistungen_mw))
         for dauer in sorted(set(dauern))
     )
 
