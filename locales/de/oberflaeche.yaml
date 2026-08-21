@@ -845,7 +845,7 @@ projekt_rueckzahlung_keine: "Keine Rückvergütung an den Fördergeber: Der Refe
 
 # Einspeisegrenze und Stundenreihe
 formular_einspeiselimit_label: "Einspeisegrenze (% der kWp)"
-formular_einspeiselimit_hilfe: "Höchste zulässige Einspeisung am Netzverknüpfungspunkt, als Anteil der Modulspitzenleistung — in Österreich üblich 70 %. Wirksam nur mit hinterlegter Stundenreihe: Aus einer Monats- oder Jahresmenge lässt sich nicht ablesen, in welchen Stunden die Leistung über der Grenze lag."
+formular_einspeiselimit_hilfe: "Höchste zulässige Einspeisung am Netzverknüpfungspunkt, als Anteil der Modulspitzenleistung — in Österreich üblich 70 %. Wirksam nur mit hinterlegter Stundenreihe: Aus einer Monats- oder Jahresmenge lässt sich nicht ablesen, in welchen Stunden die Leistung über der Grenze lag. In Deutschland gibt es keine solche pauschale Regel; maßgeblich ist dort die im Netzanschlussvertrag zugesagte Anschlusswirkleistung (AC) im Verhältnis zur Modulspitzenleistung (DC) — bei einem DC/AC-Verhältnis von 1,25 also 80 %. Nur wenn der Anschluss die volle DC-Leistung abnimmt, sind es 100 %."
 formular_lastgang_titel: "Stundenreihe der Einspeisung"
 formular_lastgang_hinweis: "8.760 Stundenwerte aus der Auslegungssimulation. Sie ersetzt die Einspeisekurve der Bauform durch das Profil dieser Anlage und ist die Grundlage der Kappungsrechnung."
 formular_lastgang_upload: "Reihe hochladen"
@@ -977,7 +977,7 @@ annahmen_dlg_foerderung_hinweis: "Prämienmodell, Verhalten bei negativen Preise
 annahmen_dlg_rueckzahlung: "Rückzahlung des Übergewinns"
 annahmen_dlg_steuern_hinweis: "Der Steuermodus bestimmt, welche Felder gelten — die Maske folgt ihm."
 annahmen_einspeiselimit_label: "Einspeisegrenze (% der kWp)"
-annahmen_einspeiselimit_hilfe: "Höchste zulässige Einspeisung am Netzverknüpfungspunkt als Anteil der Modulspitzenleistung (in Österreich üblich 70 %). Wirksam nur, wenn für das Projekt eine Stundenreihe hinterlegt ist — aus einer Monats- oder Jahresmenge lässt sich nicht ablesen, in welchen Stunden die Leistung über der Grenze lag. 0 bedeutet: keine Begrenzung."
+annahmen_einspeiselimit_hilfe: "Höchste zulässige Einspeisung am Netzverknüpfungspunkt als Anteil der Modulspitzenleistung (in Österreich üblich 70 %). Wirksam nur, wenn für das Projekt eine Stundenreihe hinterlegt ist — aus einer Monats- oder Jahresmenge lässt sich nicht ablesen, in welchen Stunden die Leistung über der Grenze lag. 0 bedeutet: keine Begrenzung. In Deutschland gibt es keine solche pauschale Regel; maßgeblich ist dort die im Netzanschlussvertrag zugesagte Anschlusswirkleistung (AC) im Verhältnis zur Modulspitzenleistung (DC) — bei einem DC/AC-Verhältnis von 1,25 also 80 %. Nur wenn der Anschluss die volle DC-Leistung abnimmt, sind es 100 %."
 annahmen_pacht_mindestpacht_vorschlag_label: "Mindestpacht (€/ha/Jahr)"
 annahmen_tilgungsart_annuitaet: "Annuität"
 annahmen_tilgungsart_linear: "Linear"
@@ -1198,3 +1198,6 @@ speicher_auslegung_feste_leistung_hilfe: "Die eingestellte Speicherleistung aus 
 speicher_auslegung_mw_wert: "{wert} MW"
 speicher_auslegung_ohne_leistung: "Für „Nur die Dauer“ braucht es eine eingestellte Speicherleistung. Sie steht in der Parameterspalte unter „Speicher“ — oder auf „Leistung und Dauer“ umstellen, dann wird sie mitgesucht."
 speicher_auslegung_nur_dauer_hinweis: "Die Leistung steht fest, gesucht ist allein die Speicherdauer. Der Optimierer löst diesen Fall exakt: Die senkrechte Marke ist seine stetige Antwort, die Punkte sind die baubaren Stufen daneben."
+speicher_auslegung_bezug_mit_grenze: "100 % = {leistung} MW — die Einspeisegrenze ({grenze} von {kwp} MWp), nicht die Modulleistung und nicht der eingestellte Speicher. Ohne 70-%-Regel (etwa in Deutschland): am Projekt auf 100 % stellen, oder — wenn das ganze Portfolio ohne Grenze rechnet — global auf 0."
+speicher_auslegung_bezug_ohne_grenze: "100 % = {leistung} MW — die volle Modulleistung; für dieses Projekt ist keine Einspeisegrenze hinterlegt. Bezug ist NICHT der bereits eingestellte Speicher."
+speicher_auslegung_rand_optimierer: "Der Optimierer liegt dagegen mit {leistung} MW · {kapazitaet} MWh ({stunden} h) INNERHALB seines Suchraums — ein echtes Optimum, kein Rand. Solange das Raster nicht erweitert ist, ist seine Antwort die belastbarere von beiden."

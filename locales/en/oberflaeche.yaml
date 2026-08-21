@@ -844,7 +844,7 @@ projekt_rueckzahlung_keine: "No repayment to the funding body: in this price sce
 
 # Einspeisegrenze und Stundenreihe
 formular_einspeiselimit_label: "Feed-in limit (% of kWp)"
-formular_einspeiselimit_hilfe: "Maximum permitted feed-in at the grid connection point, as a share of module peak power — 70 % is customary in Austria. Effective only with an hourly series on file: a monthly or annual volume cannot show in which hours output exceeded the limit."
+formular_einspeiselimit_hilfe: "Maximum permitted feed-in at the grid connection point, as a share of module peak power — 70 % is customary in Austria. Effective only with an hourly series on file: a monthly or annual volume cannot show in which hours output exceeded the limit. Germany has no such blanket rule; what counts there is the connection capacity (AC) granted in the grid connection contract relative to the module peak (DC) — with a DC/AC ratio of 1.25 that is 80 %. Only where the connection takes the full DC output is it 100 %."
 formular_lastgang_titel: "Hourly feed-in series"
 formular_lastgang_hinweis: "8,760 hourly values from the design simulation. It replaces the mounting type's generation curve with this plant's own profile and is the basis of the clipping calculation."
 formular_lastgang_upload: "Upload series"
@@ -976,7 +976,7 @@ annahmen_dlg_foerderung_hinweis: "Premium model, behaviour at negative prices an
 annahmen_dlg_rueckzahlung: "Clawback of excess revenue"
 annahmen_dlg_steuern_hinweis: "The tax mode determines which fields apply — the form follows it."
 annahmen_einspeiselimit_label: "Feed-in limit (% of kWp)"
-annahmen_einspeiselimit_hilfe: "Maximum permitted feed-in at the grid connection point as a share of module peak power (70 % is customary in Austria). Effective only if the project has an hourly series — a monthly or annual volume does not reveal which hours exceeded the limit. 0 means: no limit."
+annahmen_einspeiselimit_hilfe: "Maximum permitted feed-in at the grid connection point as a share of module peak power (70 % is customary in Austria). Effective only if the project has an hourly series — a monthly or annual volume does not reveal which hours exceeded the limit. 0 means: no limit. Germany has no such blanket rule; what counts there is the connection capacity (AC) granted in the grid connection contract relative to the module peak (DC) — with a DC/AC ratio of 1.25 that is 80 %. Only where the connection takes the full DC output is it 100 %."
 annahmen_pacht_mindestpacht_vorschlag_label: "Minimum lease (€/ha/yr)"
 annahmen_tilgungsart_annuitaet: "Annuity"
 annahmen_tilgungsart_linear: "Linear"
@@ -1197,3 +1197,6 @@ speicher_auslegung_feste_leistung_hilfe: "The storage power set in the parameter
 speicher_auslegung_mw_wert: "{wert} MW"
 speicher_auslegung_ohne_leistung: "“Duration only” needs a storage power to be set. It lives in the parameter column under “Storage” — or switch to “Power and duration” to have it searched as well."
 speicher_auslegung_nur_dauer_hinweis: "Power is fixed; only the storage duration is sought. The optimiser solves this case exactly: the vertical mark is its continuous answer, the points are the buildable steps around it."
+speicher_auslegung_bezug_mit_grenze: "100 % = {leistung} MW — the feed-in limit ({grenze} of {kwp} MWp), not the module capacity and not the storage already configured. Without a 70 % rule (Germany, for instance): set it to 100 % on the project, or — if the whole portfolio runs without a limit — to 0 globally."
+speicher_auslegung_bezug_ohne_grenze: "100 % = {leistung} MW — the full module capacity; no feed-in limit is set for this project. The reference is NOT the storage already configured."
+speicher_auslegung_rand_optimierer: "The optimiser, by contrast, sits at {leistung} MW · {kapazitaet} MWh ({stunden} h) INSIDE its search space — a genuine optimum, not an edge. Until the grid is extended, its answer is the more reliable of the two."

@@ -401,8 +401,40 @@ def _suchmodus(projekt: PVProject) -> str:
     )
 
 
+def _bezugszeile(projekt: PVProject, ga) -> str:
+    """Was 100 Prozent in Megawatt sind - und woher die Zahl kommt.
+
+    Der Satz steht sichtbar unter dem Regler und nicht in einer
+    Hilfeblase, weil genau hier ein Missverstaendnis lauert: Die
+    Prozentwerte beziehen sich auf die EINSPEISELEISTUNG, nicht auf die
+    Modulleistung und nicht auf den bereits eingestellten Speicher.
+
+    Beides faellt nur dann zusammen, wenn keine Einspeisegrenze
+    hinterlegt ist. Die globale Vorbelegung sind 70 Prozent - in
+    Oesterreich die Regel, in Deutschland nicht. Wer ein deutsches
+    Projekt rechnet und die Grenze stehen laesst, bekommt ein Raster,
+    das bei 70 Prozent der Modulleistung endet, ohne dass ihm die
+    Herkunft dieser Zahl auffiele.
+    """
+    from engine.pipeline import resolve_assumptions
+
+    a = resolve_assumptions(projekt, ga)
+    leistung = speicher.einspeiseleistung_mw(projekt, ga)
+    if a.einspeiselimit_pct:
+        return txt(
+            "oberflaeche.speicher_auslegung_bezug_mit_grenze",
+            leistung=fmt_number(leistung, 2),
+            grenze=fmt_pct(a.einspeiselimit_pct, 0),
+            kwp=fmt_number(a.nennleistung_kwp / 1000.0, 2),
+        )
+    return txt(
+        "oberflaeche.speicher_auslegung_bezug_ohne_grenze",
+        leistung=fmt_number(leistung, 2),
+    )
+
+
 def _rasterwahl(
-    projekt: PVProject, modus: str
+    projekt: PVProject, ga, modus: str
 ) -> tuple[list[float], list[int], int]:
     """Die Regler ueber dem Knopf."""
     nur_dauer = modus == speicher.MODUS_NUR_DAUER
@@ -427,6 +459,7 @@ def _rasterwahl(
             key=f"raster_anteile_{projekt.id}",
             help=txt("oberflaeche.speicher_auslegung_leistungen_hilfe"),
         )
+        spalten[0].caption(_bezugszeile(projekt, ga))
     dauern = spalten[1].multiselect(
         txt("oberflaeche.speicher_auslegung_dauern_label"),
         list(auslegung.DAUERN_STUNDEN),
@@ -467,7 +500,7 @@ def _auslegung(projekt: PVProject, ga, form_key: str) -> None:
         st.info(txt("oberflaeche.speicher_auslegung_ohne_leistung"))
         return
 
-    anteile, dauern, stuetzjahre = _rasterwahl(projekt, modus)
+    anteile, dauern, stuetzjahre = _rasterwahl(projekt, ga, modus)
     if not anteile or not dauern:
         st.info(txt("oberflaeche.speicher_auslegung_leer"))
         return
@@ -670,6 +703,18 @@ def _randhinweis(ergebnis, punkt) -> None:
     st.warning(txt(
         "oberflaeche.speicher_auslegung_rand", richtung=txt(richtung)
     ))
+    # Genau hier ist die Frage "ja was denn jetzt?" beantwortbar, und
+    # zwar zugunsten des Optimierers: Sein Punkt liegt INNERHALB seines
+    # Suchraums, der Rasterbestwert am Rand. Ein Maximum am Rand ist
+    # keins - es ist die Stelle, an der die Suche aufgehoert hat.
+    optimum = ergebnis.optimum
+    if optimum is not None and optimum.wirksam and not optimum.am_deckel:
+        st.caption(txt(
+            "oberflaeche.speicher_auslegung_rand_optimierer",
+            leistung=fmt_number(optimum.leistung_mw, 2),
+            kapazitaet=fmt_number(optimum.kapazitaet_mwh, 2),
+            stunden=fmt_number(optimum.dauer_h, 1),
+        ))
 
 
 def _optimierer(ergebnis) -> None:
