@@ -1762,7 +1762,7 @@ def speicher_auslegung_chart(
     ueberhaupt traegt und wo er Geld kostet.
     """
     pivot = tabelle.pivot(
-        index="leistungsanteil", columns="dauer_h", values=spalte
+        index="leistung_mw", columns="dauer_h", values=spalte
     ).sort_index()
     ist_rendite = spalte == "equity_irr"
     z = pivot.to_numpy() * (100 if ist_rendite else 1.0)
@@ -1771,7 +1771,7 @@ def speicher_auslegung_chart(
     einheit = " %" if ist_rendite else " €"
     zellentext = "%{z:.2f}" if ist_rendite else "%{z:,.0f}"
     x_labels = [f"{int(d)} h" for d in pivot.columns]
-    y_labels = [f"{a * 100:.0f} %".replace(".", ",") for a in pivot.index]
+    y_labels = [f"{fmt_number(mw, 1)} MW" for mw in pivot.index]
 
     fig = go.Figure(
         go.Heatmap(
@@ -1792,10 +1792,10 @@ def speicher_auslegung_chart(
     # Zelle traegt bereits eine Aussage, und sie zu ueberdecken hiesse,
     # genau an der interessantesten Stelle Information wegzunehmen.
     if optimum is not None:
-        anteil, dauer = optimum
+        leistung, dauer = optimum
         fig.add_scatter(
             x=[f"{int(dauer)} h"],
-            y=[f"{anteil * 100:.0f} %".replace(".", ",")],
+            y=[f"{fmt_number(leistung, 1)} MW"],
             mode="markers",
             marker=dict(
                 symbol="square-open", size=34,

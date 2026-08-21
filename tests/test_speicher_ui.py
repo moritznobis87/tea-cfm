@@ -763,23 +763,49 @@ class TestAuslegungsraster:
         """Die ausdrueckliche Vorgabe: kein 1,146-Stunden-Speicher."""
         from engine.storage import auslegung as au
 
-        for k in au.raster(4.0, (0.5, 1.0), (2, 4, 12)):
+        for k in au.raster((2.0, 4.0), (2, 4, 12)):
             assert k.kapazitaet_mwh == pytest.approx(
                 k.leistung_mw * k.dauer_h
             )
             assert float(k.dauer_h).is_integer()
 
-    def test_leistung_misst_sich_an_der_einspeiseleistung(self):
-        """NICHT an der Modulleistung. Bei einer 70-%-Anlage sind 100 %
-        siebzig Prozent der Module - ein Speicher mit voller
-        Modulleistung haette eine Entladeleistung, die zu keinem
-        Zeitpunkt abfliessen koennte."""
+    def test_die_leistungen_kommen_absolut_in_mw(self):
+        """Prozentwerte waren die erste Fassung und die schlechtere:
+        "75 %" beantwortet die Frage nicht, solange nicht danebensteht,
+        wovon - und genau diese Rueckfrage kam aus der Anwendung, mit
+        drei plausiblen Kandidaten (Modulleistung, Einspeiseleistung,
+        eingestellter Speicher). In MW stellt sie sich nicht."""
         from engine.storage import auslegung as au
 
-        kandidaten = au.raster(1.988, (0.5, 1.0), (4,))
-        assert [k.leistung_mw for k in kandidaten] == pytest.approx(
-            [0.994, 1.988]
-        )
+        kandidaten = au.raster((0.9, 1.9), (4,))
+        assert [k.leistung_mw for k in kandidaten] == pytest.approx([0.9, 1.9])
+
+    def test_die_stufen_sind_runde_zahlen_in_zehntel_mw(self):
+        """Ein Speicher wird nicht auf drei Nachkommastellen bestellt.
+        Und die Liste soll runde Zahlen zeigen (0,5 / 1,0 / 1,5 MW),
+        nicht die krummen Vielfachen eines Prozentsatzes."""
+        from engine.storage import auslegung as au
+
+        for bezug in (0.5, 1.99, 7.0, 10.0, 32.0):
+            stufen = au.leistungsstufen(bezug)
+            assert stufen, bezug
+            for mw in stufen:
+                zehntel = mw / au.LEISTUNGSSCHRITT_MW
+                assert abs(zehntel - round(zehntel)) < 1e-9, (bezug, mw)
+            # Die Liste bleibt bedienbar - keine hundert Eintraege.
+            assert 5 <= len(stufen) <= 25, (bezug, len(stufen))
+            # Und sie reicht ueber den Anschluss hinaus: Laden aus der
+            # PV-Anlage ist nicht durch die Einspeisegrenze beschraenkt.
+            assert stufen[-1] > bezug
+
+    def test_die_vorauswahl_spannt_den_anschluss_auf(self):
+        from engine.storage import auslegung as au
+
+        standard = au.leistungen_standard(10.0)
+        assert len(standard) == 4
+        assert standard == tuple(sorted(standard))
+        assert standard[-1] == pytest.approx(10.0)
+        assert all(s in au.leistungsstufen(10.0) for s in standard)
 
     def test_der_bezug_ist_das_exportlimit_des_projekts(
         self, project, global_assumptions
@@ -1119,7 +1145,7 @@ class TestAuslegungImReiter:
         _zum_speicherreiter(at)
         assert [b for b in at.button if b.key == "raster_rechnen_template-agri"]
         schluessel = {m.key for m in at.multiselect}
-        assert "raster_anteile_template-agri" in schluessel
+        assert "raster_leistungen_template-agri" in schluessel
         assert "raster_dauern_template-agri" in schluessel
 
     def test_ohne_knopfdruck_laeuft_kein_raster(self, projekt_mit_speicher):
@@ -1160,7 +1186,7 @@ class TestAuslegungImReiter:
         at.session_state["tabwahl_template-agri"] = txt(
             "oberflaeche.projekt_tab_speicher"
         )
-        at.session_state["raster_anteile_template-agri"] = [0.25, 0.5]
+        at.session_state["raster_leistungen_template-agri"] = [1.0, 2.0]
         at.session_state["raster_dauern_template-agri"] = [2, 4]
         at.session_state["raster_stuetzjahre_template-agri"] = 2
         at.run()
@@ -1539,7 +1565,7 @@ class TestNurDauerImReiter:
         assert modus and modus[0].value == speicher.MODUS_NUR_DAUER
         # Kein Leistungsregler - die Leistung ist hier Eingabe.
         assert not [m for m in at.multiselect
-                    if m.key == "raster_anteile_template-agri"]
+                    if m.key == "raster_leistungen_template-agri"]
         assert [m for m in at.metric if m.label == "Feste Leistung"]
 
     def test_gruenstrom_sucht_beides(self, projekt_mit_speicher):
@@ -1550,7 +1576,7 @@ class TestNurDauerImReiter:
         modus = [r for r in at.radio if r.key == "raster_modus_template-agri"]
         assert modus and modus[0].value == speicher.MODUS_BEIDES
         assert [m for m in at.multiselect
-                if m.key == "raster_anteile_template-agri"]
+                if m.key == "raster_leistungen_template-agri"]
 
     def test_ohne_leistung_kein_knopf(self, graustromprojekt):
         """Ein Knopf, der nur eine Fehlermeldung erzeugen kann, sollte
@@ -1706,11 +1732,19 @@ class TestBezugsgroesse:
         self, project, global_assumptions
     ):
         from app import speicher
-        from engine.storage import raster
+        from engine.storage import (
+            leistungen_standard,
+            leistungsstufen,
+            raster,
+        )
 
         projekt, ga = self._mit(project, global_assumptions, 10_000.0, 0.70)
         bezug = speicher.einspeiseleistung_mw(projekt, ga)
-        kandidaten = raster(bezug, (0.5, 0.75, 1.0), (4,))
+        assert bezug == pytest.approx(7.0)
+        # Die Stufen richten sich nach dem Anschluss, stehen aber in MW.
+        stufen = leistungsstufen(bezug)
+        assert leistungen_standard(bezug)[-1] == pytest.approx(7.0)
+        kandidaten = raster(stufen[:3], (4,), einspeiseleistung_mw=bezug)
         assert [k.leistung_mw for k in kandidaten] == pytest.approx(
-            [3.5, 5.25, 7.0]
+            list(stufen[:3])
         )

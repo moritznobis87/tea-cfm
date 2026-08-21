@@ -33,6 +33,8 @@ from app.components.storage_dialog import zusammenfassung
 from app.formatting import fmt_eur, fmt_eur_kompakt, fmt_number, fmt_pct
 from engine import PVProject
 from engine.storage import (
+    NACH_BARWERT,
+    NACH_RENDITE,
     BatteryConfig,
     SolverFehler,
     SpeicherModus,
@@ -451,12 +453,16 @@ def _rasterwahl(
         )
         anteile = [1.0]
     else:
+        bezug = speicher.einspeiseleistung_mw(projekt, ga)
         anteile = spalten[0].multiselect(
             txt("oberflaeche.speicher_auslegung_leistungen_label"),
-            list(auslegung.LEISTUNGSANTEILE),
-            default=list(auslegung.LEISTUNGSANTEILE_STANDARD),
-            format_func=lambda a: f"{a * 100:.0f} %".replace(".", ","),
-            key=f"raster_anteile_{projekt.id}",
+            list(auslegung.leistungsstufen(bezug)),
+            default=list(auslegung.leistungen_standard(bezug)),
+            format_func=lambda mw: txt(
+                "oberflaeche.speicher_auslegung_mw_wert",
+                wert=fmt_number(mw, 1),
+            ),
+            key=f"raster_leistungen_{projekt.id}",
             help=txt("oberflaeche.speicher_auslegung_leistungen_hilfe"),
         )
         spalten[0].caption(_bezugszeile(projekt, ga))
@@ -534,7 +540,7 @@ def _auslegung(projekt: PVProject, ga, form_key: str) -> None:
         try:
             speicher.raster_rechnen(
                 projekt, ga,
-                leistungsanteile=anteile, dauern=dauern,
+                leistungen_mw=anteile, dauern=dauern,
                 stuetzjahre=stuetzjahre, modus=modus,
                 fortschritt=lambda n, gesamt: balken.progress(
                     n / gesamt,
@@ -610,7 +616,7 @@ def _rasterergebnis(
         else charts.speicher_auslegung_chart(
             ergebnis.tabelle(), ansicht, referenz,
             optimum=(
-                (gezeigt.kandidat.leistungsanteil, gezeigt.kandidat.dauer_h)
+                (gezeigt.kandidat.leistung_mw, gezeigt.kandidat.dauer_h)
                 if gezeigt else None
             ),
         )
@@ -683,11 +689,11 @@ def _randhinweis(ergebnis, punkt) -> None:
     """
     if punkt is None:
         return
-    anteile = sorted({p.kandidat.leistungsanteil for p in ergebnis.punkte})
+    anteile = sorted({p.kandidat.leistung_mw for p in ergebnis.punkte})
     dauern = sorted({p.kandidat.dauer_h for p in ergebnis.punkte})
     am_rand_leistung = (
         len(anteile) > 1
-        and punkt.kandidat.leistungsanteil in (anteile[0], anteile[-1])
+        and punkt.kandidat.leistung_mw in (anteile[0], anteile[-1])
     )
     am_rand_dauer = (
         len(dauern) > 1 and punkt.kandidat.dauer_h in (dauern[0], dauern[-1])
@@ -761,12 +767,40 @@ def _optimierer(ergebnis) -> None:
         delta=fmt_eur_kompakt(punkt.npv_eur - ergebnis.npv_eur_ohne)
         if punkt is not None else None,
     )
+    _dauern_vergleichbar(ergebnis, punkt)
     if optimum.am_deckel:
         st.caption(txt(
             "oberflaeche.speicher_auslegung_optimierer_am_deckel",
             leistung=fmt_number(optimum.leistung_deckel_mw or 0.0, 2),
         ))
     st.caption(txt("oberflaeche.speicher_auslegung_optimierer_hinweis"))
+
+
+def _dauern_vergleichbar(ergebnis, optimum_punkt) -> None:
+    """Warnt, wenn Optimierer und Rasterbestwert verschiedene Leistungen
+    haben - dann sagen ihre Stundenzahlen nichts uebereinander.
+
+    Der Fehlschluss liegt nahe und wurde gemacht: "Der Optimierer sagt
+    6 Stunden, im Raster steigt es bei 12 Stunden noch" klingt nach
+    Widerspruch. Es ist keiner, solange die Leistungen auseinanderliegen
+    - bei halber Leistung braucht dieselbe Energiemenge die doppelte
+    Zeit. Vergleichbar sind die KAPAZITAETEN, nicht die Dauern.
+    """
+    if optimum_punkt is None:
+        return
+    bester = ergebnis.bestes(NACH_RENDITE) or ergebnis.bestes(NACH_BARWERT)
+    if bester is None:
+        return
+    opt = optimum_punkt.kandidat
+    if abs(opt.leistung_mw - bester.kandidat.leistung_mw) <= 0.05:
+        return
+    st.caption(txt(
+        "oberflaeche.speicher_auslegung_dauer_nicht_vergleichbar",
+        opt_leistung=fmt_number(opt.leistung_mw, 1),
+        raster_leistung=fmt_number(bester.kandidat.leistung_mw, 1),
+        opt_kapazitaet=fmt_number(opt.kapazitaet_mwh, 1),
+        raster_kapazitaet=fmt_number(bester.kandidat.kapazitaet_mwh, 1),
+    ))
 
 
 #: Die drei Antworten, die zur Uebernahme stehen.
@@ -827,14 +861,12 @@ def _uebernehmen(projekt: PVProject, ergebnis, nach_rendite, nach_barwert,
 def _rastertabelle(ergebnis, nur_dauer: bool = False):
     """Das Raster in lesbaren Spalten, nach Rendite absteigend.
 
-    Bei fester Leistung faellt die Anteilsspalte weg. Sie stuende dort
-    in jeder Zeile auf 100 Prozent und beantwortete eine Frage, die gar
-    nicht gestellt wurde.
+    Ohne Anteilsspalte: Seit die Leistungen in MW gewaehlt werden, waere
+    ein zusaetzlicher Prozentsatz genau die Zweideutigkeit zurueck, die
+    die Umstellung beseitigt hat.
     """
     tabelle = ergebnis.tabelle().sort_values("equity_irr", ascending=False)
-    tabelle["anteil"] = tabelle["leistungsanteil"].map(lambda a: fmt_pct(a, 0))
     spalten = {
-        "anteil": txt("oberflaeche.speicher_auslegung_spalte_anteil"),
         "leistung_mw": txt("oberflaeche.speicher_auslegung_spalte_leistung"),
         "dauer_h": txt("oberflaeche.speicher_auslegung_spalte_dauer"),
         "kapazitaet_mwh": txt("oberflaeche.speicher_auslegung_spalte_kapazitaet"),
@@ -846,8 +878,6 @@ def _rastertabelle(ergebnis, nur_dauer: bool = False):
         "dscr_min": txt("oberflaeche.speicher_auslegung_spalte_dscr"),
         "vollzyklen": txt("oberflaeche.speicher_auslegung_spalte_vollzyklen"),
     }
-    if nur_dauer:
-        spalten.pop("anteil")
     tabelle = tabelle[list(spalten)].rename(columns=spalten)
     for name in ("capex_eur", "wertbeitrag_eur", "npv_eur"):
         tabelle[spalten[name]] = tabelle[spalten[name]].map(fmt_eur_kompakt)

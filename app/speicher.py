@@ -481,7 +481,7 @@ MODUS_NUR_DAUER = "nur_dauer"
 def raster_abdruck(
     projekt: PVProject,
     ga: GlobalAssumptions,
-    leistungsanteile: Sequence[float],
+    leistungen_mw: Sequence[float],
     dauern: Sequence[int],
     stuetzjahre: int,
     modus: str = MODUS_BEIDES,
@@ -516,7 +516,7 @@ def raster_abdruck(
             heraus["leistung_mw"] = 0.0
         entwurf.battery = entwurf.battery.model_copy(update=heraus)
     raster_text = (
-        ",".join(f"{float(a):.4f}" for a in sorted(set(leistungsanteile)))
+        ",".join(f"{float(a):.3f}" for a in sorted(set(leistungen_mw)))
         + "|" + ",".join(str(int(d)) for d in sorted(set(dauern)))
         + "|" + str(int(stuetzjahre))
         + "|" + modus
@@ -543,7 +543,7 @@ def raster_rechnen(
     projekt: PVProject,
     ga: GlobalAssumptions,
     *,
-    leistungsanteile: Sequence[float],
+    leistungen_mw: Sequence[float],
     dauern: Sequence[int],
     stuetzjahre: int = STUETZJAHRE_STANDARD,
     modus: str = MODUS_BEIDES,
@@ -568,7 +568,7 @@ def raster_rechnen(
                           exakt, statt es zu rastern.
     """
     kennung = raster_abdruck(
-        projekt, ga, leistungsanteile, dauern, stuetzjahre, modus
+        projekt, ga, leistungen_mw, dauern, stuetzjahre, modus
     )
     abgelegt = _raster_abgelegte(projekt.id)
     ergebnis = abgelegt.get(kennung)
@@ -577,11 +577,13 @@ def raster_rechnen(
         reihen = preisreihe(preisreihe_datei(projekt, ga)) or {}
         nur_dauer = modus == MODUS_NUR_DAUER
         fest = feste_leistung_mw(projekt) if nur_dauer else None
-        bezug = fest if nur_dauer else einspeiseleistung_mw(projekt, ga)
         ergebnis = rasterlauf(
             assumptions, projekt.id,
             projekt.battery or BatteryConfig(),
-            raster(bezug, (1.0,) if nur_dauer else leistungsanteile, dauern),
+            raster(
+                [fest] if nur_dauer else leistungen_mw, dauern,
+                einspeiseleistung_mw=einspeiseleistung_mw(projekt, ga),
+            ),
             energy=energy, revenue=revenue, preise_je_jahr=reihen,
             form=stundenform(projekt),
             foerderdauer_anteil=revenue["foerderanteil"].to_numpy(),
@@ -592,7 +594,9 @@ def raster_rechnen(
             # solange die Preisspreizung traegt, schoepft er sie aus.
             # Eine Leistung, die das Netz nicht abnimmt, waere aber
             # keine Auslegung, sondern ein Rechenartefakt.
-            leistung_hoechstens_mw=None if nur_dauer else bezug,
+            leistung_hoechstens_mw=(
+                None if nur_dauer else einspeiseleistung_mw(projekt, ga)
+            ),
             leistung_fest_mw=fest,
             fortschritt=fortschritt,
         )
