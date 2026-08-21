@@ -55,6 +55,7 @@ Eigenschaften.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -71,12 +72,18 @@ from engine.pipeline import resolve_assumptions
 from engine.revenue import calculate_revenue
 from engine.storage import (
     BAHN_SPALTEN,
+    STUETZJAHRE_STANDARD,
+    BatteryConfig,
+    Rasterergebnis,
     SolverFehler,
     SpeicherBeitrag,
     dispatch_jahr,
     dispatch_mehrjahr,
     jahreseingabe,
+    raster,
+    rasterlauf,
 )
+from engine.storage.valuation import _exportlimit_mw
 from engine.timeline import build_timeline
 
 #: Session-State: Projekt-ID -> {Fingerabdruck: Lauf}.
@@ -193,7 +200,9 @@ def fehlgrund(projekt: PVProject, ga: GlobalAssumptions) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def fingerabdruck(projekt: PVProject, ga: GlobalAssumptions) -> str:
+def fingerabdruck(
+    projekt: PVProject, ga: GlobalAssumptions, *zusatz: str
+) -> str:
     """Kennung der Eingaben eines Dispatchlaufs.
 
     Enthaelt das ganze Projekt, den Zeitstempel der globalen Annahmen und
@@ -201,6 +210,9 @@ def fingerabdruck(projekt: PVProject, ga: GlobalAssumptions) -> str:
     sie ausserhalb beider Dateien liegt: Ein neuer Aurora-Import
     veraendert das Ergebnis, ohne dass Projekt oder Annahmen sich
     ruehren.
+
+    `zusatz` sind weitere Bestandteile der Eingabe, die nicht im Projekt
+    stehen - beim Rasterlauf etwa die Definition des Rasters selbst.
 
     Warum grob: siehe Modulkopf. Lieber ein Lauf zu viel als eine Zahl,
     die zu einem anderen Projekt gehoert.
@@ -212,6 +224,7 @@ def fingerabdruck(projekt: PVProject, ga: GlobalAssumptions) -> str:
         str(services.GLOBAL_ASSUMPTIONS_PATH.stat().st_mtime),
         datei or "",
         str(pfad.stat().st_mtime) if pfad and pfad.exists() else "",
+        *zusatz,
     ]
     return hashlib.sha256("␟".join(teile).encode("utf-8")).hexdigest()[:32]
 
@@ -423,3 +436,144 @@ def beispielwoche(bahn_df: pd.DataFrame) -> tuple[int, int]:
     ]
     beste = int(np.argmax(summen))
     return beste * stunden_je_woche, (beste + 1) * stunden_je_woche
+
+
+# ---------------------------------------------------------------------------
+# Auslegungssuche
+# ---------------------------------------------------------------------------
+#
+# Derselbe Aufbau wie beim Dispatch: ein Lauf auf Knopfdruck, abgelegt
+# unter dem Fingerabdruck seiner Eingaben, und ein Ergebnis, das sich als
+# veraltet zu erkennen gibt. Ein Unterschied ist wesentlich - siehe
+# `raster_abdruck`.
+
+#: Session-State: Projekt-ID -> {Fingerabdruck: Rasterergebnis}.
+_RASTER = "speicher_raster"
+#: Session-State: Projekt-ID -> zuletzt gerechneter Rasterabdruck.
+_RASTER_ZULETZT = "speicher_raster_zuletzt"
+#: Ein Rasterergebnis traegt je Punkt eine volle Beitragsreihe; zwei
+#: davon reichen, um zwei Raster nebeneinander zu halten.
+_RASTER_HOECHSTENS = 2
+
+
+def einspeiseleistung_mw(projekt: PVProject, ga: GlobalAssumptions) -> float:
+    """Was am Netzverknuepfungspunkt hinausgehen darf, in MW.
+
+    Die Bezugsgroesse der Auslegungsfrage - und nicht die
+    Modulleistung. Bei einer 70-%-Anlage sind das 70 % davon: Ein
+    Speicher mit "100 % der Modulleistung" haette eine Entladeleistung,
+    die zu keinem Zeitpunkt abfliessen koennte.
+
+    Gerechnet wird sie dort, wo auch die Kappung sie herholt (siehe
+    engine/storage/valuation._exportlimit_mw) - PV und Speicher teilen
+    sich EINEN Anschluss, und zwei Wahrheiten ueber seine Grenze waeren
+    eine zu viel.
+    """
+    return _exportlimit_mw(resolve_assumptions(projekt, ga))
+
+
+def raster_abdruck(
+    projekt: PVProject,
+    ga: GlobalAssumptions,
+    leistungsanteile: Sequence[float],
+    dauern: Sequence[int],
+    stuetzjahre: int,
+) -> str:
+    """Kennung eines Rasterlaufs.
+
+    Wie der Fingerabdruck des Dispatchs, mit einer Ausnahme: Leistung und
+    Kapazitaet des eingestellten Speichers werden herausgerechnet. Genau
+    diese beiden Groessen ERSETZT das Raster ja - ein Lauf, der fuer
+    3 MW / 12 MWh gerechnet wurde, gilt unveraendert, wenn der Nutzer
+    danach 4 MW / 16 MWh einstellt. Die Ausnahme ist eng und benannt;
+    alles Uebrige am Speicher (Betriebsart, Wirkungsgrad, Verschleiss,
+    Fuellstandsgrenzen) bewegt den Abdruck weiterhin, denn es geht in
+    jeden einzelnen Rasterpunkt ein.
+
+    Ohne diese Ausnahme waere die Suche in der Praxis unbrauchbar: Ihr
+    erster Nutzen ist, die gefundene Auslegung zu uebernehmen - und genau
+    das erklaerte ihr eigenes Ergebnis fuer veraltet.
+    """
+    entwurf = projekt.model_copy(deep=True)
+    if entwurf.battery is not None:
+        entwurf.battery = entwurf.battery.model_copy(
+            update={"leistung_mw": 0.0, "kapazitaet_mwh": 0.0}
+        )
+    raster_text = (
+        ",".join(f"{float(a):.4f}" for a in sorted(set(leistungsanteile)))
+        + "|" + ",".join(str(int(d)) for d in sorted(set(dauern)))
+        + "|" + str(int(stuetzjahre))
+    )
+    return fingerabdruck(entwurf, ga, raster_text)
+
+
+def _raster_abgelegte(projekt_id: str) -> dict[str, Rasterergebnis]:
+    return st.session_state.setdefault(_RASTER, {}).setdefault(projekt_id, {})
+
+
+def raster_rechnen(
+    projekt: PVProject,
+    ga: GlobalAssumptions,
+    *,
+    leistungsanteile: Sequence[float],
+    dauern: Sequence[int],
+    stuetzjahre: int = STUETZJAHRE_STANDARD,
+    fortschritt=None,
+) -> Rasterergebnis:
+    """Rechnet die Auslegungssuche und legt sie ab.
+
+    Der Speicher des Projekts dient als VORLAGE: Betriebsart,
+    Wirkungsgrad, Fuellstandsgrenzen und Verschleiss gelten fuer jeden
+    Rasterpunkt, nur Leistung und Kapazitaet werden variiert. Ist noch
+    kein Speicher eingerichtet, gilt die Vorbelegung von BatteryConfig -
+    sonst liesse sich die Frage "lohnt sich hier ueberhaupt einer?" gar
+    nicht erst stellen.
+    """
+    kennung = raster_abdruck(projekt, ga, leistungsanteile, dauern, stuetzjahre)
+    abgelegt = _raster_abgelegte(projekt.id)
+    ergebnis = abgelegt.get(kennung)
+    if ergebnis is None:
+        assumptions, energy, revenue = _eingaben(projekt, ga)
+        reihen = preisreihe(preisreihe_datei(projekt, ga)) or {}
+        bezug = einspeiseleistung_mw(projekt, ga)
+        ergebnis = rasterlauf(
+            assumptions, projekt.id,
+            projekt.battery or BatteryConfig(),
+            raster(bezug, leistungsanteile, dauern),
+            energy=energy, revenue=revenue, preise_je_jahr=reihen,
+            form=stundenform(projekt),
+            foerderdauer_anteil=revenue["foerderanteil"].to_numpy(),
+            stuetzjahre_anzahl=stuetzjahre,
+            # Der Deckel des Optimierers ist die Einspeiseleistung
+            # selbst. Ohne ihn faende er Auslegungen weit darueber:
+            # Entladen darf der Speicher bis zur Anschlussgrenze, und
+            # solange die Preisspreizung traegt, schoepft er sie aus.
+            # Eine Leistung, die das Netz nicht abnimmt, waere aber
+            # keine Auslegung, sondern ein Rechenartefakt.
+            leistung_hoechstens_mw=bezug,
+            fortschritt=fortschritt,
+        )
+
+    abgelegt.pop(kennung, None)
+    abgelegt[kennung] = ergebnis
+    while len(abgelegt) > _RASTER_HOECHSTENS:
+        abgelegt.pop(next(iter(abgelegt)))
+    st.session_state.setdefault(_RASTER_ZULETZT, {})[projekt.id] = kennung
+    return ergebnis
+
+
+def letztes_raster(projekt: PVProject) -> tuple[Rasterergebnis | None, str]:
+    """Das zuletzt gerechnete Raster und sein Abdruck - auch veraltet.
+
+    Beides zusammen, weil beides zusammengehoert: Wer das Ergebnis
+    zeigt, muss den Abdruck gegen den aktuellen halten koennen.
+    """
+    kennung = st.session_state.get(_RASTER_ZULETZT, {}).get(projekt.id)
+    if not kennung:
+        return None, ""
+    return _raster_abgelegte(projekt.id).get(kennung), kennung
+
+
+def raster_vergessen(projekt_id: str) -> None:
+    st.session_state.get(_RASTER, {}).pop(projekt_id, None)
+    st.session_state.get(_RASTER_ZULETZT, {}).pop(projekt_id, None)

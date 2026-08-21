@@ -353,7 +353,9 @@ def render_project_page() -> None:
     with col_ergebnis:
         _kennzahlen(result, npv_satz_pct, aenderungen, global_assumptions)
         render_kovenanten_status(result)
-        _analyse_tabs(result, aktiv, projekt_id, npv_satz_pct, aenderungen)
+        _analyse_tabs(
+            result, aktiv, projekt_id, npv_satz_pct, aenderungen, form_key
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -724,7 +726,8 @@ def _loeschbestaetigung(project: PVProject, pfad) -> None:
 
 
 def _analyse_tabs(result, project: PVProject, projekt_id: str,
-                  npv_satz_pct: float, aenderungen: int) -> None:
+                  npv_satz_pct: float, aenderungen: int,
+                  form_key: str = "") -> None:
     """Vier Sichten auf dasselbe Projekt.
 
     Regel der Gliederung: Tabs sind gleichrangige Sichten, Klappfelder
@@ -756,7 +759,7 @@ def _analyse_tabs(result, project: PVProject, projekt_id: str,
     elif gewaehlt == "finanzierung":
         render_financing_tab(result, df, project)
     elif gewaehlt == "speicher":
-        render_speicher_tab(project, result)
+        render_speicher_tab(project, result, form_key)
     elif gewaehlt == "risiko":
         if aenderungen:
             st.info(txt("oberflaeche.risiko_gespeicherter_stand"))

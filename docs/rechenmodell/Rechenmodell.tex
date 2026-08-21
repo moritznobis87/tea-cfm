@@ -3415,8 +3415,17 @@ Regelung, keine Vereinfachung \\
 A7 & Negative Preise wirken über einen jährlichen Mengenanteil, nicht
 stundenscharf & Innerjährliche Korrelation von Erzeugung und Preis wird
 nicht modelliert \\
-A8 & Kein Eigenverbrauch, keine Speicher, keine Regelenergie- oder
-PPA-Erlöse & Reines Marktprämien-/Marktverkaufsmodell \\
+A8 & Kein Eigenverbrauch, keine Regelenergie-Erlöse & Reines
+Marktprämien-/Marktverkaufsmodell \\
+A8a & Ein Co-Location-Speicher wird stundenscharf optimiert, aber
+ausschließlich am Day-Ahead-Markt & Intraday, FCR und aFRR sind nicht
+modelliert; der ausgewiesene Speicherwert ist insoweit eine Untergrenze.
+Gegenläufig wirkt die unterstellte perfekte Voraussicht -- beide Effekte
+werden nicht gegeneinander aufgerechnet \\
+A8b & Der Speicherbeitrag geht als Differenz zum selben Projekt ohne
+Speicher in den Cashflow ein & Der bestehende Bewertungsweg über Capture
+Prices bleibt unangetastet; nur so ist die Renditewirkung dem Speicher
+zurechenbar \\
 \end{longtable}
 
 \hypertarget{kosten-und-finanzierung}{%

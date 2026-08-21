@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT))
 from app.config import PROJECTS_DIR  # noqa: E402
 from engine import BatteryConfig, SpeicherModus  # noqa: E402
 from engine.io_yaml import load_project_yaml, save_project_yaml  # noqa: E402
+from texte import txt  # noqa: E402
 
 
 def _mit_speicher(**kwargs) -> BatteryConfig:
@@ -729,3 +730,626 @@ class TestSpeicherpreise:
                      "speicher_opex_eur_kw_jahr"):
             assert feld in GlobalAssumptions.model_fields, feld
             assert feld in EffectiveAssumptions.model_fields, feld
+
+
+# ---------------------------------------------------------------------------
+# Auslegungssuche
+# ---------------------------------------------------------------------------
+
+
+def _kurzes_jahr(stunden: int = 96):
+    """Vier Tage PV und Preise - genug fuer eine Aussage, schnell genug
+    fuer einen Test.
+
+    Ein volles Jahr braeuchte je Optimierung eine halbe Sekunde; die
+    Eigenschaften, um die es hier geht (Monotonie, Unabhaengigkeit des
+    Vergleichsfalls), haengen an der STRUKTUR des Modells und nicht an
+    der Laenge der Reihe.
+    """
+    import numpy as np
+
+    t = np.arange(stunden)
+    # Tagesgang der Erzeugung, nachts null.
+    pv = np.clip(np.sin((t % 24 - 6) / 12 * np.pi), 0, None) * 4.0
+    # Preise mit Abendspitze - sonst gaebe es nichts zu verschieben.
+    preis = 40.0 + 35.0 * np.sin((t % 24 - 10) / 12 * np.pi)
+    return pv, preis
+
+
+class TestAuslegungsraster:
+    """Das Raster selbst - ohne eine einzige Optimierung."""
+
+    def test_kapazitaet_ist_ein_ganzzahliges_vielfaches(self):
+        """Die ausdrueckliche Vorgabe: kein 1,146-Stunden-Speicher."""
+        from engine.storage import auslegung as au
+
+        for k in au.raster(4.0, (0.5, 1.0), (2, 4, 12)):
+            assert k.kapazitaet_mwh == pytest.approx(
+                k.leistung_mw * k.dauer_h
+            )
+            assert float(k.dauer_h).is_integer()
+
+    def test_leistung_misst_sich_an_der_einspeiseleistung(self):
+        """NICHT an der Modulleistung. Bei einer 70-%-Anlage sind 100 %
+        siebzig Prozent der Module - ein Speicher mit voller
+        Modulleistung haette eine Entladeleistung, die zu keinem
+        Zeitpunkt abfliessen koennte."""
+        from engine.storage import auslegung as au
+
+        kandidaten = au.raster(1.988, (0.5, 1.0), (4,))
+        assert [k.leistung_mw for k in kandidaten] == pytest.approx(
+            [0.994, 1.988]
+        )
+
+    def test_der_bezug_ist_das_exportlimit_des_projekts(
+        self, project, global_assumptions
+    ):
+        """Dieselbe Groesse, mit der auch die Kappung gerechnet wird -
+        PV und Speicher teilen sich EINEN Anschluss."""
+        from app import speicher
+
+        project.nennleistung_kwp = 2840.0
+        global_assumptions.einspeiselimit_pct = 0.7
+        assert speicher.einspeiseleistung_mw(
+            project, global_assumptions
+        ) == pytest.approx(2.84 * 0.7)
+
+    def test_die_vorlage_gibt_alles_ausser_der_groesse_vor(self):
+        """Das Raster beantwortet die Groessenfrage und keine andere.
+
+        Wuerde es nebenbei die Betriebsart oder den Wirkungsgrad
+        veraendern, verglichen die Punkte nicht mehr dieselbe Anlage in
+        verschiedenen Groessen, sondern verschiedene Anlagen.
+        """
+        from engine.storage import auslegung as au
+
+        vorlage = _mit_speicher(
+            modus=SpeicherModus.GRAUSTROM, roundtrip_wirkungsgrad=0.83,
+            soc_min_pct=0.12, degradationskosten_eur_mwh=6.5,
+            netzbezug_limit_mw=2.0,
+        )
+        b = au.Kandidat(leistungsanteil=0.5, leistung_mw=3.0, dauer_h=4).batterie(
+            vorlage
+        )
+        assert b.leistung_mw == pytest.approx(3.0)
+        assert b.kapazitaet_mwh == pytest.approx(12.0)
+        for feld in ("modus", "roundtrip_wirkungsgrad", "soc_min_pct",
+                     "degradationskosten_eur_mwh", "netzbezug_limit_mw"):
+            assert getattr(b, feld) == getattr(vorlage, feld), feld
+
+    def test_ein_abgeschalteter_speicher_wird_als_vorlage_eingeschaltet(self):
+        """Sonst rechnete das ganze Raster lauter Nullen - und die Frage
+        "lohnt sich hier ueberhaupt einer?" liesse sich nicht stellen."""
+        from engine.storage import auslegung as au
+
+        b = au.Kandidat(leistungsanteil=1.0, leistung_mw=2.0, dauer_h=2).batterie(
+            _mit_speicher(aktiv=False)
+        )
+        assert b.aktiv is True and b.wirksam
+
+
+class TestStuetzjahre:
+    """Wo die gerechneten Jahre liegen - und warum dort."""
+
+    def _foerderung(self, jahre: int, bis: int):
+        return [1.0 if i < bis else 0.0 for i in range(jahre)]
+
+    def test_kein_block_ueberschreitet_die_foerdergrenze(self):
+        """Der Uebergang ist ein Sprung: Innerhalb der Foerderdauer
+        bemisst sich die Praemie am Referenzmarktwert, danach zaehlt der
+        erzielte Preis. Ein Block ueber die Grenze mittelte zwei
+        verschiedene Welten."""
+        from engine.storage.auslegung import bloecke
+
+        anteil = self._foerderung(30, 20)
+        for anzahl in (2, 3, 4, 6, 8):
+            for block in bloecke(anteil, 30, anzahl):
+                drin = {anteil[i] > 0.5 for i in block}
+                assert len(drin) == 1, (
+                    f"Block {block} liegt teils in, teils ausserhalb der "
+                    f"Foerderdauer (anzahl={anzahl})"
+                )
+
+    def test_jeder_abschnitt_bekommt_mindestens_einen_block(self):
+        """Bei zwanzig Foerderjahren und dreissig Betriebsjahren ist die
+        Zeit danach ein Drittel der Laufzeit. Sie zu ueberspringen, weil
+        zwei Stuetzjahre gewaehlt sind, waere kein Naeherungsfehler,
+        sondern ein blinder Fleck."""
+        from engine.storage.auslegung import bloecke
+
+        anteil = self._foerderung(30, 20)
+        geteilt = bloecke(anteil, 30, 1)
+        assert len(geteilt) == 2
+        assert {anteil[b[0]] > 0.5 for b in geteilt} == {True, False}
+
+    def test_fruehe_bloecke_sind_kuerzer(self):
+        """Gewichtet statt gleich lang - ein Fehler in Jahr 3 verzieht
+        die Rendite weit staerker als einer in Jahr 28. Gemessen sank der
+        Renditefehler dadurch von 1,15 auf 0,06 Prozentpunkte."""
+        from engine.storage.auslegung import bloecke
+
+        geteilt = bloecke(self._foerderung(30, 20), 30, 4)
+        in_foerderung = [b for b in geteilt if b[0] < 20]
+        assert len(in_foerderung) >= 2
+        assert len(in_foerderung[0]) < len(in_foerderung[-1]), (
+            "Der erste Block muss weniger Jahre vertreten als der letzte"
+        )
+
+    def test_bloecke_decken_jedes_jahr_genau_einmal_ab(self):
+        """Ein vergessenes Jahr faellt aus dem Wertbeitrag heraus, ein
+        doppelt vertretenes zaehlt zweimal. Beides bliebe in der Summe
+        unauffaellig."""
+        from engine.storage.auslegung import bloecke
+
+        for anteil, jahre in ((self._foerderung(30, 20), 30),
+                              (None, 25), (self._foerderung(12, 12), 12)):
+            for anzahl in (1, 2, 3, 5, 40):
+                geteilt = bloecke(anteil, jahre, anzahl)
+                flach = [i for b in geteilt for i in b]
+                assert sorted(flach) == list(range(jahre)), (
+                    f"anzahl={anzahl}, jahre={jahre}"
+                )
+
+    def test_mehr_stuetzjahre_als_betriebsjahre_gehen_nicht_schief(self):
+        from engine.storage.auslegung import bloecke
+
+        geteilt = bloecke(None, 5, 99)
+        assert len(geteilt) == 5
+        assert all(len(b) == 1 for b in geteilt)
+
+
+class TestHochrechnung:
+    def test_verschleiss_folgt_der_menge_und_nicht_dem_preisniveau(self):
+        """Ein pauschaler Faktor auf den Deckungsbeitrag haette den
+        Verschleiss mit hochinflationiert. Sein Satz steht aber in
+        EUR/MWh und wird im Modell nicht inflationiert - der Speicherwert
+        der spaeten Jahre kaeme sonst zu klein heraus."""
+        from engine.storage.auslegung import hochrechnen
+        from engine.storage.models import StorageJahreswert
+
+        wert = StorageJahreswert(
+            jahr=1, kalenderjahr=2030,
+            mehrerloes_eur=100_000.0, netzbezugskosten_eur=0.0,
+            degradationskosten_eur=20_000.0,
+            mehrmenge_kwh=0.0, rueckgewonnene_kappung_kwh=0.0,
+            speicher_ladung_mwh=0.0, speicher_entladung_mwh=0.0,
+            vollzyklen=0.0,
+        )
+        # Doppeltes Preisniveau, gleiche Menge.
+        assert hochrechnen(
+            wert, niveau_stuetze=1.0, niveau_ziel=2.0,
+            menge_stuetze=100.0, menge_ziel=100.0,
+        ) == pytest.approx(200_000.0 - 20_000.0)
+        # Gleiches Preisniveau, doppelte Menge: BEIDE Teile verdoppeln.
+        assert hochrechnen(
+            wert, niveau_stuetze=1.0, niveau_ziel=1.0,
+            menge_stuetze=100.0, menge_ziel=200.0,
+        ) == pytest.approx(200_000.0 - 40_000.0)
+
+    def test_das_stuetzjahr_selbst_bleibt_unveraendert(self):
+        from engine.storage.auslegung import hochrechnen
+        from engine.storage.models import StorageJahreswert
+
+        wert = StorageJahreswert(
+            jahr=5, kalenderjahr=2034,
+            mehrerloes_eur=80_000.0, netzbezugskosten_eur=5_000.0,
+            degradationskosten_eur=12_000.0,
+            mehrmenge_kwh=0.0, rueckgewonnene_kappung_kwh=0.0,
+            speicher_ladung_mwh=0.0, speicher_entladung_mwh=0.0,
+            vollzyklen=0.0,
+        )
+        assert hochrechnen(
+            wert, niveau_stuetze=1.4, niveau_ziel=1.4,
+            menge_stuetze=90.0, menge_ziel=90.0,
+        ) == pytest.approx(wert.deckungsbeitrag_eur)
+
+
+class TestVergleichsfall:
+    """Der PV-only-Lauf, der je Stuetzjahr nur EINMAL gerechnet wird.
+
+    Die Ersparnis ist die Haelfte der Laufzeit des Rasterlaufs, und sie
+    steht und faellt mit einer Behauptung: Der Vergleichsfall haengt an
+    keiner Eigenschaft des Speichers. Stimmte das nicht, bekaeme jeder
+    Rasterpunkt denselben falschen Massstab - und der Fehler faende sich
+    nirgends im Ergebnis wieder.
+    """
+
+    def test_er_haengt_nicht_an_der_batterie(self):
+        from engine.storage.dispatch import _ABREGELUNG, _loese, vergleichsfall
+
+        pv, preis = _kurzes_jahr()
+        erwartet = vergleichsfall(pv, preis, preis, export_limit_mw=3.0)
+        for kwargs in ({"leistung_mw": 5.0, "kapazitaet_mwh": 20.0},
+                       {"leistung_mw": 0.5, "kapazitaet_mwh": 1.0,
+                        "roundtrip_wirkungsgrad": 0.7},
+                       {"leistung_mw": 50.0, "kapazitaet_mwh": 200.0,
+                        "degradationskosten_eur_mwh": 30.0}):
+            aus = _mit_speicher(**kwargs).model_copy(update={"aktiv": False})
+            bahn, ziel = _loese(pv, preis, preis, aus, 3.0)
+            assert ziel == pytest.approx(erwartet[0])
+            assert float(bahn[:, _ABREGELUNG].sum()) == pytest.approx(erwartet[1])
+
+    def test_durchgereicht_kommt_dasselbe_heraus(self):
+        """Die Abkuerzung darf keine andere Zahl liefern als der
+        gewoehnliche Weg - sonst waere sie keine Abkuerzung, sondern ein
+        zweites Modell."""
+        from engine.storage import dispatch_jahr, vergleichsfall
+
+        pv, preis = _kurzes_jahr()
+        b = _mit_speicher(leistung_mw=2.0, kapazitaet_mwh=8.0)
+        ohne_abkuerzung = dispatch_jahr(pv, preis, preis, b, 3.0)
+        mit_abkuerzung = dispatch_jahr(
+            pv, preis, preis, b, 3.0,
+            vergleich=vergleichsfall(pv, preis, preis, 3.0),
+        )
+        assert mit_abkuerzung.wertbeitrag_eur == pytest.approx(
+            ohne_abkuerzung.wertbeitrag_eur
+        )
+        assert mit_abkuerzung.abregelung_pv_only_mwh == pytest.approx(
+            ohne_abkuerzung.abregelung_pv_only_mwh
+        )
+
+
+class TestMonotonie:
+    """Mehr Speicher kann nicht weniger wert sein.
+
+    Der zulaessige Bereich eines groesseren Speichers UMFASST den des
+    kleineren: Er darf alles, was der kleinere darf, und mehr. Sein
+    Optimum kann deshalb nicht darunter liegen. Der Verschleiss aendert
+    daran nichts - er steht in der Zielfunktion, und was sich nicht
+    lohnt, laesst der Optimierer bleiben.
+
+    Faellt dieser Test, ist etwas an der Formulierung des LP falsch, und
+    zwar so, dass es in einem einzelnen Ergebnis nicht auffiele.
+    """
+
+    def test_mehr_leistung_ist_nie_schlechter(self):
+        from engine.storage import dispatch_jahr, vergleichsfall
+
+        pv, preis = _kurzes_jahr()
+        vergleich = vergleichsfall(pv, preis, preis, 3.0)
+        werte = [
+            dispatch_jahr(
+                pv, preis, preis,
+                _mit_speicher(leistung_mw=mw, kapazitaet_mwh=8.0), 3.0,
+                vergleich=vergleich,
+            ).wertbeitrag_eur
+            for mw in (0.5, 1.0, 2.0, 4.0)
+        ]
+        for kleiner, groesser in zip(werte, werte[1:], strict=False):
+            assert groesser >= kleiner - 1e-6, werte
+
+    def test_mehr_kapazitaet_ist_nie_schlechter(self):
+        from engine.storage import dispatch_jahr, vergleichsfall
+
+        pv, preis = _kurzes_jahr()
+        vergleich = vergleichsfall(pv, preis, preis, 3.0)
+        werte = [
+            dispatch_jahr(
+                pv, preis, preis,
+                _mit_speicher(leistung_mw=2.0, kapazitaet_mwh=mwh), 3.0,
+                vergleich=vergleich,
+            ).wertbeitrag_eur
+            for mwh in (1.0, 4.0, 8.0, 16.0, 32.0)
+        ]
+        for kleiner, groesser in zip(werte, werte[1:], strict=False):
+            assert groesser >= kleiner - 1e-6, werte
+
+
+class TestRasterabdruck:
+    """Wann ein gerechnetes Raster noch gilt."""
+
+    def test_groesse_des_speichers_zaehlt_nicht(self, project, global_assumptions):
+        """Der erste Nutzen der Suche ist, ihr Ergebnis zu uebernehmen -
+        und genau das erklaerte ihr eigenes Ergebnis fuer veraltet, wenn
+        Leistung und Kapazitaet mitzaehlten."""
+        from app import speicher
+
+        project.battery = _mit_speicher(leistung_mw=3.0, kapazitaet_mwh=12.0)
+        vorher = speicher.raster_abdruck(
+            project, global_assumptions, (0.5, 1.0), (2, 4), 4
+        )
+        project.battery = _mit_speicher(leistung_mw=7.0, kapazitaet_mwh=42.0)
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (0.5, 1.0), (2, 4), 4
+        ) == vorher
+
+    @pytest.mark.parametrize(
+        "feld,wert",
+        [
+            ("modus", SpeicherModus.GRAUSTROM),
+            ("roundtrip_wirkungsgrad", 0.8),
+            ("degradationskosten_eur_mwh", 9.0),
+            ("soc_max_pct", 0.85),
+        ],
+    )
+    def test_alles_uebrige_am_speicher_zaehlt_sehr_wohl(
+        self, project, global_assumptions, feld, wert
+    ):
+        """Die Ausnahme ist eng: Sie gilt fuer die beiden Groessen, die
+        das Raster ersetzt, und fuer keine andere."""
+        from app import speicher
+
+        project.battery = _mit_speicher()
+        vorher = speicher.raster_abdruck(
+            project, global_assumptions, (0.5,), (4,), 4
+        )
+        project.battery = _mit_speicher(**{feld: wert})
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (0.5,), (4,), 4
+        ) != vorher, f"battery.{feld} bewegt den Rasterabdruck nicht"
+
+    def test_das_raster_selbst_zaehlt(self, project, global_assumptions):
+        from app import speicher
+
+        project.battery = _mit_speicher()
+        grund = speicher.raster_abdruck(
+            project, global_assumptions, (0.5, 1.0), (2, 4), 4
+        )
+        for anteile, dauern, stuetzjahre in (
+            ((0.5, 1.0, 1.5), (2, 4), 4),
+            ((0.5, 1.0), (2, 4, 8), 4),
+            ((0.5, 1.0), (2, 4), 6),
+        ):
+            assert speicher.raster_abdruck(
+                project, global_assumptions, anteile, dauern, stuetzjahre
+            ) != grund
+
+    def test_die_reihenfolge_der_wahl_zaehlt_nicht(
+        self, project, global_assumptions
+    ):
+        """Ein Multiselect gibt die Werte in Klickreihenfolge zurueck.
+        Zweimal dasselbe Raster in anderer Reihenfolge zu waehlen, darf
+        keinen zweiten Lauf ausloesen."""
+        from app import speicher
+
+        project.battery = _mit_speicher()
+        assert speicher.raster_abdruck(
+            project, global_assumptions, (1.0, 0.5), (4, 2), 4
+        ) == speicher.raster_abdruck(
+            project, global_assumptions, (0.5, 1.0), (2, 4), 4
+        )
+
+
+class TestAuslegungImReiter:
+    def test_der_abschnitt_erscheint_mit_seinen_reglern(
+        self, projekt_mit_speicher
+    ):
+        at, _ = _app_mit_projekt("template-agri")
+        _zum_speicherreiter(at)
+        assert [b for b in at.button if b.key == "raster_rechnen_template-agri"]
+        schluessel = {m.key for m in at.multiselect}
+        assert "raster_anteile_template-agri" in schluessel
+        assert "raster_dauern_template-agri" in schluessel
+
+    def test_ohne_knopfdruck_laeuft_kein_raster(self, projekt_mit_speicher):
+        """Dieselbe Zusage wie beim Dispatch, und hier noch wichtiger:
+        Ein Rasterlauf dauert Minuten, nicht Sekunden."""
+        at, _ = _app_mit_projekt("template-agri")
+        _zum_speicherreiter(at)
+        # AppTest reicht den Session-State ohne dict-Schnittstelle
+        # durch - `in` und `[]` sind der Weg, `.get` gibt es nicht.
+        assert (
+            "speicher_raster" not in at.session_state
+            or at.session_state["speicher_raster"].get("template-agri", {}) == {}
+        )
+
+    def test_ohne_auswahl_kein_knopf(self, projekt_mit_speicher):
+        at, _ = _app_mit_projekt("template-agri")
+        at.session_state["tabwahl_template-agri"] = txt(
+            "oberflaeche.projekt_tab_speicher"
+        )
+        at.session_state["raster_dauern_template-agri"] = []
+        at.run()
+        assert not at.exception, at.exception
+        assert not [b for b in at.button
+                    if b.key == "raster_rechnen_template-agri"]
+
+    def test_ein_kleines_raster_laeuft_und_laesst_sich_uebernehmen(
+        self, projekt_mit_speicher
+    ):
+        """Der ganze Weg in einem Test: rechnen, Optimum anzeigen,
+        uebernehmen. Bewusst winzig gehalten (vier Auslegungen, zwei
+        Stuetzjahre) - geprueft wird der Weg, nicht die Zahl.
+
+        Uebernommen wird in den ENTWURF und nicht auf die Platte: Die
+        Speicherkarte muss die neue Groesse zeigen, die Datei aber noch
+        die alte.
+        """
+        at, form_key = _app_mit_projekt("template-agri")
+        at.session_state["tabwahl_template-agri"] = txt(
+            "oberflaeche.projekt_tab_speicher"
+        )
+        at.session_state["raster_anteile_template-agri"] = [0.25, 0.5]
+        at.session_state["raster_dauern_template-agri"] = [2, 4]
+        at.session_state["raster_stuetzjahre_template-agri"] = 2
+        at.run()
+        assert not at.exception, at.exception
+
+        [b for b in at.button if b.key == "raster_rechnen_template-agri"][0].click()
+        at.run()
+        assert not at.exception, at.exception
+        beschriftungen = [m.label for m in at.metric]
+        assert "Beste EK-Rendite" in beschriftungen
+        assert "Bester Barwert" in beschriftungen
+
+        uebernehmen = [b for b in at.button
+                       if b.key == "raster_uebernehmen_template-agri"]
+        assert uebernehmen, "Ohne Uebernehmen-Knopf bliebe das Ergebnis folgenlos"
+        uebernehmen[0].click()
+        at.run()
+        assert not at.exception, at.exception
+
+        markdown = " ".join(m.value for m in at.markdown if m.value)
+        assert "5,0 MW · 10,0 MWh" not in markdown, (
+            "Die Speicherkarte zeigt weiter die alte Auslegung"
+        )
+        auf_platte = load_project_yaml(PROJECTS_DIR / "template-agri.yaml")
+        assert auf_platte.battery.leistung_mw == pytest.approx(5.0), (
+            "Uebernehmen darf nur den Entwurf aendern, nicht die Datei"
+        )
+
+
+class TestMitoptimierung:
+    """Der Optimierer: Leistung und Kapazitaet als Variablen desselben LP.
+
+    Das Versprechen eines Optimierers ist ein einziges, und es laesst
+    sich pruefen: Es gibt keine bessere Loesung. Genau das steht hier -
+    nicht "das Ergebnis sieht plausibel aus", sondern: KEIN
+    nachgerechneter Punkt schlaegt ihn in seiner eigenen Zielfunktion.
+    """
+
+    def _eingabe(self, stunden: int = 168):
+        import numpy as np
+
+        from engine.storage.valuation import Jahreseingabe
+
+        pv, preis = _kurzes_jahr(stunden)
+        return Jahreseingabe(
+            jahr=1, kalenderjahr=2030,
+            pv_mw=np.asarray(pv), preise_eur_mwh=np.asarray(preis),
+            grenzerloes_eur_mwh=np.asarray(preis),
+            export_limit_mw=3.0,
+        )
+
+    #: Wofuer das kurze Testjahr steht.
+    #:
+    #: Die Investition faellt EINMAL an, der Deckungsbeitrag jedes Jahr.
+    #: Eine Woche gegen den vollen Kaufpreis zu stellen, ergaebe immer
+    #: dasselbe Ergebnis - keinen Speicher -, und der Test pruefte nichts
+    #: mehr. Das Gewicht rechnet die Woche deshalb auf eine realistische
+    #: Zahl von Betriebsjahren hoch: rund 52 Wochen mal gut ein Dutzend
+    #: abgezinster Jahre.
+    _GEWICHT = 600.0
+
+    def _kosten(self, assumptions, betriebsjahre, leistung_mw, kapazitaet_mwh):
+        from engine.storage.optimum import _barwertfaktoren
+
+        barwert_opex, schild = _barwertfaktoren(
+            assumptions, betriebsjahre, 0.08
+        )
+        return 1000.0 * (
+            leistung_mw * (
+                assumptions.speicher_capex_leistung_eur_kw * (1.0 - schild)
+                + assumptions.speicher_opex_eur_kw_jahr * barwert_opex
+            )
+            + kapazitaet_mwh
+            * assumptions.speicher_capex_energie_eur_kwh * (1.0 - schild)
+        )
+
+    def test_kein_punkt_schlaegt_das_optimum(self, project, global_assumptions):
+        """Die definierende Eigenschaft. Nachgerechnet werden Punkte rund
+        um das gefundene Optimum UND weit daneben - faende sich einer,
+        der besser ist, waere der Optimierer keiner."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import dispatch_jahr, optimum_stetig
+
+        a = resolve_assumptions(project, global_assumptions)
+        vorlage = _mit_speicher()
+        eingabe = self._eingabe()
+        gewicht = self._GEWICHT
+
+        optimum = optimum_stetig(
+            a, vorlage, [eingabe], [(gewicht, gewicht)],
+            betriebsjahre=20, leistung_hoechstens_mw=3.0,
+        )
+        assert optimum.wirksam, "Auf diesen Preisen muss sich einer lohnen"
+
+        steuer = a.steuersatz_pct
+        for faktor_p, faktor_e in [
+            (1.0, 1.0), (0.5, 0.5), (2.0, 2.0), (1.0, 0.5), (1.0, 2.0),
+            (0.5, 1.0), (2.0, 1.0), (0.25, 4.0), (1.2, 1.2), (0.8, 0.8),
+        ]:
+            leistung = min(optimum.leistung_mw * faktor_p, 3.0)
+            kapazitaet = optimum.kapazitaet_mwh * faktor_e
+            if leistung <= 0 or kapazitaet <= 0:
+                continue
+            ergebnis = dispatch_jahr(
+                eingabe.pv_mw, eingabe.preise_eur_mwh,
+                eingabe.grenzerloes_eur_mwh,
+                vorlage.model_copy(update={
+                    "aktiv": True, "leistung_mw": leistung,
+                    "kapazitaet_mwh": kapazitaet,
+                }),
+                eingabe.export_limit_mw,
+            )
+            wert = (
+                (1.0 - steuer) * gewicht * ergebnis.wertbeitrag_eur
+                - self._kosten(a, 20, leistung, kapazitaet)
+            )
+            assert optimum.barwert_eur >= wert - 1.0, (
+                f"{leistung:.2f} MW / {kapazitaet:.2f} MWh ist besser "
+                f"({wert:,.0f} statt {optimum.barwert_eur:,.0f})"
+            )
+
+    def test_die_leistungsgrenze_wird_eingehalten(
+        self, project, global_assumptions
+    ):
+        """Der Deckel ist die Einspeiseleistung. Eine Entladeleistung
+        darueber koennte zu keinem Zeitpunkt abfliessen - sie waere kein
+        Optimum, sondern ein Rechenartefakt."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import optimum_stetig
+
+        a = resolve_assumptions(project, global_assumptions)
+        eingabe = self._eingabe()
+        for deckel in (0.5, 1.5):
+            optimum = optimum_stetig(
+                a, _mit_speicher(), [eingabe], [(self._GEWICHT, self._GEWICHT)],
+                betriebsjahre=20, leistung_hoechstens_mw=deckel,
+            )
+            assert optimum.leistung_mw <= deckel + 1e-6
+            # `am_deckel` muss genau dann melden, wenn der Deckel auch
+            # wirklich bindet. Ein Punkt am Rand ist kein Optimum,
+            # sondern die Stelle, an der der Netzanschluss aufhoert -
+            # und die Meldung darf weder fehlen noch zu frueh kommen.
+            assert optimum.am_deckel == (
+                optimum.leistung_mw >= deckel - 1e-6
+            )
+
+    def test_zu_teuer_heisst_kein_speicher(self, project, global_assumptions):
+        """Ein Optimum bei null ist eine Antwort und kein Fehler: Bei
+        diesen Preisen ist der beste Speicher der, den es nicht gibt."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import optimum_stetig
+
+        global_assumptions.speicher_capex_leistung_eur_kw = 50_000.0
+        global_assumptions.speicher_capex_energie_eur_kwh = 50_000.0
+        a = resolve_assumptions(project, global_assumptions)
+        optimum = optimum_stetig(
+            a, _mit_speicher(), [self._eingabe()], [(self._GEWICHT, self._GEWICHT)],
+            betriebsjahre=20, leistung_hoechstens_mw=3.0,
+        )
+        assert not optimum.wirksam
+        assert optimum.leistung_mw == pytest.approx(0.0, abs=1e-6)
+
+    def test_billiger_heisst_nie_kleiner(self, project, global_assumptions):
+        """Monotonie in der anderen Richtung: Sinkt der Zellpreis, kann
+        die optimale Kapazitaet nicht fallen. Faellt sie doch, stimmt
+        etwas an der Zielfunktion nicht."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import optimum_stetig
+
+        eingabe = self._eingabe()
+        kapazitaeten = []
+        for preis in (200.0, 120.0, 60.0):
+            global_assumptions.speicher_capex_energie_eur_kwh = preis
+            a = resolve_assumptions(project, global_assumptions)
+            kapazitaeten.append(optimum_stetig(
+                a, _mit_speicher(), [eingabe], [(self._GEWICHT, self._GEWICHT)],
+                betriebsjahre=20, leistung_hoechstens_mw=3.0,
+            ).kapazitaet_mwh)
+        for teurer, billiger in zip(
+            kapazitaeten, kapazitaeten[1:], strict=False
+        ):
+            assert billiger >= teurer - 1e-6, kapazitaeten
+
+    def test_das_optimum_wird_im_vollen_cashflow_nachgerechnet(self):
+        """Der Optimierer maximiert den Barwert des Speichers vor
+        Fremdkapital. Was seine Auslegung im Modell dieser Anwendung
+        wert ist, sagt erst der Cashflow - und deshalb steht sie im
+        Ergebnis mit ihren eigenen Kennzahlen."""
+        from engine.storage.auslegung import Rasterergebnis
+
+        assert "optimum" in Rasterergebnis.__dataclass_fields__
+        assert "optimum_punkt" in Rasterergebnis.__dataclass_fields__

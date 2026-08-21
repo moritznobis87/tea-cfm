@@ -221,6 +221,35 @@ def _loese(
     return ergebnis.x.reshape(T, _N), float(-ergebnis.fun)
 
 
+#: Der Speicher, den es nicht gibt - Bezugspunkt jedes Wertbeitrags.
+_KEIN_SPEICHER = BatteryConfig(aktiv=False, leistung_mw=0.0, kapazitaet_mwh=0.0)
+
+
+def vergleichsfall(
+    pv_mw: np.ndarray,
+    preis_eur_mwh: np.ndarray,
+    grenzerloes_eur_mwh: np.ndarray,
+    export_limit_mw: float,
+) -> tuple[float, float]:
+    """Zielwert und Abregelung des Laufs OHNE Speicher.
+
+    Gibt (zielwert_eur, abregelung_mwh) zurueck.
+
+    Der Vergleichsfall haengt an KEINER Eigenschaft des Speichers. Mit
+    `aktiv=False` ist die Leistungsgrenze null, der Fuellstand kann sich
+    also nicht bewegen; Kapazitaet, Wirkungsgrad und Verschleiss
+    multiplizieren dann ausschliesslich Variablen, die auf null
+    festliegen. Genau deshalb steht diese Funktion hier: Ein Rasterlauf
+    ueber fuenfzig Auslegungen rechnete den identischen Vergleichsfall
+    sonst fuenfzigmal, und er ist so teuer wie ein Lauf MIT Speicher.
+    """
+    bahn, zielwert = _loese(
+        pv_mw, grenzerloes_eur_mwh, preis_eur_mwh, _KEIN_SPEICHER,
+        export_limit_mw,
+    )
+    return zielwert, float(bahn[:, _ABREGELUNG].sum())
+
+
 def _ueberlappung(bahn: np.ndarray) -> np.ndarray:
     """Stunden, in denen gleichzeitig geladen UND entladen wird.
 
@@ -243,6 +272,7 @@ def dispatch_jahr(
     export_limit_mw: float,
     jahr: int = 1,
     kalenderjahr: int = 0,
+    vergleich: tuple[float, float] | None = None,
 ) -> StorageDispatchResult:
     """Ein Betriebsjahr optimieren - mit und ohne Speicher.
 
@@ -251,6 +281,12 @@ def dispatch_jahr(
     dasselbe Exportlimit, nur ohne Batterie. Nur so ist die Differenz
     eine Aussage ueber den Speicher und nicht ueber zwei verschiedene
     Rechenwege.
+
+    `vergleich` ist das Ergebnis von `vergleichsfall` fuer DIESE Stunden,
+    falls es schon vorliegt. Der Rasterlauf der Auslegungssuche rechnet
+    es einmal je Stuetzjahr und reicht es fuer jede Auslegung durch -
+    ohne diesen Weg waere die Haelfte seiner Rechenzeit die immer gleiche
+    Antwort auf die immer gleiche Frage.
     """
     for name, reihe in (("PV", pv_mw), ("Preis", preis_eur_mwh),
                         ("Grenzerloes", grenzerloes_eur_mwh)):
@@ -282,15 +318,11 @@ def dispatch_jahr(
 
     # Der Vergleichsfall: dieselben Preise, dieselben Foerderregeln,
     # dasselbe Exportlimit - nur ohne Speicher. Ohne ihn gaebe es keinen
-    # Massstab fuer den Wertbeitrag.
-    ohne = batterie.model_copy(update={"aktiv": False})
-    bahn_ohne, zielwert_ohne = _loese(
-        pv_mw, grenzerloes_eur_mwh, preis_eur_mwh, ohne, export_limit_mw
+    # Massstab fuer den Wertbeitrag. Die Abregelung dieses Laufs ist der
+    # Bezugspunkt der Rueckgewinnung und muss deshalb mit heraus.
+    zielwert_ohne, abregelung_ohne = vergleich or vergleichsfall(
+        pv_mw, preis_eur_mwh, grenzerloes_eur_mwh, export_limit_mw
     )
-    # Die Abregelung dieses Laufs ist der Bezugspunkt der
-    # Rueckgewinnung - sie muss mit heraus, sonst waere sie spaeter nur
-    # durch einen zweiten Lauf zu bekommen.
-    abregelung_ohne = float(bahn_ohne[:, _ABREGELUNG].sum())
 
     vollstaendig = np.column_stack([
         pv_mw,
