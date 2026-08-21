@@ -593,6 +593,7 @@ def rasterlauf(
     stuetzjahre_anzahl: int = STUETZJAHRE_STANDARD,
     mitoptimieren: bool = True,
     leistung_hoechstens_mw: float | None = None,
+    leistung_fest_mw: float | None = None,
     fortschritt: Callable[[int, int], None] | None = None,
 ) -> Rasterergebnis:
     """Rechnet jeden Kandidaten auf den Stuetzjahren und bewertet ihn.
@@ -663,10 +664,14 @@ def rasterlauf(
             betriebsjahre=len(jahre),
             diskontsatz=_GEWICHT_SATZ,
             leistung_hoechstens_mw=leistung_hoechstens_mw,
+            leistung_fest_mw=leistung_fest_mw,
             vergleiche=[s.vergleich[0] for s in stuetzen],
         )
         if stetig.wirksam:
-            bezug = leistung_hoechstens_mw or stetig.leistung_mw
+            bezug = (
+                leistung_fest_mw or leistung_hoechstens_mw
+                or stetig.leistung_mw
+            )
             kandidat = Kandidat(
                 leistungsanteil=(
                     stetig.leistung_mw / bezug if bezug else 0.0

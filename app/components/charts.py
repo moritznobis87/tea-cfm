@@ -1811,3 +1811,80 @@ def speicher_auslegung_chart(
         yaxis=dict(title=txt("diagramme.achse_speicherleistung")),
     )
     return fig
+
+
+def speicher_dauerkurve_chart(
+    tabelle: pd.DataFrame,
+    spalte: str,
+    referenz: float | None,
+    optimum_dauer: float | None = None,
+) -> go.Figure:
+    """Kennzahl über der Speicherdauer, bei FESTER Leistung.
+
+    Eine Linie und keine Heatmap: Steht die Leistung fest, hat die Fläche
+    nur noch eine Zeile, und eine einzeilige Heatmap ist eine Linie mit
+    schlechterer Ablesbarkeit. Hier interessiert genau das, was die Linie
+    zeigt und die Farbskala verschweigt — wie STEIL der Anstieg ist und
+    ab wo er abflacht.
+
+    Die Marke des Optimierers steht als senkrechte Linie darin. Sie liegt
+    im Regelfall zwischen zwei Rasterpunkten, und das ist die
+    interessante Auskunft: Sie sagt, zu welchem der beiden zu greifen
+    ist.
+    """
+    geordnet = tabelle.sort_values("dauer_h")
+    ist_rendite = spalte == "equity_irr"
+    faktor = 100.0 if ist_rendite else 1.0
+    werte = geordnet[spalte].astype(float) * faktor
+    einheit = " %" if ist_rendite else " €"
+
+    fig = go.Figure()
+    fig.add_scatter(
+        x=geordnet["dauer_h"], y=werte,
+        mode="lines+markers",
+        line=dict(color=Colors.BRAND, width=2.5),
+        marker=dict(size=9),
+        name=txt("diagramme.speicher_mit_speicher"),
+        hovertemplate=(
+            "%{x:,.0f} h<br><b>%{y:,.2f}" + einheit + "</b><extra></extra>"
+            if ist_rendite
+            else "%{x:,.0f} h<br><b>%{y:,.0f} €</b><extra></extra>"
+        ),
+    )
+    if referenz is not None:
+        fig.add_hline(
+            y=referenz * faktor,
+            line=dict(color=Colors.MUTED, width=1, dash="dot"),
+            annotation_text=txt("diagramme.speicher_ohne_speicher"),
+            annotation_position="bottom right",
+            annotation_font=dict(size=11, color=Colors.MUTED),
+        )
+    if optimum_dauer:
+        fig.add_vline(
+            x=optimum_dauer,
+            line=dict(color=Colors.INK, width=1.5, dash="dash"),
+            annotation_text=txt(
+                "diagramme.speicher_optimierer_marke",
+                stunden=fmt_number(optimum_dauer, 1),
+            ),
+            annotation_position="top left",
+            annotation_font=dict(size=11, color=Colors.INK),
+        )
+
+    fig.update_layout(
+        height=360,
+        margin=dict(t=30, b=0, l=0, r=0),
+        showlegend=False,
+        xaxis=dict(
+            title=txt("diagramme.achse_speicherdauer"), ticksuffix=" h",
+            tickmode="array", tickvals=list(geordnet["dauer_h"]),
+        ),
+        yaxis=dict(
+            title=txt(
+                "diagramme.achse_ek_rendite" if ist_rendite
+                else "diagramme.achse_barwert"
+            ),
+            ticksuffix=einheit if ist_rendite else None,
+        ),
+    )
+    return fig

@@ -102,6 +102,8 @@ class StetigesOptimum:
     vergleichswert_eur: float
     #: Der gesetzte Leistungsdeckel, falls einer galt.
     leistung_deckel_mw: float | None = None
+    #: War die Leistung vorgegeben und nur die Kapazitaet gesucht?
+    leistung_fest: bool = False
 
     @property
     def dauer_h(self) -> float:
@@ -177,6 +179,7 @@ def optimum_stetig(
     betriebsjahre: int,
     diskontsatz: float = 0.08,
     leistung_hoechstens_mw: float | None = None,
+    leistung_fest_mw: float | None = None,
     vergleiche: Sequence[float] | None = None,
 ) -> StetigesOptimum:
     """Loest Fahrweise UND Auslegung in einem Zug.
@@ -192,6 +195,13 @@ def optimum_stetig(
     nur aus PV laedt, ist zwar durch die Erzeugung begrenzt, seine
     ENTLADEleistung aber nur durch das Exportlimit - und das schoepft er
     aus, wenn die Preisspreizung es hergibt.
+
+    `leistung_fest_mw` NAGELT die Leistung fest und laesst nur die
+    Kapazitaet frei. Damit wird aus dem zweidimensionalen Problem ein
+    eindimensionales: Gesucht ist nur noch die Speicherdauer. Der Fall
+    ist der Graustromspeicher mit vereinbarter Netzbezugsleistung - dort
+    ist die Leistung durch den Netzanschlussvertrag gegeben und keine
+    Entwurfsgroesse mehr. Ist beides gesetzt, gewinnt der feste Wert.
     """
     steuer = assumptions.steuersatz_pct
     eta = np.sqrt(vorlage.roundtrip_wirkungsgrad)
@@ -312,7 +322,14 @@ def optimum_stetig(
 
     grenzen = np.zeros((breite, 2))
     grenzen[:, 1] = np.inf
-    if leistung_hoechstens_mw is not None:
+    if leistung_fest_mw is not None:
+        # Untergrenze GLEICH Obergrenze: Die Leistung steht fest, gesucht
+        # ist allein die Kapazitaet. Das ist keine Vereinfachung, sondern
+        # der Fall eines Graustromspeichers mit vereinbarter
+        # Netzbezugsleistung - dort ist die Leistung ein Vertrag und
+        # keine Entwurfsgroesse.
+        grenzen[p_spalte, :] = float(leistung_fest_mw)
+    elif leistung_hoechstens_mw is not None:
         grenzen[p_spalte, 1] = float(leistung_hoechstens_mw)
 
     ergebnis = linprog(
@@ -358,8 +375,15 @@ def optimum_stetig(
         ),
         kalenderjahre=tuple(e.kalenderjahr for e in eingaben),
         vergleichswert_eur=vergleich,
+        # Eine FESTE Leistung ist kein Deckel: Sie kann nicht binden,
+        # weil es nichts zu binden gibt. Ein Hinweis "die Leistung steht
+        # am Deckel" waere dort schlicht falsch.
         leistung_deckel_mw=(
-            float(leistung_hoechstens_mw)
-            if leistung_hoechstens_mw is not None else None
+            None if leistung_fest_mw is not None
+            else (
+                float(leistung_hoechstens_mw)
+                if leistung_hoechstens_mw is not None else None
+            )
         ),
+        leistung_fest=leistung_fest_mw is not None,
     )
