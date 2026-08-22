@@ -6,6 +6,23 @@ Beispielprojekt ab, dessen Erwartungswerte sich von Hand nachrechnen
 lassen - keine Abhaengigkeit von den (aenderbaren) YAML-Beispieldaten.
 
 Ausserdem wird hier das Datenverzeichnis umgelenkt - siehe unten.
+
+Der Schalter --langsam
+----------------------
+Ein Teil der Tests loest echte lineare Programme oder faehrt die
+Oberflaeche durch einen vollstaendigen Rasterlauf. Sie sind nicht
+langsam, weil sie schlecht geschrieben waeren, sondern weil sie genau
+das pruefen, was Minuten kostet - und ohne sie waere die
+Auslegungssuche ungeprueft.
+
+Sie laufen deshalb NICHT bei jedem Aufruf mit, sondern nur mit
+`pytest --langsam`. Uebersprungen werden sie als SKIP und nicht durch
+Deselektion: Ein Test, der stillschweigend verschwindet, ist schlimmer
+als einer, der lange braucht - man sieht ihm nicht an, dass er fehlt.
+Am Ende jedes Laufs ohne den Schalter steht deshalb, wie viele Tests
+gerade nicht geprueft wurden.
+
+Vor jedem Merge gehoert ein Lauf MIT `--langsam` dazu.
 """
 
 from __future__ import annotations
@@ -180,3 +197,64 @@ def global_assumptions() -> GlobalAssumptions:
 @pytest.fixture
 def project() -> PVProject:
     return _baue_projekt()
+
+
+# ---------------------------------------------------------------------------
+# Der Schalter fuer die langsamen Tests
+# ---------------------------------------------------------------------------
+
+
+#: Name des Markers und des Schalters - an einer Stelle, damit beide
+#: nicht auseinanderlaufen koennen.
+LANGSAM = "langsam"
+
+
+def pytest_addoption(parser) -> None:
+    parser.addoption(
+        f"--{LANGSAM}", action="store_true", default=False,
+        help=(
+            "Auch die Tests mitlaufen lassen, die echte lineare Programme "
+            "loesen oder die Oberflaeche durch einen Rasterlauf fahren. "
+            "Ohne diesen Schalter werden sie uebersprungen."
+        ),
+    )
+
+
+def pytest_configure(config) -> None:
+    config.addinivalue_line(
+        "markers",
+        f"{LANGSAM}: loest echte lineare Programme oder faehrt die "
+        f"Oberflaeche durch einen Rasterlauf. Nur mit --{LANGSAM}.",
+    )
+
+
+def pytest_collection_modifyitems(config, items) -> None:
+    if config.getoption(f"--{LANGSAM}"):
+        return
+    ueberspringen = pytest.mark.skip(
+        reason=f"langsam - mit --{LANGSAM} mitlaufen lassen"
+    )
+    for eintrag in items:
+        if LANGSAM in eintrag.keywords:
+            eintrag.add_marker(ueberspringen)
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Sagt am Ende, wie viele Tests gerade NICHT geprueft wurden.
+
+    Ohne diese Zeile wuerde ein gruener Lauf so aussehen wie ein
+    vollstaendiger, und genau das darf er nicht: Er hat die teuersten
+    Zusagen der Anwendung nicht angefasst.
+    """
+    if config.getoption(f"--{LANGSAM}"):
+        return
+    offen = sum(
+        1 for eintrag in terminalreporter.stats.get("skipped", [])
+        if f"--{LANGSAM}" in str(getattr(eintrag, "longrepr", ""))
+    )
+    if offen:
+        terminalreporter.write_line(
+            f"{offen} langsame Tests uebersprungen - vor dem Merge einmal "
+            f"mit --{LANGSAM} laufen lassen.",
+            yellow=True,
+        )

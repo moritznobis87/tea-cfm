@@ -767,6 +767,12 @@ def _optimierer(ergebnis) -> None:
         delta=fmt_eur_kompakt(punkt.npv_eur - ergebnis.npv_eur_ohne)
         if punkt is not None else None,
     )
+    if optimum.kapitalkostenfaktor < 0.999:
+        st.caption(txt(
+            "oberflaeche.speicher_auslegung_kapitalkosten",
+            faktor=fmt_number(optimum.kapitalkostenfaktor, 2),
+            cent=fmt_number(optimum.kapitalkostenfaktor * 100, 0),
+        ))
     _dauern_vergleichbar(ergebnis, punkt)
     if optimum.am_deckel:
         st.caption(txt(

@@ -14,9 +14,6 @@ kapitel_6_titel: "Análisis de riesgo (simulación Monte Carlo)"
 kapitel_7_titel: "Comparación de escenarios"
 kapitel_8_titel: "Modelo de subasta EAG"
 kapitel_a_titel: "Anexo: hipótesis del cálculo"
-kapitel_b_titel: "Anexo: series temporales"
-
-# --- Títulos de sección (H2) ------------------------------------------------------
 abschnitt_cashflow_vermoegen: "Flujo de caja total y acumulación de patrimonio"
 abschnitt_wertbruecke: "Puente de valor a lo largo de toda la vida útil"
 abschnitt_cashflow_uebersicht: "Resumen del flujo de caja (extracto)"
@@ -257,21 +254,6 @@ tab_a2_caption: "Tab. A-2: costes operativos estándar más partidas dependiente
 annex_a_col_betrag: "Importe (€)"
 annex_a_capex_summe: "Total"
 tab_a3_caption: "Tab. A-3: costes de inversión por partida."
-annex_b_intro: "Escenario de precio de mercado utilizado, «{szenario}»: valores de mercado reales (base de precios {basis}) y nominales (indexados al {inflation} p.a.), así como cantidades producidas en horas de precios negativos según la regla. Se aplica la serie temporal de {regel}."
-annex_b_col_kalenderjahr: "Año
-natural"
-annex_b_col_marktwert_real: "Valor de mercado real
-(ct/kWh)"
-annex_b_col_marktwert_nominal: "Valor de mercado nominal
-(ct/kWh)"
-annex_b_col_menge_neg_6h: "Cantidad negativa 6h
-(% de la producción)"
-annex_b_col_menge_neg_1h: "Cantidad negativa 1h
-(% de la producción)"
-tab_b1_caption: "Tab. B-1: series temporales del escenario utilizado."
-annex_b_alle_szenarien_titel: "Valores de mercado de todos los escenarios guardados (real)"
-annex_b_col_kalenderjahr_kurz: "Año natural"
-tab_b2_caption: "Tab. B-2: valor de mercado solar (real, ct/kWh) por escenario – base de la comparación de escenarios del capítulo 7."
 annex_a_pacht_umsatzbeteiligung_wert: "{pct} de los ingresos, mín. {mindest} €/ha/año"
 steuermodus_pauschal: "Tipo fijo sobre el EBT"
 steuermodus_afa_at: "Impuesto de sociedades con amortización (Austria)"
@@ -318,3 +300,14 @@ summary_nachschuss_intern: >-
   umbral de event of default de {eod}. La aportación acumulada de {betrag}
   está totalmente cubierta por fondos generados previamente; no se requiere
   capital externo (detalles en el capítulo 4).
+kapitel_speicher_titel: "Almacenamiento en batería"
+speicher_intro: "El proyecto incluye un almacenamiento en batería de {leistung} MW de potencia y {kapazitaet} MWh de capacidad ({dauer} h de duración), modo {modus}, rendimiento de ciclo completo {wirkungsgrad}. Su despacho se optimiza hora a hora; el valor aportado que se indica es la diferencia respecto al mismo proyecto sin almacenamiento, con precios, reglas de apoyo y límites de red idénticos."
+speicher_markt_hinweis: "Solo se valora la negociación en el mercado diario. La energía de balance, la negociación intradiaria y los servicios de red no están modelados; aumentarían el valor. En sentido contrario actúa la previsión perfecta supuesta: el optimizador conoce de antemano los precios de todo el año, mientras que un operador real alcanza entre el 80 y el 95 % de ello. Ambos efectos no se compensan entre sí."
+speicher_kpi_investition: "Inversión en almacenamiento"
+speicher_kpi_wertbeitrag: "Valor aportado total"
+speicher_kpi_vollzyklen: "Ciclos completos/año"
+speicher_kpi_irr_delta: "Efecto en la TIR de capital"
+abschnitt_speicher_verlauf: "Margen de contribución por año de operación"
+abb_speicher_caption: "Fig. S-1: Margen de contribución del almacenamiento a lo largo de {jahre} años de operación calculados. De media se recuperan {kappung} MWh al año de vertido que de otro modo se habrían perdido en el límite de inyección."
+speicher_geltungsbereich: "Las cifras de este capítulo y la cuenta de resultados incluyen el almacenamiento. En cambio, el análisis de sensibilidad, el análisis de riesgo y la comparación de escenarios se calculan sin él: responden a preguntas sobre la planta FV y no mantienen fija la aportación del almacenamiento."
+achse_betriebsjahr: "Año de operación"

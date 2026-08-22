@@ -16,7 +16,8 @@ streamlit run streamlit_app.py
 
 # Entwicklung
 pip install -e ".[dev]"
-make test      # Test-Suite (Engine + UI-Smoke-Tests)
+make test      # Test-Suite (Engine + UI-Smoke-Tests), ohne die langsamen
+make test-alle # dieselbe Suite inkl. linearer Programme – vor jedem Merge
 make lint      # Statische Analyse (ruff)
 make run       # App starten
 ```

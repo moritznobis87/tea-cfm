@@ -14,9 +14,6 @@ kapitel_6_titel: "Risikoanalyse (Monte-Carlo-Simulation)"
 kapitel_7_titel: "Szenarienvergleich"
 kapitel_8_titel: "EAG-Ausschreibungsmodell"
 kapitel_a_titel: "Annex: Annahmen der Berechnung"
-kapitel_b_titel: "Annex: Zeitreihen"
-
-# --- Abschnittstitel (H2) ------------------------------------------------------
 abschnitt_cashflow_vermoegen: "Gesamt-Cashflow und Vermögensaufbau"
 abschnitt_wertbruecke: "Wertbrücke über die Gesamtlaufzeit"
 abschnitt_cashflow_uebersicht: "Cashflow-Übersicht (Auszug)"
@@ -251,16 +248,6 @@ annex_a_capex_summe: "Summe"
 tab_a3_caption: "Tab. A-3: Investitionskosten nach Position."
 
 # --- Annex B: Zeitreihen -------------------------------------------------------
-annex_b_intro: "Verwendetes Marktpreisszenario „{szenario}“: Marktwerte real (Preisbasis {basis}) und nominal (inflationiert mit {inflation} p.a.) sowie Erzeugungsmengen in Stunden negativer Preise je Regel. Angewendet wird die {regel}-Zeitreihe."
-annex_b_col_kalenderjahr: "Kalender-\njahr"
-annex_b_col_marktwert_real: "Marktwert real\n(ct/kWh)"
-annex_b_col_marktwert_nominal: "Marktwert nominal\n(ct/kWh)"
-annex_b_col_menge_neg_6h: "Menge negativ 6h\n(% der Erzeugung)"
-annex_b_col_menge_neg_1h: "Menge negativ 1h\n(% der Erzeugung)"
-tab_b1_caption: "Tab. B-1: Zeitreihen des verwendeten Szenarios."
-annex_b_alle_szenarien_titel: "Marktwerte aller hinterlegten Szenarien (real)"
-annex_b_col_kalenderjahr_kurz: "Kalenderjahr"
-tab_b2_caption: "Tab. B-2: Marktwert Solar (real, ct/kWh) je Szenario – Grundlage des Szenarienvergleichs in Kapitel 7."
 annex_a_pacht_umsatzbeteiligung_wert: "{pct} vom Umsatz, mind. {mindest} €/ha/Jahr"
 steuermodus_pauschal: "Pauschal auf EBT"
 steuermodus_afa_at: "AfA-Körperschaftsteuer (Österreich)"
@@ -308,3 +295,14 @@ summary_nachschuss_intern: >-
   kumulierte Eigenkapitalnachschuss von {betrag} ist vollständig aus zuvor
   selbst erwirtschafteten Mitteln gedeckt; externes Kapital ist nicht
   erforderlich (Details in Kapitel 4).
+kapitel_speicher_titel: "Batteriespeicher"
+speicher_intro: "Das Projekt führt einen Batteriespeicher mit {leistung} MW Leistung und {kapazitaet} MWh Kapazität ({dauer} h Speicherdauer), Betriebsart {modus}, Roundtrip-Wirkungsgrad {wirkungsgrad}. Seine Fahrweise ist stundenscharf optimiert; der ausgewiesene Wertbeitrag ist die Differenz zum selben Projekt ohne Speicher — bei identischen Preisen, Förderregeln und Netzgrenzen."
+speicher_markt_hinweis: "Bewertet wird ausschließlich der Handel am Day-Ahead-Markt. Regelenergie, Intraday-Handel und Netzdienstleistungen sind nicht modelliert; sie würden den Wert erhöhen. Gegenläufig wirkt die unterstellte perfekte Voraussicht — der Optimierer kennt die Preise des ganzen Jahres im Voraus, ein realer Betreiber erreicht davon erfahrungsgemäß 80 bis 95 %. Beide Effekte werden nicht gegeneinander aufgerechnet."
+speicher_kpi_investition: "Investition Speicher"
+speicher_kpi_wertbeitrag: "Wertbeitrag gesamt"
+speicher_kpi_vollzyklen: "Vollzyklen/Jahr"
+speicher_kpi_irr_delta: "Wirkung auf EK-Rendite"
+abschnitt_speicher_verlauf: "Deckungsbeitrag je Betriebsjahr"
+abb_speicher_caption: "Abb. S-1: Deckungsbeitrag des Speichers über {jahre} gerechnete Betriebsjahre. Im Mittel werden {kappung} MWh je Jahr an Abregelung zurückgewonnen, die ohne Speicher an der Einspeisegrenze verloren gegangen wären."
+speicher_geltungsbereich: "Die Kennzahlen dieses Kapitels und die Ergebnisrechnung schließen den Speicher ein. Sensitivitätsanalyse, Risikoanalyse und Szenarienvergleich rechnen dagegen ohne ihn — sie beantworten Fragen zur PV-Anlage und halten den Speicherbeitrag nicht fest."
+achse_betriebsjahr: "Betriebsjahr"

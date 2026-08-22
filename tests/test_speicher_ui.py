@@ -1748,3 +1748,128 @@ class TestBezugsgroesse:
         assert [k.leistung_mw for k in kandidaten] == pytest.approx(
             list(stufen[:3])
         )
+
+
+class TestKapitalkostenfaktor:
+    """Was ein Euro Speicherinvestition den Projektbarwert wirklich kostet.
+
+    Der Optimierer rechnete zuvor mit `1 - Abschreibungsschild` und
+    unterstellte damit eine unverschuldete Investition. Gemessen an
+    einem Projekt mit 20 % Eigenkapital und 4,2 % Fremdkapitalzins lag
+    er damit um ein Viertel daneben - systematisch zugunsten zu kleiner
+    Speicher. Diese Tests halten die Richtung fest, nicht die zweite
+    Nachkommastelle: Der genaue Wert haengt an Steuer, Tilgungsprofil
+    und Laufzeit und darf sich mit ihnen aendern.
+    """
+
+    def _faktor(self, project, ga, quote: float, zins: float = 0.042):
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import kapitalkostenfaktor
+
+        project.eigenkapitalquote_pct = quote
+        project.fremdkapitalzins_pct = zins
+        a = resolve_assumptions(project, ga)
+        return kapitalkostenfaktor(a, project.id, 10_000_000.0), a
+
+    def test_ohne_gewinn_kein_abschreibungsschild(
+        self, project, global_assumptions
+    ):
+        """Der Befund, der die Messung ueberhaupt rechtfertigt.
+
+        Die Formel zieht das Abschreibungsschild pauschal ab und
+        unterstellt damit, dass es sich verrechnen laesst. Das setzt
+        steuerpflichtigen GEWINN voraus. Das Testprojekt erwirtschaftet
+        ueber 25 Jahre rund 775.000 EUR steuerliches Ergebnis; eine
+        Investition von 10 Mio EUR bringt ueber 20 Jahre 10 Mio EUR
+        Abschreibung mit. Der weitaus groesste Teil davon trifft auf
+        keinen Gewinn und verpufft.
+
+        Gemessen liegt der Faktor deshalb bei rund 1,0 statt bei den
+        0,89 der Formel - die Investition kostet hier fast ihren vollen
+        Betrag. Genau das kann eine geschlossene Formel nicht wissen.
+        """
+        from engine.storage.optimum import _barwertfaktoren
+
+        faktor, a = self._faktor(project, global_assumptions, 1.0)
+        _, schild = _barwertfaktoren(a, a.betriebsdauer_jahre, 0.08)
+        assert faktor > 1.0 - schild, (
+            "Ohne verrechenbaren Gewinn darf das Schild nicht voll wirken"
+        )
+        assert faktor == pytest.approx(1.0, abs=0.05)
+
+    def test_mehr_fremdkapital_macht_die_investition_billiger(
+        self, project, global_assumptions
+    ):
+        """Wer unter dem Diskontsatz leiht, verdient an der Differenz."""
+        faktoren = [
+            self._faktor(project, global_assumptions, quote)[0]
+            for quote in (1.0, 0.6, 0.4, 0.2)
+        ]
+        for hoeher, niedriger in zip(faktoren, faktoren[1:], strict=False):
+            assert niedriger < hoeher, faktoren
+
+    def test_beim_diskontsatz_verschwindet_der_vorteil(
+        self, project, global_assumptions
+    ):
+        """Kostet das Fremdkapital so viel wie der Diskontsatz, ist an
+        der Finanzierung nichts mehr zu verdienen - dann kostet die
+        Investition dasselbe wie ohne Fremdkapital. Das ist die Probe
+        darauf, dass hier wirklich die Zinsdifferenz wirkt und nicht
+        irgendein Rechenfehler."""
+        billig, _ = self._faktor(project, global_assumptions, 0.2, zins=0.02)
+        teuer, _ = self._faktor(project, global_assumptions, 0.2, zins=0.08)
+        ohne_fk, _ = self._faktor(project, global_assumptions, 1.0)
+        assert billig < teuer
+        assert teuer == pytest.approx(ohne_fk, rel=0.03)
+
+    def test_ohne_investition_kein_faktor(self, project, global_assumptions):
+        """Eine Division durch null waere hier besonders unangenehm: Sie
+        traefe den Fall "noch kein Speicher eingerichtet"."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import kapitalkostenfaktor
+
+        a = resolve_assumptions(project, global_assumptions)
+        assert kapitalkostenfaktor(a, project.id, 0.0) == 1.0
+        assert kapitalkostenfaktor(a, project.id, -5.0) == 1.0
+
+    @pytest.mark.langsam
+    def test_der_faktor_verschiebt_das_optimum_nach_oben(
+        self, project, global_assumptions
+    ):
+        """Die eigentliche Wirkung: Billigeres Kapital heisst groesserer
+        Speicher. Gemessen am Vorlagenprojekt verschob sich das Optimum
+        von 7,27 h auf 8,09 h - und traf damit das Barwertoptimum des
+        Rasters bei 8 h, das es zuvor um eine Stufe verfehlte."""
+        import numpy as np
+
+        from engine.pipeline import resolve_assumptions
+        from engine.storage import optimum_stetig
+        from engine.storage.valuation import Jahreseingabe
+
+        pv, preis = _kurzes_jahr(168)
+        eingabe = Jahreseingabe(
+            jahr=1, kalenderjahr=2030,
+            pv_mw=np.asarray(pv), preise_eur_mwh=np.asarray(preis),
+            grenzerloes_eur_mwh=np.asarray(preis), export_limit_mw=3.0,
+        )
+        a = resolve_assumptions(project, global_assumptions)
+        gewicht = [(600.0, 600.0)]
+
+        teuer = optimum_stetig(
+            a, _mit_speicher(), [eingabe], gewicht,
+            betriebsjahre=20, leistung_fest_mw=2.0,
+        )
+        billig = optimum_stetig(
+            a, _mit_speicher(), [eingabe], gewicht,
+            betriebsjahre=20, leistung_fest_mw=2.0,
+            kapitalkostenfaktor=teuer.kapitalkostenfaktor * 0.7,
+        )
+        assert billig.kapazitaet_mwh > teuer.kapazitaet_mwh
+        assert billig.barwert_eur > teuer.barwert_eur
+
+    def test_der_faktor_steht_im_ergebnis(self):
+        """Er gehoert ausgewiesen: Eine Auslegung, die auf einem
+        Finanzierungsvorteil beruht, sieht man das nicht an."""
+        from engine.storage import StetigesOptimum
+
+        assert "kapitalkostenfaktor" in StetigesOptimum.__dataclass_fields__

@@ -1,4 +1,4 @@
-.PHONY: install run test lint format dokumentation
+.PHONY: install run test test-alle lint format dokumentation
 
 install:        ## Entwicklungsumgebung aufsetzen
 	pip install -e ".[dev]"
@@ -6,8 +6,11 @@ install:        ## Entwicklungsumgebung aufsetzen
 run:            ## App lokal starten
 	streamlit run streamlit_app.py
 
-test:           ## Test-Suite ausführen
+test:           ## Test-Suite ausführen (ohne die langsamen)
 	pytest
+
+test-alle:      ## Test-Suite inkl. lineare Programme – vor jedem Merge
+	pytest --langsam
 
 lint:           ## Statische Analyse
 	ruff check .
