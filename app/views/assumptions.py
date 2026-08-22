@@ -40,6 +40,7 @@ from engine import (
 )
 from engine.io_aurora import AuroraImportFehler
 from engine.io_lastgang import LastgangFehler
+from engine.storage import kosten
 from texte import txt
 
 #: Marktsystematik-Umschalter: Code -> (Flaggen-Datei, Textschluessel).
@@ -909,6 +910,9 @@ def _karte_speicher(ga: GlobalAssumptions) -> tuple[str, str]:
         settings_hub.kurzfassung([
             txt("oberflaeche.annahmen_karte_speicher_opex",
                 wert=fmt_number(ga.speicher_opex_eur_kw_jahr, 0)),
+            txt("oberflaeche.annahmen_karte_speicher_zyklen",
+                wert=fmt_number(ga.speicher_zyklenlebensdauer, 0),
+                verschleiss=fmt_number(kosten.verschleiss_eur_mwh(ga), 1)),
             txt("oberflaeche.annahmen_karte_speicher_markt"),
         ]),
     )

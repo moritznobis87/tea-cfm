@@ -114,7 +114,14 @@ def dialog_state_setzen(form_key: str, entwurf: PVProject) -> None:
         "soc_min": float(b.soc_min_pct * 100),
         "soc_max": float(b.soc_max_pct * 100),
         "soc_start": float(b.soc_start_pct * 100),
-        "degradation": float(b.degradationskosten_eur_mwh),
+        # Leer heisst "aus dem Zellpreis abgeleitet" - genauso wie
+        # bei den Preisfeldern darunter. Stuende der abgeleitete Wert
+        # im Feld, liesse sich das nicht mehr von einer Handeingabe
+        # unterscheiden, die zufaellig denselben Betrag traegt.
+        "degradation": (
+            None if b.degradationskosten_eur_mwh is None
+            else float(b.degradationskosten_eur_mwh)
+        ),
         "netzbezug": float(b.netzbezug_limit_mw),
     }
     # Die Preise bleiben LEER, wenn das Projekt der Vorgabe folgt - None
@@ -269,10 +276,12 @@ def _eingaben(
         key=_dlg_key(form_key, "rte"), disabled=not aktiv,
         help=txt("oberflaeche.speicher_rte_hilfe"),
     )
+    abgeleitet = kosten.verschleiss_eur_mwh(vorgaben)
     degradation = col4.number_input(
         txt("oberflaeche.speicher_degradation_label"), min_value=0.0, step=0.5,
         key=_dlg_key(form_key, "degradation"), disabled=not aktiv,
         help=txt("oberflaeche.speicher_degradation_hilfe"),
+        placeholder=fmt_number(abgeleitet, 1),
     )
 
     # Der Netzbezug steht beim Graustromspeicher und sonst nirgends: Beim

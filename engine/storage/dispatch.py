@@ -222,7 +222,14 @@ def _loese(
 
 
 #: Der Speicher, den es nicht gibt - Bezugspunkt jedes Wertbeitrags.
-_KEIN_SPEICHER = BatteryConfig(aktiv=False, leistung_mw=0.0, kapazitaet_mwh=0.0)
+#: Der Verschleisssatz steht ausdruecklich auf null: Bei null Leistung
+#: und null Kapazitaet gibt es nichts abzunutzen, und der Vergleichsfall
+#: soll ohne Annahmenobjekt auskommen - er haengt an keiner einzigen
+#: Batterieeigenschaft, und genau das macht ihn wiederverwendbar.
+_KEIN_SPEICHER = BatteryConfig(
+    aktiv=False, leistung_mw=0.0, kapazitaet_mwh=0.0,
+    degradationskosten_eur_mwh=0.0,
+)
 
 
 def vergleichsfall(

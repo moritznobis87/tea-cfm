@@ -65,6 +65,7 @@ from engine import (
     TaxModus,
 )
 from engine.analytics import MC_STANDARD_SIGMAS, MonteCarloResult, SzenarioVergleich
+from engine.storage import kosten as storage_kosten
 from texte import txt
 
 # ---------------------------------------------------------------------------
@@ -1145,6 +1146,18 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
             wirkungsgrad=fmt_pct(b.roundtrip_wirkungsgrad, 0),
         ), _STYLE_TEXT))
         story.append(Paragraph(txt("bericht.speicher_markt_hinweis"), _STYLE_TEXT))
+        # Der Verschleisssatz gehoert genannt: Er entscheidet mit, wie
+        # oft gefahren wird, und er steht in keiner Kachel. Berichtet
+        # wird der WIRKSAME Satz - abgeleitet oder eingetragen; die
+        # Zyklenlebensdauer nur dort, wo sie ihn tatsaechlich erklaert.
+        wirksam = storage_kosten.mit_verschleiss(b, ea)
+        story.append(Paragraph(txt(
+            "bericht.speicher_verschleiss_abgeleitet"
+            if b.degradationskosten_eur_mwh is None
+            else "bericht.speicher_verschleiss_eigen",
+            satz=_de(wirksam.degradationskosten_eur_mwh, 2),
+            zyklen=_de(ea.speicher_zyklenlebensdauer, 0),
+        ), _STYLE_TEXT))
 
         ohne = inputs.kpis_ohne_speicher
         delta_irr = (
