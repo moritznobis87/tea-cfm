@@ -155,6 +155,7 @@ def resolve_assumptions(
             global_assumptions.speicher_capex_energie_eur_kwh
         ),
         speicher_opex_eur_kw_jahr=erbe("speicher_opex_eur_kw_jahr"),
+        speicher_zyklenlebensdauer=global_assumptions.speicher_zyklenlebensdauer,
         eag_zuschlagswert_effektiv_ct_kwh=project.eag_zuschlagswert_effektiv_ct_kwh,
         eag_foerderdauer_jahre=erbe("eag_foerderdauer_jahre"),
         betriebsdauer_jahre=erbe("betriebsdauer_jahre"),

@@ -2483,6 +2483,7 @@ interpretiert, sollte diese Liste kennen.
 | A8 | Kein Eigenverbrauch, keine Regelenergie-Erlöse | Reines Marktprämien-/Marktverkaufsmodell |
 | A8a | Ein Co-Location-Speicher wird stundenscharf optimiert, aber ausschließlich am **Day-Ahead-Markt** | Intraday, FCR und aFRR sind nicht modelliert; der ausgewiesene Speicherwert ist insoweit eine Untergrenze. Gegenläufig wirkt die unterstellte perfekte Voraussicht — beide Effekte werden nicht gegeneinander aufgerechnet |
 | A8b | Der Speicherbeitrag geht als **Differenz** zum selben Projekt ohne Speicher in den Cashflow ein | Der bestehende Bewertungsweg über Capture Prices bleibt unangetastet; nur so ist die Renditewirkung dem Speicher zurechenbar |
+| A8c | Der Verschleiß je umgeschlagener MWh wird aus **Energiepreis ÷ Zyklenlebensdauer** abgeleitet: $v = b_E \cdot 1000 / n_{\text{Zyklen}}$, bei 82 €/kWh und 6.000 Zyklen also 13,67 €/MWh. Ein am Projekt eingetragener Satz gilt statt der Ableitung | Der Satz bremst die Fahrweise genau dann, wenn der Spread einer Stunde die anteilige Zellabnutzung nicht deckt. Ein fester Satz altert still: Er bliebe stehen, während die Zellpreise fallen. **Vorläufig** wird derselbe Betrag auch vom Cashflow abgezogen — dort steht er stellvertretend für die noch nicht modellierte Ersatzinvestition (an einem 6-h-Speicher deckt er sie zu rund 86 %). Sobald der Ersatz ausdrücklich gebucht wird, entfällt der Abzug, sonst wäre die Batterie zweimal bezahlt |
 
 ## 17.3 Kosten und Finanzierung
 

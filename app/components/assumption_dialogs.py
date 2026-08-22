@@ -836,6 +836,10 @@ SPEICHER: tuple[Feld, ...] = (
          "oberflaeche.annahmen_speicher_opex_label",
          hilfe="oberflaeche.annahmen_speicher_opex_hilfe",
          schritt=1.0),
+    Feld("speicher_zyklenlebensdauer", "zahl",
+         "oberflaeche.annahmen_speicher_zyklen_label",
+         hilfe="oberflaeche.annahmen_speicher_zyklen_hilfe",
+         schritt=500, minimum=100, ganzzahl=True),
 )
 
 #: Widget-Schluessel der Kalibrierungswahl im Dialog.
@@ -888,7 +892,7 @@ def render_speicher(e: GlobalAssumptions) -> None:
             kal = KALIBRIERUNGEN[gewaehlt]
             st.caption(f"{kal.quelle} — {kal.geltungsbereich}")
 
-        _gitter(SPEICHER, 3)
+        _gitter(SPEICHER, 2)
         st.caption(txt("oberflaeche.annahmen_dlg_speicher_beispiel"))
 
         # Die Kurve beantwortet die Frage, die zwei nackte Zahlen nicht

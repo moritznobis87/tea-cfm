@@ -628,7 +628,18 @@ class BatteryConfig(BaseModel):
     #: ab, fuer minimale Preisspreads zu zyklieren. Durchsatz ist hier
     #: definiert als 0,5 x (Ladeenergie + Entladeenergie) - so zaehlt ein
     #: voller Zyklus (rein und wieder raus) einmal und nicht zweimal.
-    degradationskosten_eur_mwh: float = Field(ge=0, default=2.0)
+    #:
+    #: None heisst: aus dem Zellpreis abgeleitet, naemlich
+    #: Energieanteil der Investition geteilt durch die
+    #: Zyklenlebensdauer (siehe kosten.verschleiss_eur_mwh). Das ist der
+    #: Regelfall - ein Zyklus verbraucht einen Anteil der Zelle, und wie
+    #: teuer dieser Anteil ist, steht in den Marktannahmen und nicht an
+    #: der Auslegung.
+    #:
+    #: Ein eingetragener Wert gilt dagegen unveraendert. Er ist fuer den
+    #: Fall gedacht, dass fuer diese Anlage eine Zellgarantie mit
+    #: eigenen Zahlen vorliegt.
+    degradationskosten_eur_mwh: float | None = Field(default=None, ge=0)
 
     #: Hoechster Netzbezug in MW. Beim Gruenstromspeicher wirkungslos -
     #: dort ist der Netzbezug ohnehin null (siehe dispatch.py).
@@ -1240,6 +1251,19 @@ class GlobalAssumptions(BaseModel):
     speicher_capex_leistung_eur_kw: float = Field(ge=0, default=48.0)
     speicher_capex_energie_eur_kwh: float = Field(ge=0, default=82.0)
     speicher_opex_eur_kw_jahr: float = Field(ge=0, default=8.0)
+
+    #: Wie viele Vollzyklen die Zelle haelt. Zusammen mit dem
+    #: Energieanteil der Investition ergibt sich daraus, was ein Zyklus
+    #: kostet: 82 EUR/kWh bei 6.000 Zyklen sind 13,7 EUR je MWh
+    #: Durchsatz.
+    #:
+    #: Die frueher fest eingetragenen 2 EUR/MWh waren um das Siebenfache
+    #: zu niedrig und liessen den Optimierer zyklieren, wo sich das nicht
+    #: mehr rechnete - besonders bei kurzen Speichern, die am meisten
+    #: zyklieren. 6.000 Vollzyklen sind fuer LFP der uebliche Ansatz;
+    #: Datenblaetter nennen je nach Entladetiefe und Temperatur 4.000
+    #: bis 10.000.
+    speicher_zyklenlebensdauer: int = Field(gt=0, default=6000)
     #: Name der zuletzt gewaehlten Kalibrierung - reine Merkgroesse fuer
     #: die Oberflaeche. Gerechnet wird IMMER mit den beiden Zahlen
     #: darueber: Wer sie von Hand anpasst, soll seinen Wert behalten und
@@ -1377,6 +1401,7 @@ class EffectiveAssumptions(BaseModel):
     speicher_capex_leistung_eur_kw: float = 0.0
     speicher_capex_energie_eur_kwh: float = 0.0
     speicher_opex_eur_kw_jahr: float = 0.0
+    speicher_zyklenlebensdauer: int = 6000
 
     eag_zuschlagswert_effektiv_ct_kwh: float
     eag_foerderdauer_jahre: int

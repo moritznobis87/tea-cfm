@@ -253,6 +253,26 @@ class TestSpeicherkapitel:
         assert "Sensitivitätsanalyse, Risikoanalyse und Szenarienvergleich" \
             in pdf_mit_speicher
 
+    def test_der_verschleisssatz_und_seine_herkunft_stehen_dabei(
+        self, pdf_mit_speicher, _ga_modul
+    ):
+        """Der Satz entscheidet mit, wie oft gefahren wird - und er
+        steht in keiner Kachel. Wer den Speicherwert nachrechnen will,
+        braucht ihn, und er braucht die Zyklenzahl, aus der er stammt.
+
+        Die Erwartung wird GERECHNET und nicht abgeschrieben: Sinkt der
+        Zellpreis in den Annahmen, soll der Test die neue Zahl im
+        Bericht sehen wollen und nicht die alte."""
+        from app.formatting import fmt_number
+        from engine.storage.kosten import verschleiss_eur_mwh
+
+        satz = fmt_number(verschleiss_eur_mwh(_ga_modul), 2)
+        assert f"{satz} €/MWh Durchsatz" in pdf_mit_speicher
+        assert (
+            f"{fmt_number(_ga_modul.speicher_zyklenlebensdauer, 0)} Vollzyklen"
+            in pdf_mit_speicher
+        )
+
     def test_die_kapitelnummern_bleiben_lueckenlos(self, pdf_mit_speicher):
         """Mit dem zusaetzlichen Kapitel verschieben sich alle folgenden
         Nummern. Genau dafuer gibt es den Zaehler."""

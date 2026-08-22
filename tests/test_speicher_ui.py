@@ -42,9 +42,17 @@ def _mit_speicher(**kwargs) -> BatteryConfig:
     ausdruecklich ab (`extra="forbid"`), damit eine aeltere Projektdatei
     beim Laden scheitert statt einen gesetzten Preis stillschweigend zu
     verlieren.
+
+    Der Verschleisssatz steht hier AUSDRUECKLICH und folgt nicht der
+    Ableitung aus dem Zellpreis: Diese Tests rufen `_loese` und
+    `dispatch_jahr` direkt auf, also unterhalb der Stelle, an der
+    `mit_verschleiss` die Ableitung einsetzt. Ein fester Satz haelt
+    ausserdem Raster und Mitoptimierung auf demselben Massstab - genau
+    darum geht es in `TestMitoptimierung`.
     """
     vorgabe = dict(
         modus=SpeicherModus.GRUENSTROM, leistung_mw=5.0, kapazitaet_mwh=10.0,
+        degradationskosten_eur_mwh=2.0,
     )
     vorgabe.update(kwargs)
     return BatteryConfig(**vorgabe)
@@ -730,6 +738,124 @@ class TestSpeicherpreise:
                      "speicher_opex_eur_kw_jahr"):
             assert feld in GlobalAssumptions.model_fields, feld
             assert feld in EffectiveAssumptions.model_fields, feld
+
+
+# ---------------------------------------------------------------------------
+# Verschleisssatz
+# ---------------------------------------------------------------------------
+
+
+class TestVerschleisssatz:
+    """Der Verschleiss folgt dem Zellpreis, nicht einer festen Zahl.
+
+    Vorher standen 2,00 EUR/MWh fest im Modell - bei 82 EUR/kWh und 6000
+    Zyklen sind es 13,67. Ein Faktor sieben in der Groesse, die
+    entscheidet, ob eine Stunde gefahren wird. Und der feste Satz waere
+    mit jedem Preisrutsch falscher geworden, ohne dass es jemandem
+    auffiele.
+    """
+
+    def test_satz_folgt_aus_zellpreis_und_zyklenzahl(self, global_assumptions):
+        from engine.storage.kosten import verschleiss_eur_mwh
+
+        ga = global_assumptions.model_copy(update={
+            "speicher_capex_energie_eur_kwh": 82.0,
+            "speicher_zyklenlebensdauer": 6000,
+        })
+        # 82 EUR/kWh sind 82_000 EUR/MWh; auf 6000 Zyklen verteilt.
+        assert verschleiss_eur_mwh(ga) == pytest.approx(82_000 / 6000)
+
+    def test_billigere_zellen_senken_den_satz(self, global_assumptions):
+        from engine.storage.kosten import verschleiss_eur_mwh
+
+        teuer = global_assumptions.model_copy(update={
+            "speicher_capex_energie_eur_kwh": 100.0})
+        billig = global_assumptions.model_copy(update={
+            "speicher_capex_energie_eur_kwh": 50.0})
+        assert verschleiss_eur_mwh(billig) == pytest.approx(
+            verschleiss_eur_mwh(teuer) / 2
+        )
+
+    def test_laengere_lebensdauer_senkt_den_satz(self, global_assumptions):
+        from engine.storage.kosten import verschleiss_eur_mwh
+
+        kurz = global_assumptions.model_copy(update={
+            "speicher_zyklenlebensdauer": 3000})
+        lang = global_assumptions.model_copy(update={
+            "speicher_zyklenlebensdauer": 6000})
+        assert verschleiss_eur_mwh(lang) == pytest.approx(
+            verschleiss_eur_mwh(kurz) / 2
+        )
+
+    def test_leeres_feld_wird_abgeleitet(self, project, global_assumptions):
+        """Kein eigener Satz am Projekt: Es gilt die Ableitung."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage.kosten import mit_verschleiss, verschleiss_eur_mwh
+
+        b = _mit_speicher().model_copy(update={
+            "degradationskosten_eur_mwh": None})
+        a = resolve_assumptions(project, global_assumptions)
+        assert mit_verschleiss(b, a).degradationskosten_eur_mwh == pytest.approx(
+            verschleiss_eur_mwh(a)
+        )
+
+    def test_eigener_satz_bleibt_stehen(self, project, global_assumptions):
+        """Wer eine Zellgarantie vorliegen hat, rechnet mit IHR - die
+        Ableitung ist eine Vorgabe und keine Bevormundung."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage.kosten import mit_verschleiss
+
+        a = resolve_assumptions(project, global_assumptions)
+        b = _mit_speicher(degradationskosten_eur_mwh=5.0)
+        assert mit_verschleiss(b, a).degradationskosten_eur_mwh == 5.0
+
+    def test_eine_eingetragene_null_ist_keine_leere_angabe(
+        self, project, global_assumptions
+    ):
+        """Null heisst "dieser Speicher verschleisst nicht" - eine
+        Aussage. Waere sie nicht von "nichts eingetragen" zu
+        unterscheiden, liesse sich der Satz nie abschalten."""
+        from engine.pipeline import resolve_assumptions
+        from engine.storage.kosten import mit_verschleiss
+
+        a = resolve_assumptions(project, global_assumptions)
+        b = _mit_speicher(degradationskosten_eur_mwh=0.0)
+        assert mit_verschleiss(b, a).degradationskosten_eur_mwh == 0.0
+
+    def test_ohne_speicher_bleibt_es_bei_None(self, project, global_assumptions):
+        from engine.pipeline import resolve_assumptions
+        from engine.storage.kosten import mit_verschleiss
+
+        a = resolve_assumptions(project, global_assumptions)
+        assert mit_verschleiss(None, a) is None
+
+    def test_die_zyklenzahl_erbt_aus_den_globalen_annahmen(
+        self, project, global_assumptions
+    ):
+        from engine.pipeline import resolve_assumptions
+
+        ga = global_assumptions.model_copy(update={
+            "speicher_zyklenlebensdauer": 4500})
+        assert resolve_assumptions(project, ga).speicher_zyklenlebensdauer == 4500
+
+    def test_hoeherer_satz_bremst_die_fahrweise(self, project, global_assumptions):
+        """Die Probe aufs Ganze: Der Satz ist kein Buchhaltungsposten,
+        er veraendert die Bahn. Bei sieben Mal so hohem Verschleiss
+        werden Stunden nicht mehr gefahren, deren Spread ihn nicht
+        deckt."""
+        from engine.storage.dispatch import dispatch_jahr
+
+        pv, preis = _kurzes_jahr()
+
+        def durchsatz(satz):
+            ergebnis = dispatch_jahr(
+                pv_mw=pv, preis_eur_mwh=preis, grenzerloes_eur_mwh=preis,
+                batterie=_mit_speicher(degradationskosten_eur_mwh=satz),
+                export_limit_mw=3.0,
+            )
+            return float(ergebnis.spalte("speicher_ins_netz_mw").sum())
+
+        assert durchsatz(60.0) < durchsatz(2.0)
 
 
 # ---------------------------------------------------------------------------

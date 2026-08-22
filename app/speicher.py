@@ -83,6 +83,7 @@ from engine.storage import (
     raster,
     rasterlauf,
 )
+from engine.storage.kosten import mit_verschleiss
 from engine.storage.valuation import _exportlimit_mw
 from engine.timeline import build_timeline
 
@@ -401,7 +402,8 @@ def bahn(
     try:
         ergebnis = dispatch_jahr(
             eingabe.pv_mw, eingabe.preise_eur_mwh, eingabe.grenzerloes_eur_mwh,
-            projekt.battery, eingabe.export_limit_mw,
+            mit_verschleiss(projekt.battery, assumptions),
+            eingabe.export_limit_mw,
             jahr=betriebsjahr, kalenderjahr=eingabe.kalenderjahr,
         )
     except SolverFehler:

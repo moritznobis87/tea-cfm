@@ -19,7 +19,6 @@ battery:
   soc_min_pct: 0.05
   soc_max_pct: 0.95
   soc_start_pct: 0.5
-  degradationskosten_eur_mwh: 2.0
   netzbezug_limit_mw: 3.0
 pacht_eur_kwp_jahr: 4.225352112676056
 pacht_modus: umsatzbeteiligung

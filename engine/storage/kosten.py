@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..models import BatteryConfig, EffectiveAssumptions
+from ..models import BatteryConfig, EffectiveAssumptions, GlobalAssumptions
 
 #: kW je MW und kWh je MWh. Die Auslegung steht in MW/MWh, die Preise in
 #: EUR/kW und EUR/kWh - der Faktor gehoert benannt und nicht als nackte
@@ -105,6 +105,71 @@ def spezifisch_eur_kwh(
     if dauer_h <= 0:
         return 0.0
     return leistung_eur_kw / dauer_h + energie_eur_kwh
+
+
+def verschleiss_eur_mwh(
+    assumptions: EffectiveAssumptions | GlobalAssumptions,
+) -> float:
+    """Was ein Zyklus kostet, je MWh Durchsatz.
+
+        Verschleiss = Energieanteil der Investition / Zyklenlebensdauer
+
+    Bei 82 EUR/kWh und 6.000 Vollzyklen also 13,7 EUR/MWh. Die Groesse
+    ist keine Erfindung, sondern schlichte Buchhaltung: Ein Vollzyklus
+    verbraucht einen Anteil 1/Lebensdauer der Zelle, und ein Vollzyklus
+    hat definitionsgemaess einen Durchsatz von einer nutzbaren
+    Kilowattstunde (siehe economics.vollzyklen).
+
+    Warum abgeleitet und nicht eingetragen
+    --------------------------------------
+    Die frueher fest eingetragenen 2 EUR/MWh waren um das Siebenfache zu
+    niedrig - und sie blieben es auch, wenn die Zellpreise fielen. Ein
+    fester Satz altert still: Bei 50 EUR/kWh waeren es 8,3 EUR/MWh, und
+    niemand haette den Eintrag nachgezogen. Abgeleitet bleibt er
+    stimmig, ohne dass jemand daran denken muss.
+
+    Wozu der Satz dient - und wozu nicht
+    ------------------------------------
+    Er ist ein SCHATTENPREIS in der Zielfunktion des Dispatch: Ein
+    Zyklus verbraucht Restlebensdauer, und der Optimierer muss das gegen
+    den Preisunterschied halten. Ohne ihn zykliert das lineare Programm
+    fuer jeden Spread oberhalb der Roundtrip-Verluste - fuer einen Euro
+    Gewinn eine Zelle verschleissen.
+
+    Dass derselbe Betrag derzeit AUCH vom Cashflow abgezogen wird, ist
+    eine Vereinfachung: Er steht dort stellvertretend fuer die
+    Ersatzinvestition, die das Modell noch nicht kennt. Gerechnet an
+    einem 6-h-Speicher deckt er sie zu rund 86 Prozent. Sobald der
+    Ersatz ausdruecklich gebucht wird, gehoert der Abzug aus dem
+    Cashflow heraus - sonst waere die Batterie zweimal bezahlt.
+    """
+    # Beide Annahmenobjekte tragen die zwei Felder: die globalen als
+    # Vorgabe, die aufgeloesten als das, was fuer dieses Projekt gilt.
+    # Der Dialog fragt mit den globalen, der Dispatch mit den
+    # aufgeloesten - dieselbe Rechnung, damit im Feld dieselbe Zahl
+    # steht, mit der spaeter gerechnet wird.
+    lebensdauer = assumptions.speicher_zyklenlebensdauer
+    if lebensdauer <= 0:
+        return 0.0
+    return assumptions.speicher_capex_energie_eur_kwh / lebensdauer * _JE_EINHEIT
+
+
+def mit_verschleiss(
+    batterie: BatteryConfig | None,
+    assumptions: EffectiveAssumptions | GlobalAssumptions,
+) -> BatteryConfig | None:
+    """Die Auslegung mit dem GELTENDEN Verschleisssatz.
+
+    Ein eingetragener Satz bleibt stehen (eigene Zellgarantie), ein
+    leerer wird abgeleitet. Aufgerufen an den wenigen Stellen, an denen
+    eine Batterie in eine Optimierung geht - so gibt es genau einen Ort
+    je Rechenweg, an dem die Aufloesung passiert.
+    """
+    if batterie is None or batterie.degradationskosten_eur_mwh is not None:
+        return batterie
+    return batterie.model_copy(update={
+        "degradationskosten_eur_mwh": verschleiss_eur_mwh(assumptions)
+    })
 
 
 def capex_eur(

@@ -46,7 +46,7 @@ import pandas as pd
 from ..models import BatteryConfig, EffectiveAssumptions
 from .dispatch import dispatch_jahr
 from .economics import grenzerloes_je_stunde, jahreswert
-from .kosten import capex_eur, opex_jahr_eur
+from .kosten import capex_eur, mit_verschleiss, opex_jahr_eur
 from .models import StorageJahreswert
 
 
@@ -230,6 +230,11 @@ def dispatch_mehrjahr(
     der Optimierer selbst anhand des Exportlimits. Waere sie schon
     abgezogen, zaehlte sie doppelt.
     """
+    # Der Verschleisssatz wird HIER aufgeloest, einmal fuer den ganzen
+    # Lauf: Er ist eine Marktannahme (Zellpreis je Zyklus) und keine
+    # Eigenschaft der Auslegung. Siehe kosten.mit_verschleiss.
+    batterie = mit_verschleiss(batterie, assumptions)
+
     jahre = [int(j) for j in energy["jahr"].to_numpy()]
     wertbeitrag: list[float] = []
     jahreswerte: list[StorageJahreswert] = []

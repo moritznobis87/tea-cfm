@@ -92,6 +92,7 @@ from .dispatch import (
     _SOC,
     vergleichsfall,
 )
+from .kosten import mit_verschleiss
 from .models import SolverFehler
 from .valuation import Jahreseingabe
 
@@ -232,6 +233,7 @@ def optimum_stetig(
     8 % diskontiert, verdient an der Differenz. Bei 11,8 Mio Euro
     Investition sind das 2,9 Mio Euro, die der Optimierer nicht sah.
     """
+    vorlage = mit_verschleiss(vorlage, assumptions)
     steuer = assumptions.steuersatz_pct
     eta = np.sqrt(vorlage.roundtrip_wirkungsgrad)
     import_limit = (

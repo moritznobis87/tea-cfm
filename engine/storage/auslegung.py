@@ -93,7 +93,7 @@ import pandas as pd
 from ..models import BatteryConfig, EffectiveAssumptions
 from .dispatch import dispatch_jahr, vergleichsfall
 from .economics import jahreswert
-from .kosten import capex_eur, opex_jahr_eur
+from .kosten import capex_eur, mit_verschleiss, opex_jahr_eur
 from .models import SolverFehler, StorageJahreswert
 from .optimum import StetigesOptimum, optimum_stetig
 from .valuation import Jahreseingabe, SpeicherBeitrag, jahreseingabe
@@ -749,6 +749,10 @@ def rasterlauf(
     # Weg waere ein Zirkelbezug. Dieselbe Loesung wie in
     # engine/sensitivity.py.
     from ..pipeline import run_valuation_from_assumptions
+
+    # Einmal fuer den ganzen Rasterlauf - jeder Kandidat erbt sie ueber
+    # `Kandidat.batterie`, das die Vorlage nur in der Groesse aendert.
+    vorlage = mit_verschleiss(vorlage, assumptions)
 
     jahre = [int(j) for j in energy["jahr"].to_numpy()]
     mengen = _mengen(energy)
