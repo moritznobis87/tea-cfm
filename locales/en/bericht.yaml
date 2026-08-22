@@ -14,9 +14,6 @@ kapitel_6_titel: "Risk Analysis (Monte Carlo Simulation)"
 kapitel_7_titel: "Scenario Comparison"
 kapitel_8_titel: "EAG Auction Model"
 kapitel_a_titel: "Annex: Assumptions Used"
-kapitel_b_titel: "Annex: Time Series"
-
-# --- Section titles (H2) ------------------------------------------------------
 abschnitt_cashflow_vermoegen: "Total cashflow and equity build-up"
 abschnitt_wertbruecke: "Value bridge over the full term"
 abschnitt_cashflow_uebersicht: "Cashflow overview (excerpt)"
@@ -247,21 +244,6 @@ tab_a2_caption: "Tab. A-2: Standard operating costs plus production-based items 
 annex_a_col_betrag: "Amount (€)"
 annex_a_capex_summe: "Total"
 tab_a3_caption: "Tab. A-3: Investment costs by item."
-annex_b_intro: "Market price scenario used, „{szenario}“: market values real (price basis {basis}) and nominal (inflated at {inflation} p.a.), plus generation volumes in hours of negative prices per rule. The {regel} time series is applied."
-annex_b_col_kalenderjahr: "Calendar
-year"
-annex_b_col_marktwert_real: "Market value real
-(ct/kWh)"
-annex_b_col_marktwert_nominal: "Market value nominal
-(ct/kWh)"
-annex_b_col_menge_neg_6h: "Volume negative 6h
-(% of generation)"
-annex_b_col_menge_neg_1h: "Volume negative 1h
-(% of generation)"
-tab_b1_caption: "Tab. B-1: Time series of the scenario used."
-annex_b_alle_szenarien_titel: "Market values of all stored scenarios (real)"
-annex_b_col_kalenderjahr_kurz: "Calendar year"
-tab_b2_caption: "Tab. B-2: Market value solar (real, ct/kWh) by scenario – basis for the scenario comparison in Chapter 7."
 annex_a_pacht_umsatzbeteiligung_wert: "{pct} of revenue, min. {mindest} €/ha/year"
 steuermodus_pauschal: "Flat rate on EBT"
 steuermodus_afa_at: "Corporate tax with depreciation (Austria)"
@@ -308,3 +290,14 @@ summary_nachschuss_intern: >-
   falls below the event of default threshold of {eod}. The cumulative equity
   cure of {betrag} is fully covered by funds generated earlier; no external
   capital is required (details in chapter 4).
+kapitel_speicher_titel: "Battery storage"
+speicher_intro: "The project includes a battery storage of {leistung} MW power and {kapazitaet} MWh energy ({dauer} h duration), mode {modus}, round-trip efficiency {wirkungsgrad}. Its dispatch is optimised hour by hour; the value added shown is the difference to the same project without storage — at identical prices, support rules and grid limits."
+speicher_markt_hinweis: "Only day-ahead trading is valued. Balancing energy, intraday trading and grid services are not modelled; they would increase the value. Working the other way is the assumed perfect foresight — the optimiser knows the whole year's prices in advance, whereas a real operator typically achieves 80 to 95 % of that. The two effects are not netted against each other."
+speicher_kpi_investition: "Storage investment"
+speicher_kpi_wertbeitrag: "Total value added"
+speicher_kpi_vollzyklen: "Full cycles/year"
+speicher_kpi_irr_delta: "Effect on equity IRR"
+abschnitt_speicher_verlauf: "Contribution margin per operating year"
+abb_speicher_caption: "Fig. S-1: Contribution margin of the storage across {jahre} computed operating years. On average {kappung} MWh per year of curtailment are recovered that would otherwise have been lost at the feed-in limit."
+speicher_geltungsbereich: "The figures in this chapter and the income statement include the storage. Sensitivity analysis, risk analysis and scenario comparison, by contrast, are computed without it — they answer questions about the PV plant and do not hold the storage contribution fixed."
+achse_betriebsjahr: "Operating year"

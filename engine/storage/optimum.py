@@ -119,6 +119,9 @@ class StetigesOptimum:
     leistung_deckel_mw: float | None = None
     #: War die Leistung vorgegeben und nur die Kapazitaet gesucht?
     leistung_fest: bool = False
+    #: Barwert je Euro Investition, mit dem gerechnet wurde. Unter 1,0
+    #: heisst: Abschreibung und guenstiges Fremdkapital tragen einen Teil.
+    kapitalkostenfaktor: float = 1.0
 
     @property
     def dauer_h(self) -> float:
@@ -195,6 +198,7 @@ def optimum_stetig(
     diskontsatz: float = 0.08,
     leistung_hoechstens_mw: float | None = None,
     leistung_fest_mw: float | None = None,
+    kapitalkostenfaktor: float | None = None,
     vergleiche: Sequence[float] | None = None,
 ) -> StetigesOptimum:
     """Loest Fahrweise UND Auslegung in einem Zug.
@@ -217,6 +221,16 @@ def optimum_stetig(
     ist der Graustromspeicher mit vereinbarter Netzbezugsleistung - dort
     ist die Leistung durch den Netzanschlussvertrag gegeben und keine
     Entwurfsgroesse mehr. Ist beides gesetzt, gewinnt der feste Wert.
+
+    `kapitalkostenfaktor` ist der GEMESSENE Barwert je Euro Investition
+    (siehe auslegung.kapitalkostenfaktor). Ohne ihn gilt die Formel
+    `1 - Abschreibungsschild`, und die unterstellt eine unverschuldete
+    Investition. Das war ein systematischer Fehler zugunsten zu kleiner
+    Speicher: Gemessen an einem Projekt mit 20 % Eigenkapital und 4,2 %
+    Fremdkapitalzins kostet ein Euro Investition den Projektbarwert nur
+    0,67 Euro statt der unterstellten 0,89 - wer zu 4,2 % leiht und mit
+    8 % diskontiert, verdient an der Differenz. Bei 11,8 Mio Euro
+    Investition sind das 2,9 Mio Euro, die der Optimierer nicht sah.
     """
     steuer = assumptions.steuersatz_pct
     eta = np.sqrt(vorlage.roundtrip_wirkungsgrad)
@@ -327,12 +341,20 @@ def optimum_stetig(
     barwert_opex, schild = _barwertfaktoren(
         assumptions, betriebsjahre, diskontsatz
     )
+    # Der gemessene Faktor schlaegt die Formel: Er enthaelt neben der
+    # Abschreibung auch die Finanzierung und die tatsaechliche
+    # Steuerbehandlung. Die Formel bleibt als Rueckfallebene fuer
+    # Aufrufer ohne Bewertungsweg.
+    kosten_je_euro = (
+        kapitalkostenfaktor if kapitalkostenfaktor is not None
+        else (1.0 - schild)
+    )
     c[p_spalte] = _JE_EINHEIT * (
-        assumptions.speicher_capex_leistung_eur_kw * (1.0 - schild)
+        assumptions.speicher_capex_leistung_eur_kw * kosten_je_euro
         + assumptions.speicher_opex_eur_kw_jahr * barwert_opex
     )
     c[e_spalte] = _JE_EINHEIT * (
-        assumptions.speicher_capex_energie_eur_kwh * (1.0 - schild)
+        assumptions.speicher_capex_energie_eur_kwh * kosten_je_euro
     )
 
     grenzen = np.zeros((breite, 2))
@@ -401,4 +423,5 @@ def optimum_stetig(
             )
         ),
         leistung_fest=leistung_fest_mw is not None,
+        kapitalkostenfaktor=kosten_je_euro,
     )

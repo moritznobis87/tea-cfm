@@ -631,11 +631,28 @@ def build_project_report(project_id: str, diskontsatz_pct: float,
     marke = aktive_marke()
     report_farben_anwenden(marke["farben"])
 
+    from app import speicher as speicherdienst
+
     path = PROJECTS_DIR / f"{project_id}.yaml"
-    result = get_valuation(project_id)
-    if result is None or not path.exists():
+    ohne_speicher = get_valuation(project_id)
+    if ohne_speicher is None or not path.exists():
         return None
     project = load_project_yaml(path)
+
+    # Der Bericht rechnete den Speicher bisher NICHT mit - er baute auf
+    # get_valuation(), und das ist der Weg ohne ihn. Bei einem Projekt
+    # mit gerechnetem Dispatch stand damit eine Rendite im Gutachten,
+    # die zum Projekt nicht passte.
+    #
+    # Geprueft wird gegen den GESPEICHERTEN Stand: `lauf` gibt nur einen
+    # Lauf zurueck, dessen Fingerabdruck genau zu diesem Projekt passt.
+    # Ein Ergebnis aus einem ungespeicherten Entwurf gehoert nicht in ein
+    # Gutachten ueber die Datei.
+    lauf = speicherdienst.lauf(project, get_global_assumptions())
+    result = (
+        get_valuation_fuer(project, lauf.beitrag, lauf.fingerabdruck)
+        if lauf is not None else ohne_speicher
+    )
 
     inputs = ReportInputs(
         project=project,
@@ -655,6 +672,8 @@ def build_project_report(project_id: str, diskontsatz_pct: float,
         logo_path=marke["logo"],
         marken_name=marke["app_titel"],
         auktion=_auktions_paket_fuer_bericht(),
+        speicher=lauf.beitrag if lauf is not None else None,
+        kpis_ohne_speicher=ohne_speicher.kpis if lauf is not None else None,
     )
     return build_pdf_report(inputs)
 

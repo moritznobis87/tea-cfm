@@ -401,6 +401,26 @@ def _chart_npv_kurve(npv_curve: pd.DataFrame, irr: float | None) -> Image:
     return _fig_zu_bild(fig)
 
 
+def _chart_speicher_beitrag(werte: pd.DataFrame) -> Image:
+    """Deckungsbeitrag des Speichers je Betriebsjahr.
+
+    Nur die tatsaechlich gerechneten Jahre. Stammt das Ergebnis aus einer
+    Auslegungssuche, sind das die Stuetzjahre und nicht alle dreissig -
+    die Balken stehen dann weiter auseinander, und das ist richtig so:
+    Sie zeigen, was gerechnet wurde, nicht was hochgerechnet wurde.
+    """
+    fig, ax = _fig(5.8)
+    jahre = werte["jahr"].to_numpy()
+    beitrag = werte["deckungsbeitrag_eur"].to_numpy()
+    fmt, einheit = _eur_achse(float(np.max(np.abs(beitrag))) if len(beitrag) else 0.0)
+    ax.bar(jahre, beitrag, color=BRAND, width=0.75)
+    ax.set_xlabel(txt("bericht.achse_betriebsjahr"))
+    ax.set_ylabel(einheit)
+    ax.yaxis.set_major_formatter(fmt)
+    ax.axhline(0, color=LINE, linewidth=0.8)
+    return _fig_zu_bild(fig)
+
+
 def _chart_tornado(tornado_df: pd.DataFrame) -> Image:
     basis = (tornado_df["irr_basis"].iloc[0] or 0) * 100
     # Hoehe waechst mit der Zahl der Treiber - bei fester Hoehe ruecken
@@ -644,6 +664,24 @@ class _Kapitel(Paragraph):
         self.canv.line(46, -3, self.width, -3)
 
 
+class _Nummern:
+    """Fortlaufende Kapitelnummern.
+
+    Frueher standen sie als feste Zeichenketten im Text ("1", "2", ...).
+    Das trug, solange bedingte Kapitel nur am ENDE standen. Mit dem
+    Speicherkapitel mitten im Bericht traegt es nicht mehr: Ein Projekt
+    ohne Speicher haette sonst eine Luecke in der Nummerierung, eines
+    mit Speicher zwei Kapitel mit derselben Nummer.
+    """
+
+    def __init__(self) -> None:
+        self._stand = 0
+
+    def naechste(self) -> str:
+        self._stand += 1
+        return str(self._stand)
+
+
 class _BerichtDoc(BaseDocTemplate):
     def __init__(self, puffer, projekt_name: str,
                  marken_name: str = "Valyze", **kw):
@@ -870,6 +908,12 @@ class ReportInputs:
     # mathematische Herleitung steht in der Rechenmodell-Dokumentation,
     # nicht im Projektbericht. None -> Kapitel entfaellt.
     auktion: dict | None = None
+    # Speicherbeitrag eines GUELTIGEN Dispatchlaufs (siehe app/speicher.py)
+    # und die Kennzahlen desselben Projekts OHNE ihn. Beides zusammen oder
+    # gar nicht: Der Speicherwert ist eine Differenz und ohne seinen
+    # Bezugspunkt keine Aussage. None -> Kapitel entfaellt.
+    speicher: object | None = None
+    kpis_ohne_speicher: object | None = None
 
 
 def build_pdf_report(inputs: ReportInputs) -> bytes:
@@ -885,6 +929,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
                       title=f"Wirtschaftlichkeitsanalyse {p.anzeigename}",
                       author=inputs.marken_name)
     story: list = []
+    nr = _Nummern()
 
     # ------------------------------------------------------------------ Deckblatt
     story.append(Spacer(1, 1.2 * cm))
@@ -971,7 +1016,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # ------------------------------------------------------- Management Summary
-    story.append(_Kapitel("1", txt("bericht.kapitel_1_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_1_titel")))
     story.append(Spacer(1, 0.2 * cm))
     # Equity Value = Barwert der kuenftigen Eigenkapital-Cashflows (der NPV
     # enthaelt den Eigenkapitaleinsatz des Jahres 0 als Abfluss).
@@ -1036,7 +1081,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # ------------------------------------------------------------ Ergebnisrechnung
-    story.append(_Kapitel("2", txt("bericht.kapitel_2_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_2_titel")))
     story.append(Paragraph(txt("bericht.abschnitt_wertbruecke"), _STYLE_H2))
     story.append(_chart_wertbruecke(df))
     story.append(Paragraph(txt("bericht.abb_2_caption"), _STYLE_CAPTION))
@@ -1065,7 +1110,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # -------------------------------------------------------------------- Erloese
-    story.append(_Kapitel("3", txt("bericht.kapitel_3_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_3_titel")))
     story.append(Paragraph(txt("bericht.abschnitt_verguetung_marktwert"), _STYLE_H2))
     story.append(_chart_verguetung(df, ea.eag_zuschlagswert_effektiv_ct_kwh,
                                    ea.eag_foerderdauer_jahre))
@@ -1078,8 +1123,62 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     ), _STYLE_CAPTION))
     story.append(PageBreak())
 
+    # ------------------------------------------------------------------ Speicher
+    # Steht direkt hinter den Erloesen, weil er einer ist - und VOR der
+    # Finanzierung, weil seine Investition dort schon mitgerechnet ist.
+    if inputs.speicher is not None:
+        story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_speicher_titel")))
+        b = p.battery
+        beitrag = inputs.speicher
+        werte = pd.DataFrame([
+            {"jahr": w.jahr, "deckungsbeitrag_eur": w.deckungsbeitrag_eur,
+             "vollzyklen": w.vollzyklen,
+             "kappung_mwh": w.rueckgewonnene_kappung_kwh / 1000.0}
+            for w in beitrag.jahreswerte
+        ])
+        story.append(Paragraph(txt(
+            "bericht.speicher_intro",
+            leistung=_de(b.leistung_mw, 1), kapazitaet=_de(b.kapazitaet_mwh, 1),
+            dauer=_de(b.kapazitaet_mwh / b.leistung_mw, 1)
+            if b.leistung_mw else "—",
+            modus=txt(f"oberflaeche.speicher_modus_{b.modus.value}"),
+            wirkungsgrad=fmt_pct(b.roundtrip_wirkungsgrad, 0),
+        ), _STYLE_TEXT))
+        story.append(Paragraph(txt("bericht.speicher_markt_hinweis"), _STYLE_TEXT))
+
+        ohne = inputs.kpis_ohne_speicher
+        delta_irr = (
+            (kpis.equity_irr - ohne.equity_irr) * 100
+            if ohne is not None and kpis.equity_irr is not None
+            and ohne.equity_irr is not None else None
+        )
+        story.append(_kennzahlen_kacheln([
+            (txt("bericht.speicher_kpi_investition"), fmt_eur(beitrag.capex_eur)),
+            (txt("bericht.speicher_kpi_wertbeitrag"),
+             fmt_eur(beitrag.wertbeitrag_gesamt_eur)),
+            (txt("bericht.speicher_kpi_vollzyklen"),
+             _de(beitrag.vollzyklen_mittel, 0)),
+            # Erst die ZAHL eindeutschen, dann die Einheit anhaengen:
+            # ein .replace(".", ",") ueber den ganzen Text machte aus
+            # "%-Pkt." ein "%-Pkt,".
+            (txt("bericht.speicher_kpi_irr_delta"),
+             f"{_de(delta_irr, 2)} %-Pkt." if delta_irr is not None else "—"),
+        ]))
+        if not werte.empty:
+            story.append(Paragraph(txt("bericht.abschnitt_speicher_verlauf"),
+                                   _STYLE_H2))
+            story.append(_chart_speicher_beitrag(werte))
+            story.append(Paragraph(txt(
+                "bericht.abb_speicher_caption",
+                jahre=len(werte),
+                kappung=_de(float(werte["kappung_mwh"].mean()), 0),
+            ), _STYLE_CAPTION))
+        story.append(Paragraph(txt("bericht.speicher_geltungsbereich"),
+                               _STYLE_TEXT))
+        story.append(PageBreak())
+
     # ---------------------------------------------------------------- Finanzierung
-    story.append(_Kapitel("4", txt("bericht.kapitel_4_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_4_titel")))
     fremdkapital = ea.capex_total_eur * (1 - ea.eigenkapitalquote_pct)
     eigenkapital = ea.capex_total_eur * ea.eigenkapitalquote_pct
     story.append(Paragraph(txt(
@@ -1126,7 +1225,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # ---------------------------------------------------------------- Sensitivitaet
-    story.append(_Kapitel("5", txt("bericht.kapitel_5_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_5_titel")))
     story.append(Paragraph(txt("bericht.abschnitt_tornado"), _STYLE_H2))
     story.append(_chart_tornado(inputs.tornado))
     story.append(Paragraph(txt("bericht.abb_9_caption"), _STYLE_CAPTION))
@@ -1153,7 +1252,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # ------------------------------------------------------------------- Risiko
-    story.append(_Kapitel("6", txt("bericht.kapitel_6_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_6_titel")))
     irr_gueltig = mc.irr_gueltig
     p10, p50, p90 = (float(np.percentile(irr_gueltig, q)) for q in (10, 50, 90))
     sigma_namen = {
@@ -1186,7 +1285,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(PageBreak())
 
     # ------------------------------------------------------------------ Szenarien
-    story.append(_Kapitel("7", txt("bericht.kapitel_7_titel")))
+    story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_7_titel")))
     story.append(Paragraph(
         txt("bericht.szenarien_intro_text", szenario=ea.marktpreisszenario_name),
         _STYLE_TEXT,
@@ -1214,7 +1313,7 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
         prognose_a = auk["prognose"]
         modell_a = auk.get("modell")
         df_a = auk["df"]
-        story.append(_Kapitel("8", txt("bericht.kapitel_8_titel")))
+        story.append(_Kapitel(nr.naechste(), txt("bericht.kapitel_8_titel")))
 
         # --- 8.1 Historie (ausfuehrlich) ---
         story.append(Paragraph(txt("bericht.abschnitt_auktion_historie"), _STYLE_H2))
@@ -1402,59 +1501,6 @@ def build_pdf_report(inputs: ReportInputs) -> bytes:
     story.append(_tabelle(capex_zeilen, breiten=[6 * cm, 5.5 * cm, 5.4 * cm],
                           schrift=7.6))
     story.append(Paragraph(txt("bericht.tab_a3_caption"), _STYLE_CAPTION))
-    story.append(PageBreak())
-
-    # ---------------------------------------------------------------- Annex B
-    story.append(_Kapitel("B", txt("bericht.kapitel_b_titel")))
-    szenario = next(
-        s for s in ga.marktpreisszenarien
-        if s.name == ea.marktpreisszenario_name
-    )
-    basis = ea.marktpreis_inflation_basisjahr
-    inflation = ea.marktpreis_inflation_pct_pa
-    story.append(Paragraph(txt(
-        "bericht.annex_b_intro", szenario=szenario.name, basis=basis,
-        inflation=fmt_pct(inflation),
-        regel="6h" if ea.negative_stunden_regel == NegativeStundenRegel.SECHS_STUNDEN
-        else "1h",
-    ), _STYLE_TEXT))
-    jahre = sorted(szenario.marktwert_solar_ct_kwh_je_kalenderjahr)
-    ts_zeilen = [[
-        txt("bericht.annex_b_col_kalenderjahr"), txt("bericht.annex_b_col_marktwert_real"),
-        txt("bericht.annex_b_col_marktwert_nominal"), txt("bericht.annex_b_col_menge_neg_6h"),
-        txt("bericht.annex_b_col_menge_neg_1h"),
-    ]]
-    for jahr in jahre:
-        real = szenario.marktwert_solar_ct_kwh_je_kalenderjahr[jahr]
-        nominal = real * (1 + inflation) ** (jahr - basis)
-        ts_zeilen.append([
-            str(jahr), _de(real, 3), _de(nominal, 3),
-            _de((szenario.erzeugungsmenge_negativ_6h_pct_je_kalenderjahr.get(jahr) or 0) * 100, 1),
-            _de((szenario.erzeugungsmenge_negativ_1h_pct_je_kalenderjahr.get(jahr) or 0) * 100, 1),
-        ])
-    story.append(_tabelle(ts_zeilen, breiten=[2.3 * cm] +
-                          [(_INHALT_B - 2.3 * cm) / 4] * 4, schrift=6.9))
-    story.append(Paragraph(txt("bericht.tab_b1_caption"), _STYLE_CAPTION))
-    story.append(PageBreak())
-
-    story.append(Paragraph(txt("bericht.annex_b_alle_szenarien_titel"), _STYLE_H2))
-    alle_jahre = sorted({
-        j for s in ga.marktpreisszenarien
-        for j in s.marktwert_solar_ct_kwh_je_kalenderjahr
-    })
-    kopf = [txt("bericht.annex_b_col_kalenderjahr_kurz")] + [s.name for s in ga.marktpreisszenarien]
-    mw_zeilen = [kopf]
-    for jahr in alle_jahre:
-        mw_zeilen.append([str(jahr)] + [
-            _de(s.marktwert_solar_ct_kwh_je_kalenderjahr.get(jahr, float("nan")), 3)
-            if jahr in s.marktwert_solar_ct_kwh_je_kalenderjahr else "—"
-            for s in ga.marktpreisszenarien
-        ])
-    n_spalten = len(kopf)
-    story.append(_tabelle(mw_zeilen, breiten=[2.6 * cm] +
-                          [(_INHALT_B - 2.6 * cm) / (n_spalten - 1)] * (n_spalten - 1),
-                          schrift=6.9))
-    story.append(Paragraph(txt("bericht.tab_b2_caption"), _STYLE_CAPTION))
 
     doc.multiBuild(story)
     return puffer.getvalue()

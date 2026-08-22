@@ -293,6 +293,78 @@ def _abschnitte(foerderanteil: Sequence[float] | None, jahre: int) -> list[list[
     return abschnitte
 
 
+#: In welcher Groessenordnung der Kapitalkostenfaktor gemessen wird -
+#: als Vielfaches der mittleren Rasterinvestition. Der Faktor ist nicht
+#: streng linear: Bei sehr grossen Investitionen greifen Steuerfreibetrag
+#: und Verlustvortrag, gemessen 0,62 bei 1 Mio und 0,76 bei 40 Mio Euro.
+#: Gemessen wird deshalb DORT, wo das Raster tatsaechlich rechnet.
+_FAKTOR_MESSPUNKT = 1.0
+
+
+def kapitalkostenfaktor(
+    assumptions: EffectiveAssumptions,
+    project_id: str,
+    hoehe_eur: float,
+) -> float:
+    """Was ein Euro Speicherinvestition den Projektbarwert wirklich kostet.
+
+    Gemessen statt hergeleitet, mit zwei gewoehnlichen Bewertungslaeufen
+    (je rund 50 ms): einmal ohne, einmal mit einer Investition dieser
+    Hoehe und OHNE jeden Erloes. Die Differenz je Euro ist der Faktor.
+
+    Warum das noetig ist
+    --------------------
+    Der Optimierer rechnete zuvor mit `1 - Abschreibungsschild` und
+    unterstellte damit eine unverschuldete Investition. Gemessen an einem
+    Projekt mit 20 % Eigenkapital und 4,2 % Fremdkapitalzins:
+
+        1 Mio EUR/Jahr Beitrag   Modell 8.665.448 | Formel 8.668.493
+        10 Mio EUR Investition   Modell 6.692.680 | Formel 8.870.913
+
+    Die Erloesseite stimmte auf 0,04 Prozent. Die Kostenseite lag um ein
+    Viertel daneben - und zwar systematisch zugunsten zu kleiner
+    Speicher. Wer zu 4,2 Prozent leiht und mit 8 Prozent diskontiert,
+    verdient an der Differenz; bei 11,8 Mio Euro Investition sind das
+    2,9 Mio Euro, die im Optimum fehlten.
+
+    Der Faktor faellt mit sinkender Eigenkapitalquote (0,89 bei 100 %,
+    0,67 bei 20 %) und steigt mit dem Zins (0,56 bei 2 %, 1,03 bei
+    10 %). Bei einem Zins in Hoehe des Diskontsatzes verschwindet der
+    Vorteil, und die alte Formel stimmt wieder.
+
+    Und er erfasst etwas, das eine geschlossene Formel gar nicht
+    wissen kann: ob sich die Abschreibung ueberhaupt VERRECHNEN laesst.
+    Das Schild setzt steuerpflichtigen Gewinn voraus. Ein Projekt mit
+    schmalem Ergebnis bekommt fuer eine grosse Investition kaum etwas
+    davon - gemessen am Testprojekt (775.000 EUR steuerliches Ergebnis
+    ueber 25 Jahre) liegt der Faktor bei rund 1,0 statt bei den 0,89 der
+    Formel, weil zehn Millionen Abschreibung auf keinen Gewinn treffen.
+
+    Was er NICHT erfasst: die Rueckwirkung auf die Kovenanten. Ein
+    Speicher, der den DSCR unter die Schwelle drueckt, ist teurer als
+    dieser Faktor sagt - das steht in der DSCR-Spalte des Rasters.
+    """
+    from ..pipeline import run_valuation_from_assumptions
+
+    if hoehe_eur <= 0:
+        return 1.0
+    jahre = assumptions.betriebsdauer_jahre
+    leer = tuple(0.0 for _ in range(jahre))
+    ohne = run_valuation_from_assumptions(
+        assumptions, project_id, compute_npv_curve=False
+    )
+    mit = run_valuation_from_assumptions(
+        assumptions, project_id, compute_npv_curve=False,
+        speicher=SpeicherBeitrag(
+            wertbeitrag_eur_je_jahr=leer,
+            capex_eur=float(hoehe_eur),
+            opex_eur_je_jahr=leer,
+            jahreswerte=(), hinweise=(),
+        ),
+    )
+    return (ohne.kpis.npv_eur - mit.kpis.npv_eur) / float(hoehe_eur)
+
+
 #: Mit welchem Satz die Bloecke gewichtet werden. KEINE
 #: Finanzierungsannahme und keine Rechengroesse - er entscheidet allein
 #: darueber, WO die Stuetzjahre liegen. Ein frueher Euro schlaegt im
@@ -721,6 +793,15 @@ def rasterlauf(
     stetig = None
     stetig_punkt = None
     if mitoptimieren:
+        # Der Kostenfaktor wird DORT gemessen, wo das Raster rechnet -
+        # er ist nicht streng linear (siehe kapitalkostenfaktor).
+        mittlere_investition = (
+            sum(p.capex_eur for p in punkte) / len(punkte) if punkte else 0.0
+        )
+        faktor = kapitalkostenfaktor(
+            assumptions, project_id,
+            mittlere_investition * _FAKTOR_MESSPUNKT,
+        )
         stetig = optimum_stetig(
             assumptions, vorlage,
             [s.eingabe for s in stuetzen],
@@ -729,6 +810,7 @@ def rasterlauf(
             diskontsatz=_GEWICHT_SATZ,
             leistung_hoechstens_mw=leistung_hoechstens_mw,
             leistung_fest_mw=leistung_fest_mw,
+            kapitalkostenfaktor=faktor,
             vergleiche=[s.vergleich[0] for s in stuetzen],
         )
         if stetig.wirksam:
